@@ -1,0 +1,159 @@
+
+> dev
+> next dev --turbopack
+
+   ▲ Next.js 15.4.0-canary.47 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.68.70:3000
+   - Environments: .env
+   - Experiments (use with caution):
+     ✓ ppr
+     ✓ nodeMiddleware
+     ✓ clientSegmentCache
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: '/Users/randyesguerra/Documents/Projects/JaneAppAgent',
+  testMode: true
+}
+ ○ Compiling middleware ...
+ ✓ Compiled middleware in 741ms
+ ✓ Ready in 4.6s
+ ○ Compiling /api/user ...
+ GET /api/user 200 in 7237ms
+ ✓ Compiled /api/user in 17.1s
+ GET /dashboard/agent 200 in 19122ms
+ ○ Compiling /_not-found/page ...
+ GET /api/user 200 in 1068ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 3763ms
+ ✓ Compiled /_not-found/page in 4.8s
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 5191ms
+ GET /api/user 200 in 333ms
+ GET /api/user 200 in 214ms
+ GET /dashboard/agent 200 in 324ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1063ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 983ms
+ GET /api/user 200 in 615ms
+ GET /api/user 200 in 185ms
+ GET /dashboard/agent 200 in 220ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1214ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 1038ms
+ GET /api/user 200 in 1156ms
+ GET /api/user 200 in 357ms
+ GET /api/user 200 in 279ms
+ GET /api/user 200 in 211ms
+ GET /dashboard/agent 200 in 384ms
+ GET /api/user 200 in 521ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 1127ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1830ms
+ GET /api/user 200 in 139ms
+ GET /api/user 200 in 308ms
+ GET /dashboard/agent 200 in 456ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1578ms
+ GET /api/user 200 in 740ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 1046ms
+ GET /api/user 200 in 798ms
+ GET /dashboard/agent 200 in 300ms
+ GET /favicon.ico?favicon.45db1c09.ico 200 in 983ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 1960ms
+ GET /api/user 200 in 1018ms
+ GET /api/user 200 in 212ms
+ GET /dashboard/agent 200 in 19760ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322
+}
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322
+}
+ GET /api/user 500 in 30449ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ GET /dashboard/agent 500 in 30143ms
+ GET /api/user 200 in 17457ms
+ GET /favicon.ico 200 in 275ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322
+}
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322
+}
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ GET /.well-known/appspecific/com.chrome.devtools.json 500 in 30154ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ GET /dashboard/agent 500 in 30208ms
+ GET /favicon.ico 200 in 334ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ GET /.well-known/appspecific/com.chrome.devtools.json 500 in 30121ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ GET /dashboard/agent 500 in 30093ms
+ GET /favicon.ico 200 in 255ms
+ ⨯ Error: write CONNECT_TIMEOUT localhost:54322
+    at <unknown> (Error: write CONNECT_TIMEOUT localhost:54322) {
+  code: 'CONNECT_TIMEOUT',
+  errno: 'CONNECT_TIMEOUT',
+  address: 'localhost',
+  port: 54322,
+  digest: '4038279783'
+}
+ GET /.well-known/appspecific/com.chrome.devtools.json 500 in 30190ms
+   Reload env: .env
+ GET /dashboard/agent 200 in 26616ms
+[?25h
