@@ -19,12 +19,27 @@ export function validatedAction<S extends z.ZodType<any, any>, T>(
   action: ValidatedActionFunction<S, T>
 ) {
   return async (prevState: ActionState, formData: FormData) => {
-    const result = schema.safeParse(Object.fromEntries(formData));
-    if (!result.success) {
-      return { error: result.error.errors[0].message };
-    }
+    try {
+      const result = schema.safeParse(Object.fromEntries(formData));
+      if (!result.success) {
+        return { error: result.error.errors[0].message };
+      }
 
-    return action(result.data, formData);
+      return await action(result.data, formData);
+    } catch (error) {
+      console.error('Validated action error object:', error);
+      if (error instanceof Error) {
+        console.error('Validated action error message:', error.message);
+        console.error('Validated action error stack:', error.stack);
+        console.error('Validated action error digest:', (error as any).digest);
+      }
+
+      // If it's a redirect, re-throw it
+      if (error instanceof Error && (error.message.includes('NEXT_REDIRECT') || (error as any).digest?.startsWith('NEXT_REDIRECT'))) {
+        throw error;
+      }
+      return { error: 'An unexpected error occurred. Please try again.' };
+    }
   };
 }
 

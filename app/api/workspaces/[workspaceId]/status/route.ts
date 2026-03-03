@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ workspaceId: string }> }
+) {
+    const { workspaceId } = await params;
+    const body = await request.json();
+
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+    try {
+        const response = await fetch(
+            `${backendUrl}/workspaces/${workspaceId}/status`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cookie': request.headers.get('cookie') || '',
+                },
+                body: JSON.stringify(body),
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.json();
+            return NextResponse.json(error, { status: response.status });
+        }
+
+        const data = await response.json();
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Workspace status update error:', error);
+        return NextResponse.json(
+            { error: 'Failed to update workspace status' },
+            { status: 500 }
+        );
+    }
+}

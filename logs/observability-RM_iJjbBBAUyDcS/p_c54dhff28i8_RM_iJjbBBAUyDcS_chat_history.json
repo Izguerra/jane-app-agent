@@ -1,0 +1,189 @@
+{
+  "items": [
+    {
+      "id": "item_bc8f9597e24b",
+      "type": "agent_handoff",
+      "new_agent_id": "default_agent",
+      "created_at": 1772572339.5847008
+    },
+    {
+      "id": "item_924060bee757",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, my"
+      ],
+      "interrupted": true,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572342.2733812,
+        "stopped_speaking_at": 1772572343.153712,
+        "tts_node_ttfb": 2.667764250014443
+      },
+      "created_at": 1772572343.158359
+    },
+    {
+      "id": "item_eaf92314604c",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hello?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.78808594,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572342.8538802,
+        "stopped_speaking_at": 1772572342.90368,
+        "transcription_delay": 0.24898672103881836,
+        "end_of_turn_delay": 0.5489547252655029,
+        "on_user_turn_completed_delay": 2.8339854907244444e-06
+      },
+      "created_at": 1772572343.4527109
+    },
+    {
+      "id": "item_3ba22eebb647",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hello?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9182129,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572345.052922,
+        "stopped_speaking_at": 1772572345.352909,
+        "transcription_delay": 0.523676872253418,
+        "end_of_turn_delay": 0.5490028858184814,
+        "on_user_turn_completed_delay": 8.750066626816988e-07
+      },
+      "created_at": 1772572345.9019678
+    },
+    {
+      "id": "item_3cf1aefcf7fd",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Can you hear me?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9941406,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572348.501714,
+        "stopped_speaking_at": 1772572348.9016151,
+        "transcription_delay": 1.6532480716705322,
+        "end_of_turn_delay": 1.6534028053283691,
+        "on_user_turn_completed_delay": 1.167005393654108e-06
+      },
+      "created_at": 1772572350.56029
+    },
+    {
+      "id": "item_8d59c6c56bca",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Yes, I can hear you loud and clear! I'm Jarvis!!, your assistant here at SupaAgent. How can I help you today?"
+      ],
+      "interrupted": true,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572354.6392288,
+        "stopped_speaking_at": 1772572365.018641,
+        "llm_node_ttft": 1.9118575830070768,
+        "tts_node_ttfb": 2.166609249979956,
+        "e2e_latency": 5.737613677978516
+      },
+      "created_at": 1772572350.580531
+    },
+    {
+      "id": "item_6bfebb54d719",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "What's what's the weather in Milton, Ontario?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.99316406,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572362.353108,
+        "stopped_speaking_at": 1772572364.5031629,
+        "transcription_delay": 0.5149660110473633,
+        "end_of_turn_delay": 0.5489599704742432,
+        "on_user_turn_completed_delay": 1.5409896150231361e-06
+      },
+      "created_at": 1772572365.052182
+    },
+    {
+      "id": "item_da4ecf0a37d8",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Great question about the weather in Milton \u2014 let me check that for you right now.\n\n"
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572369.042031,
+        "stopped_speaking_at": 1772572373.959302,
+        "llm_node_ttft": 2.875976041017566,
+        "tts_node_ttfb": 1.113393083011033,
+        "e2e_latency": 4.538868188858032
+      },
+      "created_at": 1772572365.072129
+    },
+    {
+      "id": "item_da4ecf0a37d8/fnc_0",
+      "type": "function_call",
+      "call_id": "function_call_63d104f00db1",
+      "arguments": "{\"location\": \"Milton, Ontario\"}",
+      "name": "get_weather",
+      "created_at": 1772572368.068833,
+      "extra": {}
+    },
+    {
+      "id": "item_dc9d53b42b7e",
+      "type": "function_call_output",
+      "name": "get_weather",
+      "call_id": "function_call_63d104f00db1",
+      "output": "Current Weather in Milton, Ontario: Conditions: broken clouds. Temp: 16.55\u00b0C.",
+      "is_error": false,
+      "created_at": 1772572368.171809
+    },
+    {
+      "id": "item_8424968563cb",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "The current weather in Milton,"
+      ],
+      "interrupted": true,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772572376.227963,
+        "stopped_speaking_at": 1772572380.5585148,
+        "llm_node_ttft": 1.1035484590101987,
+        "tts_node_ttfb": 1.164103791990783
+      },
+      "created_at": 1772572373.979977
+    },
+    {
+      "id": "item_3b8483611e8e",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Well,"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.7873535,
+      "extra": {},
+      "metrics": {
+        "transcription_delay": 0.0,
+        "on_user_turn_completed_delay": 1.4580145943909883e-06
+      },
+      "created_at": 1772572381.0584881
+    }
+  ]
+}

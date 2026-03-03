@@ -7,22 +7,28 @@ import {
   updateTeamSubscription
 } from '@/lib/db/queries';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_123', {
   apiVersion: '2025-04-30.basil'
 });
 
 export async function createCheckoutSession({
   team,
-  priceId
+  priceId,
+  preferredAreaCode,
+  user: userPropProp
 }: {
   team: Team | null;
   priceId: string;
+  preferredAreaCode?: string;
+  user?: { id: string | number };
 }) {
-  const user = await getUser();
+  const user = userPropProp || await getUser();
 
   if (!team || !user) {
     redirect(`/sign-up?redirect=checkout&priceId=${priceId}`);
   }
+
+  const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
@@ -33,13 +39,14 @@ export async function createCheckoutSession({
       }
     ],
     mode: 'subscription',
-    success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.BASE_URL}/pricing`,
+    success_url: `${BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${BASE_URL}/pricing`,
     customer: team.stripeCustomerId || undefined,
     client_reference_id: user.id.toString(),
     allow_promotion_codes: true,
     subscription_data: {
-      trial_period_days: 14
+      trial_period_days: 14,
+      metadata: preferredAreaCode ? { preferred_area_code: preferredAreaCode } : {}
     }
   });
 
@@ -107,9 +114,11 @@ export async function createCustomerPortalSession(team: Team) {
     });
   }
 
+  const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+
   return stripe.billingPortal.sessions.create({
     customer: team.stripeCustomerId,
-    return_url: `${process.env.BASE_URL}/dashboard`,
+    return_url: `${BASE_URL}/dashboard`,
     configuration: configuration.id
   });
 }

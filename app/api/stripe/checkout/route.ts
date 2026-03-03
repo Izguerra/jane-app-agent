@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { users, teams, teamMembers } from '@/lib/db/schema';
+import { users, teams, teamMembers, workspaces } from '@/lib/db/schema';
 import { setSession } from '@/lib/auth/session';
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/payments/stripe';
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     const user = await db
       .select()
       .from(users)
-      .where(eq(users.id, Number(userId)))
+      .where(eq(users.id, userId))
       .limit(1);
 
     if (user.length === 0) {
@@ -88,8 +88,34 @@ export async function GET(request: NextRequest) {
       })
       .where(eq(teams.id, userTeam[0].teamId));
 
-    await setSession(user[0]);
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    // Trigger provisioning logic via Backend API
+    try {
+      const preferredAreaCode = subscription.metadata?.['preferred_area_code'];
+      // Call backend directly (server-to-server)
+      await fetch('http://127.0.0.1:8000/billing/provision', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          team_id: userTeam[0].teamId,
+          area_code: preferredAreaCode
+        })
+      });
+    } catch (e) {
+      console.error('Provisioning trigger error:', e);
+    }
+
+    const workspace = await db
+      .select({ id: workspaces.id })
+      .from(workspaces)
+      .where(eq(workspaces.teamId, userTeam[0].teamId))
+      .limit(1);
+
+    const redirectId = workspace.length > 0 ? workspace[0].id : userTeam[0].teamId;
+
+    await setSession(user[0], userTeam[0].teamId);
+    return NextResponse.redirect(new URL(`/${redirectId}/dashboard`, request.url));
   } catch (error) {
     console.error('Error handling successful checkout:', error);
     return NextResponse.redirect(new URL('/error', request.url));

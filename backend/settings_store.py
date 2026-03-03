@@ -3,61 +3,133 @@ from sqlalchemy.orm import Session
 
 # Handle both import contexts (uvicorn vs direct execution)
 try:
-    from backend.database import SessionLocal
-    from backend.models_db import AgentSettings, Clinic
+    from backend.database import SessionLocal, generate_settings_id
+    from backend.models_db import Agent, Workspace, Team
 except ModuleNotFoundError:
-    from database import SessionLocal
-    from models_db import AgentSettings, Clinic
-
-# TODO: In a real multi-tenant app, this ID comes from the authenticated user's session
-DEFAULT_CLINIC_ID = 1
+    from database import SessionLocal, generate_settings_id
+    from models_db import Agent, Workspace, Team
 
 DEFAULT_SETTINGS = {
     "voice_id": "alloy",
     "language": "en",
     "prompt_template": (
-        "You are Jane, a helpful AI assistant for a healthcare practice. "
+        "You are SupaAgent, a helpful AI assistant for a healthcare practice. "
         "You can help with scheduling, answering questions about the clinic, and general inquiries. "
-        "Keep your responses concise and conversational.\n\n"
-        "IMPORTANT: When users ask about business information (hours, location, services, policies, etc.), "
-        "you MUST use the get_business_info() tool to retrieve accurate information. "
-        "For specific questions about policies or FAQs, use the search_knowledge_base() tool. "
-        "Always provide information from these tools rather than making assumptions."
+        "Keep your responses concise and conversational."
     ),
+    "welcome_message": "Hi there! I'm SupaAgent, your AI assistant. How can I help you today?",
     "is_active": True
 }
 
-def get_settings(clinic_id: int = DEFAULT_CLINIC_ID) -> Dict[str, Any]:
+def get_settings(workspace_id: int = None) -> Dict[str, Any]:
+    if workspace_id is None:
+        # Fallback for development/demo if absolutely necessary
+        workspace_id = "ws_default"
+        
     db = SessionLocal()
+    
+    # Resolve Team ID to Workspace ID if needed
+    if workspace_id and isinstance(workspace_id, str) and workspace_id.startswith(("tm_", "org_")):
+        # Try to find workspace by team_id
+        ws = db.query(Workspace).filter(Workspace.team_id == workspace_id).first()
+        if ws:
+            print(f"DEBUG: Resolved Team ID {workspace_id} to Workspace ID {ws.id}")
+            workspace_id = ws.id
+        else:
+             print(f"DEBUG: Could not resolve Team ID {workspace_id} to a workspace")
+
     try:
-        settings = db.query(AgentSettings).filter(AgentSettings.clinic_id == clinic_id).first()
+        print(f"DEBUG: get_settings called for workspace_id={workspace_id}")
+        
+        # Try to find an orchestrator agent first, or just any agent
+        settings = db.query(Agent).filter(
+            Agent.workspace_id == workspace_id,
+            Agent.is_orchestrator == True
+        ).first()
+        
+        if settings:
+             print(f"DEBUG: Found orchestrator agent: {settings.id}")
         
         if not settings:
-            # Check if clinic exists, if not create dummy clinic for demo
-            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-            if not clinic:
-                # Create default clinic for demo purposes if it doesn't exist
-                clinic = Clinic(id=clinic_id, team_id=1, name="Demo Clinic")
-                db.add(clinic)
+            # Fallback to any agent
+            settings = db.query(Agent).filter(Agent.workspace_id == workspace_id).first()
+            if settings:
+                 print(f"DEBUG: Found fallback agent: {settings.id}")
+        
+        if not settings:
+            # Check if workspace exists
+            workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+            if not workspace:
+                # Find a valid team
+                team = db.query(Team).first()
+                if not team:
+                    # Should unlikely happen if seeded, but create one just in case
+                    team = Team(id="team_default", name="Default Team")
+                    db.add(team)
+                    db.commit()
+                
+                workspace = Workspace(id=workspace_id, team_id=team.id, name="Demo Workspace")
+                db.add(workspace)
                 db.commit()
 
-            # Create default settings
-            settings = AgentSettings(
-                clinic_id=clinic_id,
+            # Create default agent
+            gen_id = generate_settings_id().replace("st", "ag")
+            print(f"DEBUG: Generating Agent ID: {gen_id}")
+            settings = Agent(
+                id=gen_id,
+                workspace_id=workspace_id,
+                name="Default Agent",
                 voice_id=DEFAULT_SETTINGS["voice_id"],
                 language=DEFAULT_SETTINGS["language"],
                 prompt_template=DEFAULT_SETTINGS["prompt_template"],
-                is_active=DEFAULT_SETTINGS["is_active"]
+                welcome_message=DEFAULT_SETTINGS["welcome_message"],
+                is_active=DEFAULT_SETTINGS["is_active"],
+                is_orchestrator=True # Default to orchestrator if it's the first one
             )
             db.add(settings)
             db.commit()
             db.refresh(settings)
             
+        # Parse settings JSON
+        extended_settings = settings.settings or {}
+        
         return {
+            "agent_id": settings.id,
+            "name": settings.name,
             "voice_id": settings.voice_id,
             "language": settings.language,
             "prompt_template": settings.prompt_template,
-            "is_active": settings.is_active
+            "welcome_message": settings.welcome_message,
+            "is_active": settings.is_active,
+            "workspace_id": settings.workspace_id,
+            "is_orchestrator": settings.is_orchestrator,
+            
+            # Extended Settings
+            "business_name": extended_settings.get("business_name"),
+            "website_url": extended_settings.get("website_url"),
+            "email": extended_settings.get("email"),
+            "phone": extended_settings.get("phone"),
+            "address": extended_settings.get("address"),
+            "services": extended_settings.get("services"),
+            "hours_of_operation": extended_settings.get("hours_of_operation"),
+            "faq": extended_settings.get("faq"),
+            "reference_urls": extended_settings.get("reference_urls"),
+            "kb_documents_urls": extended_settings.get("kb_documents_urls"),
+            
+            "creativity_level": extended_settings.get("creativity_level", 50),
+            "response_length": extended_settings.get("response_length", 50),
+            "proactive_followups": extended_settings.get("proactive_followups", True),
+            "intent_rules": extended_settings.get("intent_rules"),
+            "handoff_message": extended_settings.get("handoff_message"),
+            "auto_escalate": extended_settings.get("auto_escalate", False),
+            
+            "avatar": extended_settings.get("avatar"),
+            "primary_function": extended_settings.get("primary_function"),
+            "conversation_style": extended_settings.get("conversation_style"),
+            
+            # Application Settings
+            "allowed_worker_types": settings.allowed_worker_types or [],
+            "soul": settings.soul
         }
     except Exception as e:
         print(f"Error fetching settings: {e}")
@@ -65,14 +137,24 @@ def get_settings(clinic_id: int = DEFAULT_CLINIC_ID) -> Dict[str, Any]:
     finally:
         db.close()
 
-def save_settings(new_settings: Dict[str, Any], clinic_id: int = DEFAULT_CLINIC_ID):
+def save_settings(new_settings: Dict[str, Any], workspace_id: int = None):
+    if workspace_id is None:
+        workspace_id = 1
+
     db = SessionLocal()
     try:
-        settings = db.query(AgentSettings).filter(AgentSettings.clinic_id == clinic_id).first()
+        # Update orchestrator or first found agent
+        settings = db.query(Agent).filter(
+            Agent.workspace_id == workspace_id,
+            Agent.is_orchestrator == True
+        ).first()
         
         if not settings:
-            # Should exist due to get_settings, but handle just in case
-            settings = AgentSettings(clinic_id=clinic_id)
+            settings = db.query(Agent).filter(Agent.workspace_id == workspace_id).first()
+            
+        if not settings:
+            # Create new if doesn't exist
+            settings = Agent(id=generate_settings_id().replace("st", "ag"), workspace_id=workspace_id, is_orchestrator=True)
             db.add(settings)
         
         if "voice_id" in new_settings:
@@ -81,8 +163,12 @@ def save_settings(new_settings: Dict[str, Any], clinic_id: int = DEFAULT_CLINIC_
             settings.language = new_settings["language"]
         if "prompt_template" in new_settings:
             settings.prompt_template = new_settings["prompt_template"]
+        if "welcome_message" in new_settings:
+            settings.welcome_message = new_settings["welcome_message"]
         if "is_active" in new_settings:
             settings.is_active = new_settings["is_active"]
+        if "soul" in new_settings:
+            settings.soul = new_settings["soul"]
             
         db.commit()
     except Exception as e:

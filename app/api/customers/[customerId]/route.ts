@@ -1,0 +1,103 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ customerId: string }> }
+) {
+    const { customerId } = await params;
+    const token = request.cookies.get('session')?.value;
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/customers/${customerId}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Cookie': `session=${token}`,
+            },
+        });
+
+        if (!res.ok) {
+            return NextResponse.json(
+                { error: 'Failed to fetch customer' },
+                { status: res.status }
+            );
+        }
+
+        const data = await res.json();
+        return NextResponse.json(data);
+    } catch (error) {
+        return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function PUT(
+    request: NextRequest,
+    { params }: { params: Promise<{ customerId: string }> }
+) {
+    const { customerId } = await params;
+    const token = request.cookies.get('session')?.value;
+    const body = await request.json();
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/customers/${customerId}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Cookie': `session=${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+            return NextResponse.json(
+                { error: 'Failed to update customer' },
+                { status: res.status }
+            );
+        }
+
+        const data = await res.json();
+        return NextResponse.json(data);
+    } catch (error) {
+        return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ customerId: string }> }
+) {
+    const { customerId } = await params;
+    const token = request.cookies.get('session')?.value;
+
+    try {
+        const res = await fetch(`${BACKEND_URL}/customers/${customerId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Cookie': `session=${token}`,
+            },
+        });
+
+        if (!res.ok) {
+            return NextResponse.json(
+                { error: 'Failed to delete customer' },
+                { status: res.status }
+            );
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500 }
+        );
+    }
+}

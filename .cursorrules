@@ -1,0 +1,6 @@
+# Project Rules
+
+## Terminology & Schema
+- **NEVER use `clinic_id`**. Always use `workspace_id` to refer to the workspace/clinic entity.
+- The `clinic_id` field has been deprecated and removed from the database schema.
+- All database queries, function arguments, and variable names should use `workspace_id`.

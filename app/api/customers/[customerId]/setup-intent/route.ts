@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(
+    request: NextRequest,
+    { params }: { params: Promise<{ customerId: string }> }
+) {
+    const { customerId } = await params;
+
+    try {
+        const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/customers/${customerId}/setup-intent`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: request.headers.get('cookie') || '',
+                },
+                credentials: 'include',
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json(data, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Setup intent error:', error);
+        return NextResponse.json(
+            { error: 'Failed to create setup intent' },
+            { status: 500 }
+        );
+    }
+}
