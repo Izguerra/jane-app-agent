@@ -208,11 +208,13 @@ async def entrypoint(ctx: JobContext):
         logger.info(f"DEBUG: Room name: {ctx.room.name}")
         logger.info(f"DEBUG: Room metadata: {ctx.room.metadata[:200] if ctx.room.metadata else 'EMPTY'}...")
         
-        # FIRST: Try to get workspace_id from room metadata (most reliable)
+        # FIRST: Try to get workspace_id and agent_id from room metadata (most reliable)
+        agent_id = None
         if ctx.room.metadata:
             try:
                 room_settings = json.loads(ctx.room.metadata)
                 workspace_id = room_settings.get("workspace_id")
+                agent_id = room_settings.get("agent_id")
                 if workspace_id:
                     logger.info(f"DEBUG: Found workspace_id={workspace_id} in ROOM metadata!")
                     settings = room_settings
@@ -271,6 +273,7 @@ async def entrypoint(ctx: JobContext):
                     parsed_metadata = json.loads(participant.metadata)
                     logger.info(f"DEBUG S3: Parsed keys: {list(parsed_metadata.keys())}")
                     workspace_id = parsed_metadata.get("workspace_id")
+                    if not agent_id: agent_id = parsed_metadata.get("agent_id")
                     call_context = parsed_metadata.get("call_context")
                     settings = parsed_metadata  # Use the full metadata as settings
                     if workspace_id:
@@ -301,8 +304,7 @@ async def entrypoint(ctx: JobContext):
         db = SessionLocal()
         try:
             direction = "outbound" if call_context else "inbound"
-            agent_id = None
-            if workspace_id:
+            if not agent_id and workspace_id:
                 default_agent = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
                 if default_agent:
                     agent_id = default_agent.id

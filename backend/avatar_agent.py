@@ -416,6 +416,7 @@ async def entrypoint(ctx: JobContext):
         # Initialize AgentTools
         agent_tools_instance = AgentTools(
             workspace_id=workspace_id,
+            agent_id=agent_id,
             worker_tools=worker_tools_instance
         )
         

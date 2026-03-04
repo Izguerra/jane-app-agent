@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AgentFormData } from "./types";
-import { Send, User as UserIcon, Bot as BotIcon, X, Phone, Video, Bot, Camera, CameraOff, RefreshCw } from "lucide-react";
+import { Send, User as UserIcon, Bot as BotIcon, X, Phone, Video, Bot, Camera, CameraOff, RefreshCw, MessageSquare, MessageSquareOff } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Maximize2, Minimize2, Settings2, Layout, Monitor, Square, Layers, AlertTriangle } from "lucide-react";
@@ -125,6 +125,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     // UI Enhancements (Phase 5)
     const [isTheaterMode, setIsTheaterMode] = useState(false);
     const [pipSize, setPipSize] = useState<'sm' | 'md' | 'lg'>('sm');
+    const [showCaptions, setShowCaptions] = useState(true);
 
     useEffect(() => {
         setImgError(false);
@@ -700,7 +701,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                 </div>
                             )}
                             <RoomAudioRenderer />
-                            {mode === 'avatar' && <TranscriptOverlay />}
+                            {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
                         </LiveKitRoom>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -727,7 +728,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     );
 }
 
-function TranscriptOverlay() {
+function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
     const { state } = useVoiceAssistant();
     const segments = useTranscriptions();
     const [messages, setMessages] = useState<any[]>([]);
@@ -748,10 +749,10 @@ function TranscriptOverlay() {
                         });
                     }
                 });
-                // Keep only last 4 messages to avoid overcrowding
+                // Keep only last 3 messages to avoid overcrowding and restrict height to ~3 rows
                 return newMessages
                     .filter(m => Date.now() - m.timestamp < 6000)
-                    .slice(-4);
+                    .slice(-3);
             });
         }
     }, [segments]);
@@ -764,8 +765,10 @@ function TranscriptOverlay() {
         return () => clearInterval(interval);
     }, []);
 
+    if (!showCaptions) return null;
+
     return (
-        <div className="absolute bottom-24 left-0 right-0 z-50 flex flex-col items-center justify-end px-6 pointer-events-none gap-2 overflow-hidden max-h-[40%]">
+        <div className="absolute bottom-24 left-0 right-0 z-50 flex flex-col items-center justify-end px-6 pointer-events-none gap-2 overflow-hidden max-h-[30%]">
             <AnimatePresence mode="popLayout">
                 {messages.map((m) => (
                     <motion.div
@@ -774,7 +777,7 @@ function TranscriptOverlay() {
                         initial={{ opacity: 0, y: 20, scale: 0.9 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -60, scale: 0.8, transition: { duration: 0.4 } }}
-                        className="bg-black/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-white text-sm md:text-base font-medium shadow-xl border border-white/10 max-w-[90%] text-center"
+                        className="bg-black/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-white text-sm md:text-base font-medium shadow-xl border border-white/10 max-w-[90%] text-center line-clamp-2"
                     >
                         {m.text}
                     </motion.div>
@@ -797,7 +800,7 @@ function TranscriptOverlay() {
     );
 }
 
-function CustomControls({ onClose }: { onClose: () => void }) {
+function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: () => void, showCaptions?: boolean, toggleCaptions?: () => void }) {
     const { localParticipant } = useLocalParticipant();
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(true);
@@ -825,6 +828,16 @@ function CustomControls({ onClose }: { onClose: () => void }) {
 
     return (
         <div className="flex items-center gap-3 p-2 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md border border-slate-200 dark:border-white/10 shadow-2xl">
+            <Button
+                variant={showCaptions ? "secondary" : "secondary"}
+                size="icon"
+                className={`rounded-full h-10 w-10 shrink-0 ${!showCaptions ? 'text-slate-400' : ''}`}
+                onClick={toggleCaptions}
+                title={showCaptions ? "Hide Captions" : "Show Captions"}
+            >
+                {showCaptions ? <MessageSquare className="h-4 w-4" /> : <MessageSquareOff className="h-4 w-4" />}
+            </Button>
+            <div className="w-px h-6 bg-slate-200 dark:bg-white/20 mx-1" />
             <Button
                 variant={isMuted ? "destructive" : "secondary"}
                 size="icon"
@@ -1036,6 +1049,7 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
     const remoteTrack = tracks.find(t => t.participant.isLocal === false && t.source === Track.Source.Camera);
     // Filter for local camera (user preview)
     const localTrack = tracks.find(t => t.participant.isLocal === true && t.source === Track.Source.Camera);
+    const [showCaptions, setShowCaptions] = useState(true);
 
     return (
         <div className="w-full h-full relative bg-slate-50 dark:bg-zinc-900 flex items-center justify-center">
@@ -1109,12 +1123,12 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
 
             {/* Live Transcript Overlay */}
             <div className="absolute bottom-4 left-4 right-4 z-30 pointer-events-none">
-                <TranscriptOverlay />
+                <TranscriptOverlay showCaptions={showCaptions} />
             </div>
 
             {/* Floating Controls */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <CustomControls onClose={onClose} />
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
+                <CustomControls onClose={onClose} showCaptions={showCaptions} toggleCaptions={() => setShowCaptions(!showCaptions)} />
             </div>
         </div>
     );
