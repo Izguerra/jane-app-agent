@@ -476,31 +476,16 @@ async def create_agent(
 
         await broadcast_settings_change(workspace_id)
         
-        # Return flattened response consistently with get_agents
-        response_data = {
-            "id": new_agent.id,
-            "name": new_agent.name,
-            "voice_id": new_agent.voice_id,
-            "language": new_agent.language,
-            "prompt_template": new_agent.prompt_template,
-            "welcome_message": new_agent.welcome_message,
-            "is_orchestrator": new_agent.is_orchestrator,
-            "description": new_agent.description,
-            "is_active": new_agent.is_active,
-            "soul": new_agent.soul,
-            "created_at": new_agent.created_at,
-            "updated_at": new_agent.updated_at,
-            "allowed_worker_types": new_agent.allowed_worker_types,
-        }
+        # Prepare flattened response consistently (same as get_agent)
+        from sqlalchemy import inspect
+        mapper = inspect(new_agent)
+        response_data = {}
+        for column in mapper.attrs:
+            if hasattr(column, 'key'):
+                val = getattr(new_agent, column.key)
+                response_data[column.key] = val
         
-        # Sync Soul to Pinecone if present
-        if new_agent.soul:
-            try:
-                sync_agent_soul(workspace_id, new_agent.id, new_agent.soul)
-            except Exception as e:
-                print(f"Warning: Failed to sync soul to Pinecone: {e}")
         if new_agent.settings:
-            # Create a combined dict where actual root fields take precedence
             settings_copy = dict(new_agent.settings)
             settings_copy.update(response_data)
             response_data = settings_copy
@@ -629,23 +614,22 @@ async def update_agent(
     
         await broadcast_settings_change(workspace_id)
         
-        # Return flattened response consistently
-        response_data = {
-            "id": agent_obj.id,
-            "name": agent_obj.name,
-            "voice_id": agent_obj.voice_id,
-            "language": agent_obj.language,
-            "prompt_template": agent_obj.prompt_template,
-            "welcome_message": agent_obj.welcome_message,
-            "is_orchestrator": agent_obj.is_orchestrator,
-            "description": agent_obj.description,
-            "is_active": agent_obj.is_active,
-            "soul": agent_obj.soul,
-            "created_at": agent_obj.created_at,
-            "updated_at": agent_obj.updated_at,
-            "allowed_worker_types": agent_obj.allowed_worker_types,
-        }
+        # Prepare flattened response consistently (same as get_agent)
+        from sqlalchemy import inspect
+        mapper = inspect(Agent)
+        response_data = {}
+        for column in mapper.attrs:
+            if hasattr(column, 'key'):
+                val = getattr(agent_obj, column.key)
+                response_data[column.key] = val
         
+        response_data["phone_numbers"] = agent_obj.phone_numbers
+
+        if agent_obj.settings:
+            settings_copy = dict(agent_obj.settings)
+            settings_copy.update(response_data)
+            response_data = settings_copy
+            
         # Sync Soul to Pinecone if updated
         if "soul" in update_data and agent_obj.soul:
             try:

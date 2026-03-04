@@ -181,7 +181,11 @@ export default function AgentWizardPage() {
                 // Map settings - check both root and settings object for compatibility
                 tavusReplicaId: agent.tavus_replica_id || agent.settings?.tavus_replica_id,
                 avatarVoiceId: agent.avatar_voice_id || agent.settings?.avatar_voice_id || "alloy",
-                useTavusAvatar: !!(agent.tavus_replica_id || agent.settings?.tavus_replica_id),
+                useTavusAvatar: agent.use_tavus_avatar !== undefined
+                    ? agent.use_tavus_avatar
+                    : (agent.settings?.use_tavus_avatar !== undefined
+                        ? agent.settings.use_tavus_avatar
+                        : !!(agent.tavus_replica_id || agent.settings?.tavus_replica_id)),
                 openClawInstanceId: agent.open_claw_instance_id || agent.settings?.open_claw_instance_id,
                 // Agent Type & Personal Profile
                 agentType: agent.agent_type || agent.settings?.agent_type || "business",
@@ -338,6 +342,8 @@ export default function AgentWizardPage() {
                 personal_dislikes: formData.dislikes || undefined,
                 tavus_replica_id: formData.tavusReplicaId,
                 avatar_voice_id: formData.avatarVoiceId,
+                use_tavus_avatar: formData.useTavusAvatar,
+                useTavusAvatar: formData.useTavusAvatar,
                 open_claw_instance_id: formData.openClawInstanceId,
 
                 // Extended Fields (Settings)

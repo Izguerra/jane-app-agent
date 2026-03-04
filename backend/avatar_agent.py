@@ -85,37 +85,6 @@ async def entrypoint(ctx: JobContext):
         except: pass
         return
 
-    # RobustTTS class remains...
-    class RobustTTS(tts.TTS): 
-        def __init__(self, primary: tts.TTS, fallback: tts.TTS):
-            super().__init__(
-                capabilities=primary.capabilities,
-                sample_rate=primary.sample_rate,
-                num_channels=primary.num_channels
-            )
-            self.primary = primary
-            self.fallback = fallback
-            self.use_fallback = False
-
-        def synthesize(self, text: str, *args, **kwargs):
-            if self.use_fallback:
-                return self.fallback.synthesize(text, *args, **kwargs)
-            try:
-                return self.primary.synthesize(text, *args, **kwargs)
-            except Exception as e:
-                logger.error(f"TTS Synthesis Failed: {e}")
-                self.use_fallback = True
-                return self.fallback.synthesize(text, *args, **kwargs)
-
-        def stream(self, *args, **kwargs):
-            if self.use_fallback:
-                return self.fallback.stream(*args, **kwargs)
-            try:
-                return self.primary.stream(*args, **kwargs)
-            except Exception as e:
-                logger.error(f"TTS Stream Failed: {e}")
-                self.use_fallback = True
-                return self.fallback.stream(*args, **kwargs)
     
     try:
         logger.info(f"Avatar Agent Entrypoint: Room {ctx.room.name}")
@@ -311,14 +280,23 @@ async def entrypoint(ctx: JobContext):
         
         # LLM — Gemini 3 Flash (fastest) > Mistral > DeepSeek/OpenRouter
         try:
+            openai_key = os.getenv("OPENAI_API_KEY")
             gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
+            
             if gemini_key:
                 from livekit.plugins import google as google_plugin
                 logger.info("Connecting to Gemini 3 Flash (fastest LLM — 218 tok/s)")
                 llm_instance = google_plugin.LLM(
                     model="gemini-3-flash-preview",
                     api_key=gemini_key,
-                    temperature=0.7,
+                    temperature=0.7
+                )
+            elif openai_key:
+                logger.info("Connecting to OpenAI (gpt-4o-mini)")
+                llm_instance = openai.LLM(
+                    model="gpt-4o-mini",
+                    api_key=openai_key,
+                    temperature=0.7
                 )
             elif os.getenv("MISTRAL_API_KEY"):
                 logger.info("Connecting to Mistral API with model: mistral-large-latest")
@@ -338,6 +316,21 @@ async def entrypoint(ctx: JobContext):
                     )
                 else:
                     llm_instance = openai.LLM(model="gpt-4o-mini")
+            
+            # Wrap LLM in FallbackAdapter if using Gemini and OpenAI key is available
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if gemini_key and openai_key:
+                logger.info("Wrapping Gemini LLM in FallbackAdapter with OpenAI fallback...")
+                from livekit.agents.llm import FallbackAdapter as LLMFallbackAdapter
+                fallback_llm = openai.LLM(
+                    model="gpt-4o-mini",
+                    api_key=openai_key,
+                    temperature=0.7,
+                    _strict_tool_schema=False,
+                )
+
+                llm_instance = LLMFallbackAdapter(llm=[llm_instance, fallback_llm], attempt_timeout=2.5)
+
         except Exception as e:
              raise
             
@@ -392,10 +385,11 @@ async def entrypoint(ctx: JobContext):
                 logger.warning("No ElevenLabs key found, falling back to OpenAI (alloy)")
                 tts = openai.TTS(voice="alloy")
 
-        # Wrap in RobustTTS if using ElevenLabs
+        # Wrap in FallbackAdapter if using ElevenLabs
         if not isinstance(tts, openai.TTS):
-            logger.info("Wrapping ElevenLabs in RobustTTS fallback...")
-            tts = RobustTTS(primary=tts, fallback=openai.TTS(voice="alloy"))
+            logger.info("Wrapping ElevenLabs in FallbackAdapter fallback...")
+            from livekit.agents.tts import FallbackAdapter
+            tts = FallbackAdapter(tts=[tts, openai.TTS(voice="alloy")])
 
         # Initialize Tools
         workspace_id = settings.get("workspace_id", "wrk_default") 
@@ -697,10 +691,14 @@ async def entrypoint(ctx: JobContext):
         await asyncio.sleep(1)
 
 if __name__ == "__main__":
+    configured_agent_name = os.getenv("AGENT_NAME")
+    if not configured_agent_name:
+        configured_agent_name = "supaagent-avatar-agent-v2"
+
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=prewarm,
-        agent_name=os.getenv("AGENT_NAME", "supaagent-avatar-agent-v2")
+            agent_name=configured_agent_name
         )
     )

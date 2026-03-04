@@ -35,26 +35,6 @@ from livekit.agents import (
 # from livekit.agents.pipeline import VoicePipelineAgent # REMOVED - Causing ModuleNotFoundError
 from livekit.plugins import deepgram, openai, silero, elevenlabs # Moved from entrypoint
 
-class RobustTTS: # Wrapper to handle TTS failures
-    def __init__(self, primary, fallback, logger):
-        self.primary = primary
-        self.fallback = fallback
-        self.use_fallback = False
-        self.logger = logger
-
-    @property
-    def capabilities(self):
-        return self.primary.capabilities
-
-    def synthesize(self, text: str, *args, **kwargs):
-        if self.use_fallback:
-            return self.fallback.synthesize(text, *args, **kwargs)
-        try:
-            return self.primary.synthesize(text, *args, **kwargs)
-        except Exception as e:
-            self.logger.error(f"TTS Synthesis Failed with primary: {e}. Switching to fallback.")
-            self.use_fallback = True
-            return self.fallback.synthesize(text, *args, **kwargs)
 
 # Using AgentSession and Agent for 1.3.x compatibility
 # Plugins and Voice imports moved to local scope to prevent IPC crash
@@ -579,6 +559,7 @@ CRITICAL LANGUAGE REQUIREMENT:
             "weather-worker": "Check Weather (REQUIRES: 'location'. Optional: 'date', 'units' [C/F], 'details' [sunrise, humidity, etc.])",
             "hr-onboarding": "HR Onboarding (REQUIRES: 'candidate_name')",
             "payment-billing": "Check Payments (REQUIRES: 'action', 'transaction_id' OR 'email')",
+            "web-research": "Search the web for real-time information",
         }
         
         allowed_workers_list = settings.get("allowed_worker_types", [])
@@ -805,7 +786,7 @@ CRITICAL LANGUAGE REQUIREMENT:
                 agent_llm = google_plugin.LLM(
                     model="gemini-3-flash-preview",
                     api_key=gemini_key,
-                    temperature=temperature,
+                    temperature=temperature
                 )
             elif openai_key:
                 from livekit.plugins import openai as openai_plugin
@@ -832,6 +813,23 @@ CRITICAL LANGUAGE REQUIREMENT:
                     base_url="https://openrouter.ai/api/v1",
                     api_key=os.getenv("OPENROUTER_API_KEY")
                 )
+            
+            # Wrap LLM in FallbackAdapter if using Gemini and OpenAI key is available
+            # Wrap LLM in FallbackAdapter if using Gemini and OpenAI key is available
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if gemini_key and openai_key:
+                logger.info("Wrapping Gemini LLM in FallbackAdapter with OpenAI fallback...")
+                from livekit.agents.llm import FallbackAdapter as LLMFallbackAdapter
+                from livekit.plugins import openai as openai_plugin
+                fallback_llm = openai_plugin.LLM(
+                    model="gpt-4o-mini",
+                    api_key=openai_key,
+                    temperature=temperature,
+                    _strict_tool_schema=False,
+                )
+
+                agent_llm = LLMFallbackAdapter(llm=[agent_llm, fallback_llm], attempt_timeout=2.5)
+
             
             # Tools
             # agent_tools_instance already initialized above
@@ -862,10 +860,11 @@ CRITICAL LANGUAGE REQUIREMENT:
                      logger.warning(f"Voice {voice_id} not found in OpenAI and no ElevenLabs key. Defaulting to Alloy.")
                      tts_provider = openai.TTS(voice="alloy")
             
-            # Wrap in RobustTTS if using ElevenLabs
+            # Wrap in FallbackAdapter if using ElevenLabs
             if tts_provider and not isinstance(tts_provider, openai.TTS):
-                logger.info("Wrapping ElevenLabs in RobustTTS fallback...")
-                tts_provider = RobustTTS(primary=tts_provider, fallback=openai.TTS(voice="alloy"), logger=logger)
+                logger.info("Wrapping ElevenLabs in FallbackAdapter fallback...")
+                from livekit.agents.tts import FallbackAdapter
+                tts_provider = FallbackAdapter(tts=[tts_provider, openai.TTS(voice="alloy")])
 
             # Initialize VAD/STT
             vad_model = get_vad_model()
@@ -913,7 +912,8 @@ CRITICAL LANGUAGE REQUIREMENT:
                 logger.error(f"Failed to say welcome message: {e}")
         elif not call_context and session:
              try:
-                session.responses.add(text="Hello! How can I help you today?", allow_interruptions=True)
+                # FIXED: AgentSession does not have .responses. Using .say().
+                session.say("Hello! How can I help you today?", allow_interruptions=True)
              except Exception as e:
                 logger.error(f"Failed to say default welcome: {e}")
 
@@ -1042,8 +1042,12 @@ CRITICAL LANGUAGE REQUIREMENT:
 # Generic job management via CLI
 
 if __name__ == "__main__":
+    configured_agent_name = os.getenv("AGENT_NAME")
+    if not configured_agent_name:
+        configured_agent_name = "supaagent-voice-agent-v2"
+        
     cli.run_app(WorkerOptions(
         entrypoint_fnc=entrypoint, 
         prewarm_fnc=prewarm,
-        agent_name=os.getenv("AGENT_NAME", "supaagent-voice-agent-v2")
+        agent_name=configured_agent_name
     ))
