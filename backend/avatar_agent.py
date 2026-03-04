@@ -608,7 +608,7 @@ async def entrypoint(ctx: JobContext):
             logger.warning(f"Skipping Tavus Connection. Replica: {tavus_replica_id}, Persona: {tavus_persona_id}")
 
         # 7. Start the Voice/Agent Session
-        await session.start(agent_logic, room=ctx.room, chat_ctx=initial_ctx)
+        await session.start(agent_logic, room=ctx.room)
 
         # 8. Send Greeting
         welcome_msg = settings.get("welcome_message") or "Hello! I am your AI assistant. How can I help you today?"
