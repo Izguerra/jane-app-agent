@@ -93,63 +93,8 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks = N
 
 async def process_incoming_message(message: dict, metadata: dict):
     """
-    Process a single incoming message
+    Process a single incoming message from WhatsApp
     """
-    from backend.services.agent_manager import AgentManager
-    from backend.services.conversation_history import ConversationHistoryService
-    from backend.agent_tools import AgentTools
-    from datetime import datetime, timedelta, timezone
-    from sqlalchemy import desc
-    from fastapi import BackgroundTasks # Not needed here if we rely on the router trigger but refactoring is hard inside loop.
-
-    # ... [Rest of imports] ...
-    
-    phone_number_id = metadata.get("phone_number_id")
-    from_number = message.get("from")
-    # ...
-    
-    # [Inside DB try block]
-    db = SessionLocal()
-    try:
-        # ... [Workspace Resolution] ...
-        
-        target_integration = None
-        # ...
-        
-        workspace_id = target_integration.workspace_id
-        
-        # ... [Logic] ...
-        
-        # FIRE CLEANUP HERE (Synchronous inside async func? No, better to trigger async task if possible)
-        # But we don't have BackgroundTasks object here easily unless passed.
-        # Let's just run it "fire and forget" if possible or as part of this flow?
-        # Ideally we'd use BackgroundTasks.
-        # We will add it to `handle_webhook` signature and pass it down?
-        # NO, `process_incoming_message` is async.
-        
-        # Let's just launch the cleanup task here using our helper and run_in_threadpool or just call it?
-        # It's a quick DB query, calling it directly is acceptable given it's async and we want to ensure it runs.
-        # Or better: `from backend.services.crm_service import run_session_cleanup`
-        # `run_session_cleanup(workspace_id)`
-        
-        # Let's do it at the end of the success path.
-        from backend.services.crm_service import run_session_cleanup
-        # Run in executor to not block loop
-        # executor.submit(run_session_cleanup, workspace_id) 
-        # For now, just call it. It's fast enough.
-        run_session_cleanup(workspace_id)
-        
-    except Exception as e:
-        logger.error(f"Error processing Meta WhatsApp message: {e}", exc_info=True)
-    finally:
-        db.close()
-
-
-async def process_incoming_message(message: dict, metadata: dict):
-    """
-    Process a single incoming message
-    """
-    from backend.services.agent_manager import AgentManager
     from backend.services.conversation_history import ConversationHistoryService
     from backend.agent_tools import AgentTools
     from datetime import datetime, timedelta, timezone
@@ -368,7 +313,14 @@ async def process_incoming_message(message: dict, metadata: dict):
              chat_session.started_at = datetime.now(timezone.utc)
              
         db.commit()
-        
+
+        # Trigger Session Cleanup (runs in-process for simplicity here)
+        try:
+            from backend.services.crm_service import run_session_cleanup
+            run_session_cleanup(workspace_id)
+        except Exception as e:
+            logger.warning(f"Failed to run session cleanup: {e}")
+            
     except Exception as e:
         logger.error(f"Error processing Meta WhatsApp message: {e}", exc_info=True)
     finally:

@@ -18,8 +18,8 @@ async def provision_and_update():
     provisioner = WorkerProvisioner(db)
     
     workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
-    # CORRECTED ID with lowercase 'oo'
-    agent_id = "agnt_000VA6fCM7ooHx7VALTwm40ed8"
+    # Updated to an existing agent in the workspace
+    agent_id = "agnt_000VCRoP3S1834dms8YCdys6m8P"
     
     print(f"Provisioning new OpenClaw worker for workspace {workspace_id}...")
     try:

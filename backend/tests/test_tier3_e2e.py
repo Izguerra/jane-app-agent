@@ -204,7 +204,7 @@ async def test_skill_authorization_enforcement(db):
         
         # agent_3 only allows "weather-worker"
         result = await run_task_now_fn(worker_type="forbidden-worker", parameters={})
-        assert "Error: You are not authorized" in result
+        assert "Error: Unauthorized" in result
 
 if __name__ == "__main__":
     pytest.main([__file__])

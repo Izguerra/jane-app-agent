@@ -92,6 +92,8 @@ async def _generate_token(
     # Bypass broken main_agent.py and route natively to the specific workers
     target_agent_name = "supaagent-avatar-agent-v2" if mode == "avatar" else "supaagent-voice-agent-v2"
     
+    print(f"DEBUG: [VOICE_TOKEN] Mode: {mode}, Target Agent: {target_agent_name}, Room: {room_name}")
+    
     room_config = api.RoomConfiguration(
         agents=[api.RoomAgentDispatch(agent_name=target_agent_name)]
     )
@@ -203,6 +205,7 @@ async def _generate_token(
 
     # Create Room
     try:
+        print(f"DEBUG: [VOICE_TOKEN] Attempting to create room '{room_name}' with agents: {target_agent_name}")
         lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
         room = await lkapi.room.create_room(api.CreateRoomRequest(
             name=room_name,
@@ -211,9 +214,12 @@ async def _generate_token(
             agents=[api.RoomAgentDispatch(agent_name=target_agent_name)],
             metadata=json.dumps(settings)
         ))
+        print(f"DEBUG: [VOICE_TOKEN] Room creation response: {room.name if room else 'None'}")
         await lkapi.aclose()
     except Exception as e:
-        print(f"DEBUG: Room creation warning: {e}")
+        print(f"DEBUG: [VOICE_TOKEN] Room creation warning: {e}")
+        import traceback
+        traceback.print_exc()
         
     # --- TAVUS INJECTION ---
     tavus_replica_id = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")

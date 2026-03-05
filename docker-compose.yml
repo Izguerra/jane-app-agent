@@ -29,3 +29,11 @@ services:
     volumes:
       - ./backend/asterisk_config:/etc/asterisk
     restart: unless-stopped
+
+  playwright-mcp:
+    image: mcr.microsoft.com/playwright:v1.41.0-jammy
+    container_name: playwright-mcp
+    command: npx -y @playwright/mcp@latest --port 8931
+    ports:
+      - "8931:8931"
+    restart: unless-stopped

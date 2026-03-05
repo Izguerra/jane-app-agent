@@ -51,7 +51,7 @@ async def test_voice_e2e():
         }
 
         room_config = api.RoomConfiguration(
-            agents=[api.RoomAgentDispatch(agent_name="supaagent-voice-agent")]
+            agents=[api.RoomAgentDispatch(agent_name="supaagent-voice-agent-v2")]
         )
 
         grant = api.VideoGrants(room_join=True, room=ROOM_NAME)

@@ -1,0 +1,211 @@
+{
+  "items": [
+    {
+      "id": "item_4f8f6d1ced5f",
+      "type": "agent_handoff",
+      "new_agent_id": "default_agent",
+      "created_at": 1772679016.082788
+    },
+    {
+      "id": "item_89326268f8db",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, my name is Jarvis. How can I help you today?"
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679018.6348002,
+        "stopped_speaking_at": 1772679021.335509,
+        "tts_node_ttfb": 0.8133950829796959
+      },
+      "created_at": 1772679021.335701
+    },
+    {
+      "id": "item_7564ea47deae",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hey, Jarvis. How are you?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.99902344,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679023.184302,
+        "stopped_speaking_at": 1772679024.3193119,
+        "transcription_delay": 0.47709202766418457,
+        "end_of_turn_delay": 0.5547339916229248,
+        "on_user_turn_completed_delay": 4.1669991333037615e-06
+      },
+      "created_at": 1772679024.875081
+    },
+    {
+      "id": "item_906b43c67882",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "I'm doing well, thanks for asking! How can I assist you today?"
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679032.757754,
+        "stopped_speaking_at": 1772679036.0372522,
+        "llm_node_ttft": 7.330681999999797,
+        "tts_node_ttfb": 0.5423444590123836,
+        "e2e_latency": 8.43844223022461
+      },
+      "created_at": 1772679024.980278
+    },
+    {
+      "id": "item_b03b4aff71e0",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Um, can you give me the phone number for the nearest Pizzaville?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 1.0,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679038.270026,
+        "stopped_speaking_at": 1772679042.521703,
+        "transcription_delay": 0.23282194137573242,
+        "end_of_turn_delay": 0.5543861389160156,
+        "on_user_turn_completed_delay": 0.00021204198128543794
+      },
+      "created_at": 1772679043.078899
+    },
+    {
+      "id": "item_ee1c052df4e0",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "I can look that up for you! Could you please provide me with your current location or postal code?"
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679045.0787761,
+        "stopped_speaking_at": 1772679050.156875,
+        "llm_node_ttft": 1.6038968750217464,
+        "tts_node_ttfb": 0.38977020801394247,
+        "e2e_latency": 2.5570731163024902
+      },
+      "created_at": 1772679043.2381551
+    },
+    {
+      "id": "item_cb0678a9e558",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "L nine t like tango, zero e like echo, nine Echo two. Sorry."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9921875099999999,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679051.9181361,
+        "stopped_speaking_at": 1772679058.3235142,
+        "transcription_delay": 0.2179257869720459,
+        "end_of_turn_delay": 0.5504567623138428,
+        "on_user_turn_completed_delay": 6.999995093792677e-06
+      },
+      "created_at": 1772679058.874919
+    },
+    {
+      "id": "item_789438fe26e6",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Got it! You're at L9T 0E2. Let me find the nearest Pizzaville and their phone number for you... "
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679061.843322,
+        "stopped_speaking_at": 1772679066.425571,
+        "llm_node_ttft": 2.1999837920011487,
+        "tts_node_ttfb": 0.7598390000057407,
+        "e2e_latency": 3.519807815551758
+      },
+      "created_at": 1772679058.9964921
+    },
+    {
+      "id": "item_d63910f5c811",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "You there, Jarvis?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9941406,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679095.522073,
+        "stopped_speaking_at": 1772679111.3369758,
+        "transcription_delay": 0.3057363033294678,
+        "end_of_turn_delay": 0.56093430519104,
+        "on_user_turn_completed_delay": 7.791008101776242e-06
+      },
+      "created_at": 1772679111.9014
+    },
+    {
+      "id": "item_6c06e366b2f8",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "This might take a moment..."
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679114.9238431,
+        "stopped_speaking_at": 1772679116.281573,
+        "llm_node_ttft": 2.649470582982758,
+        "tts_node_ttfb": 0.36295300000347197,
+        "e2e_latency": 3.586867332458496
+      },
+      "created_at": 1772679112.025569
+    },
+    {
+      "id": "item_26835731aded",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "But it's taking so long."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9416504,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679138.733876,
+        "stopped_speaking_at": 1772679139.588016,
+        "transcription_delay": 1.0674290657043457,
+        "end_of_turn_delay": 1.0688910484313965,
+        "on_user_turn_completed_delay": 1.1208001524209976e-05
+      },
+      "created_at": 1772679140.658613
+    },
+    {
+      "id": "item_7b0e14a0aa36",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Still working on that... Just a moment!"
+      ],
+      "interrupted": false,
+      "extra": {},
+      "metrics": {
+        "started_speaking_at": 1772679142.0289001,
+        "stopped_speaking_at": 1772679143.945005,
+        "llm_node_ttft": 1.03432566698757,
+        "tts_node_ttfb": 0.32686345899128355,
+        "e2e_latency": 2.4408841133117676
+      },
+      "created_at": 1772679140.7669709
+    }
+  ]
+}

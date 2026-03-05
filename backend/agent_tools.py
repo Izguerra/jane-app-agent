@@ -72,6 +72,17 @@ class AgentTools:
         self.communication_id = communication_id
         self.agent_id = agent_id
         self.worker_tools = worker_tools # Unified validation layer
+        self.session = None # Injected by Voice Agent
+
+    async def _play_filler(self, message: str = "One moment please..."):
+        """Plays a filler message to bridge latency for slow tools"""
+        if hasattr(self, 'session') and self.session:
+            try:
+                if hasattr(self.session, 'say'):
+                    self.session.say(message, allow_interruptions=False, add_to_chat_ctx=False)
+                    print(f"🔊 Playing filler audio: {message}")
+            except Exception as e:
+                print(f"🔊 Failed to play filler audio: {e}")
 
 
 
@@ -84,6 +95,9 @@ class AgentTools:
         Args:
             query: The search query.
         """
+        import random
+        await self._play_filler(random.choice(["Let me check the knowledge base...", "Checking my resources...", "Looking that up..."]))
+        
         from backend.knowledge_base import KnowledgeBaseService
         try:
             kb_service = KnowledgeBaseService()
@@ -98,7 +112,42 @@ class AgentTools:
         except Exception as e:
             return f"Error searching knowledge base: {str(e)}"
 
-    # --- EXTERNAL TOOLS (Weather, Flights, Maps) ---
+    # --- EXTERNAL TOOLS (Weather, Flights, Maps, Web) ---
+    
+    @llm.function_tool(
+        description="Search the web for real-time information, news, and facts using Tavily. Use this when the knowledge base doesn't have the answer.",
+    )
+    async def web_search(self, query: str, max_results: int = 5):
+        """
+        Search the web for real-time info.
+        Args:
+            query: The search query or question.
+            max_results: Number of results to return (1-10).
+        """
+        import random
+        await self._play_filler(random.choice(["Searching the web for that...", "Let me scour the web for you...", "Looking that up online..."]))
+
+        try:
+            from backend.tools.web_search import get_web_search_tool
+            tool = get_web_search_tool()
+            results = tool.search(query, max_results=max_results)
+            
+            if "error" in results:
+                return f"Error during web search: {results['error']}"
+                
+            # Format results
+            output = f"Web Search Results for: {query}\n"
+            if results.get("answer"):
+                output += f"AI Summary: {results['answer']}\n\n"
+                
+            for i, r in enumerate(results.get("results", []), 1):
+                output += f"{i}. {r.get('title')} - {r.get('url')}\n"
+                output += f"   {r.get('content', '')[:300]}...\n\n"
+                
+            return output if results.get("results") else "No relevant web results found."
+        except Exception as e:
+            return f"Failed to perform web search: {str(e)}"
+
     
     @llm.function_tool(
         description="Get current weather for a location. Supports forecasts and specific units.",
@@ -1013,14 +1062,32 @@ class AgentTools:
             db.close()
 
     @llm.function_tool(
-        description="Update an existing customer record (e.g., change email, phone, or lifecycle stage).",
+        description="Update an existing customer record. Use this to change contact info, lifecycle stage, or status.",
     )
-    async def update_customer_record(self, customer_id: str, updates: dict):
+    async def update_customer_record(
+        self, 
+        customer_id: str, 
+        first_name: str = None, 
+        last_name: str = None, 
+        email: str = None, 
+        phone: str = None, 
+        company_name: str = None, 
+        lifecycle_stage: str = None, 
+        crm_status: str = None, 
+        status: str = None
+    ):
         """
-        Update a customer record.
+        Update a customer record with new information.
         Args:
             customer_id: The ID of the customer to update.
-            updates: A dictionary of fields and their new values (e.g., {\"email\": \"new@example.com\", \"lifecycle_stage\": \"MQL\"}).
+            first_name: New first name.
+            last_name: New last name.
+            email: New email address.
+            phone: New phone number.
+            company_name: New company name.
+            lifecycle_stage: New lifecycle stage (e.g., Subscriber, Lead, MQL, SQL, Opportunity, Customer).
+            crm_status: New CRM status (e.g., New/Raw, Attempted to Contact, Working).
+            status: New account status (e.g., active, trialing, churned).
         """
         from backend.database import SessionLocal
         from backend.models_db import Customer
@@ -1030,12 +1097,30 @@ class AgentTools:
             if not customer:
                 return f"Customer {customer_id} not found."
             
+            updates = {
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": email,
+                "phone": phone,
+                "company_name": company_name,
+                "lifecycle_stage": lifecycle_stage,
+                "crm_status": crm_status,
+                "status": status
+            }
+            
+            updated_fields = []
             for key, value in updates.items():
-                if hasattr(customer, key) and key not in ['id', 'workspace_id']:
-                    setattr(customer, key, value)
+                if value is not None:
+                    if hasattr(customer, key):
+                        setattr(customer, key, value)
+                        updated_fields.append(key)
+            
+            if not updated_fields:
+                return "No updates provided."
             
             db.commit()
-            return f"Successfully updated customer {customer_id}."
+            return f"Successfully updated customer {customer_id}. Fields: {', '.join(updated_fields)}"
+
         except Exception as e:
             db.rollback()
             return f"Error updating customer: {str(e)}"

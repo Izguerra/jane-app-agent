@@ -23,6 +23,8 @@ import {
     useTranscriptions,
     useParticipants,
 } from "@livekit/components-react";
+import { AgentAudioVisualizerAura } from "@/components/agents-ui/agent-audio-visualizer-aura";
+
 import { Track } from "livekit-client";
 import "@livekit/components-styles";
 import { Mic, MicOff } from "lucide-react";
@@ -227,8 +229,28 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         faq: JSON.stringify(formData.faqItems || []),
         accent_color: formData.accentColor,
         mode: mode,
-        open_claw_instance_id: formData.openClawInstanceId
+        open_claw_instance_id: formData.openClawInstanceId,
+
+        // Ephemeral Browser Context
+        client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        // @ts-ignore
+        client_location: window.clientLocationData || "Unknown location"
     });
+
+    // Fetch precise location on mount
+    useEffect(() => {
+        if (typeof window !== "undefined" && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    // @ts-ignore
+                    window.clientLocationData = `${position.coords.latitude},${position.coords.longitude}`;
+                },
+                (error) => {
+                    console.log("Geolocation denied or error:", error);
+                }
+            );
+        }
+    }, []);
 
     // Simple mode-switch handler: clear token when mode changes so a fresh connection is made.
     // This follows the proven working pattern from voice-widget.tsx (commits 589e02e, 2298776):
@@ -678,20 +700,12 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-0 bg-white">
                                     <div className="flex-1 flex flex-col items-center justify-center gap-2 w-full">
-                                        <div className="relative w-32 h-32 flex items-center justify-center">
-                                            <div className="absolute inset-0 bg-blue-500/10 rounded-full animate-[pulse_3s_ease-in-out_infinite]" />
-                                            <div className="absolute inset-4 bg-blue-500/20 rounded-full animate-[pulse_2s_ease-in-out_infinite]" />
-                                            <div className="relative z-10 w-24 h-24 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full shadow-xl flex items-center justify-center text-white ring-4 ring-white">
-                                                <Phone className="h-10 w-10" />
-                                            </div>
+                                        <div className="relative w-48 h-48 flex items-center justify-center">
+                                            <CustomVisualizer accentColor={formData.accentColor} />
                                         </div>
 
                                         <div className="space-y-1 w-full">
                                             <VoiceStatusDisplay name={formData.name || "Agent"} />
-                                        </div>
-
-                                        <div className="h-8 w-full max-w-[200px] flex items-center justify-center">
-                                            <CustomVisualizer accentColor={formData.accentColor} />
                                         </div>
                                     </div>
 
@@ -945,16 +959,16 @@ function CustomVisualizer({ accentColor }: { accentColor: string }) {
     const { state, audioTrack } = useVoiceAssistant();
 
     return (
-        <BarVisualizer
-            state={state}
-            barCount={5}
-            trackRef={audioTrack}
-            className="flex gap-1 h-full items-end justify-center w-full"
-            style={{
-                // @ts-ignore - LiveKit custom property for bar color if supported, otherwise handled by class
-                "--lk-bar-color": accentColor
-            }}
-        />
+        <div className="w-full h-full flex items-center justify-center">
+            <AgentAudioVisualizerAura
+                state={state}
+                size="lg"
+                color={(accentColor || "#6D28D9") as `#${string}`}
+                colorShift={0.4}
+                themeMode="light"
+                className="aspect-square w-full max-w-[200px]"
+            />
+        </div>
     );
 }
 

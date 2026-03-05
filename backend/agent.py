@@ -29,6 +29,39 @@ class AgentManager:
         # and multi-tenancy.
         self.skill_service = SkillService()
         self.personality_service = PersonalityService()
+        self._mcp_sessions = {} # server_id -> (session, stack)
+
+    async def _get_mcp_session(self, server_id: str, url: str, auth_type: str, auth_value: str):
+        from mcp import ClientSession
+        from mcp.client.sse import sse_client
+        from contextlib import AsyncExitStack
+        import json
+
+        if server_id in self._mcp_sessions:
+            return self._mcp_sessions[server_id][0]
+            
+        stack = AsyncExitStack()
+        try:
+            headers = {"Accept": "application/json, text/event-stream"}
+            if auth_type == "bearer" and auth_value:
+                headers["Authorization"] = f"Bearer {auth_value}"
+            elif auth_type == "api_key" and auth_value:
+                headers["X-API-Key"] = auth_value
+            elif auth_type == "custom" and auth_value:
+                try: headers.update(json.loads(auth_value))
+                except: pass
+                
+            streams = await stack.enter_async_context(sse_client(url, headers=headers))
+            session = await stack.enter_async_context(ClientSession(streams[0], streams[1]))
+            await session.initialize()
+            
+            self._mcp_sessions[server_id] = (session, stack)
+            return session
+        except Exception as e:
+            await stack.aclose()
+            print(f"Failed to initialize MCP session for {server_id}: {e}")
+            raise
+
 
     def _detect_context_needs(self, message: str) -> dict:
         """ Lightweight heuristic to determine what context/tools are needed. """
@@ -67,8 +100,9 @@ class AgentManager:
             "weather-worker": "Check Weather (REQUIRES: 'location'. Optional: 'date', 'units' [C/F], 'details' [sunrise, humidity, etc.])",
             "hr-onboarding": "HR Onboarding (REQUIRES: 'candidate_name')",
             "payment-billing": "Check Payments (REQUIRES: 'action', 'transaction_id' OR 'email')",
-            "web-research": "Search the web for real-time information",
-            "openclaw": "Autonomous Web Browser (Use to browse websites, navigate pages, and extract data from URLs using dispatch_to_openclaw)",
+            "web-research": "Search the web for real-time information (FAST, use for facts/news)",
+            "openclaw": "Interactive Browser (Use when you need to CLICK, TYPE, or LOG IN to websites. Slower but more powerful than search)",
+            "playwright": "Standard Interactive Browser (Preferred for complex navigation and form filling)",
         }
         
         allowed_workers = settings.get("allowed_worker_types", [])
@@ -672,6 +706,17 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
                 return cust, ctx
             tasks.append(fetch_crm())
 
+            # Task E: Knowledge Base Search (runs in parallel with DB)
+            async def fetch_kb():
+                try:
+                    kb_res = self.kb.search(message, workspace_id=workspace_id)
+                    if kb_res:
+                        return "Knowledge Base:\n" + "\n---\n".join(
+                            [f"Source: {d.get('name')}\n{d.get('text')}" for d in kb_res]
+                        )
+                except Exception:
+                    pass
+                return ""
             tasks.append(fetch_kb())
             
             async def fetch_mcp_servers():
@@ -713,17 +758,28 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
 
         # MCP Tools Integration
         if mcp_servers:
-            import httpx
+            from mcp import ClientSession
+
             for server in mcp_servers:
                 if not server.tools_cache: continue
+                if server.transport != "sse": continue
                 
+                try:
+                    # Initialize or grab existing session context
+                    mcp_session = await self._get_mcp_session(
+                        server.id, server.url, server.auth_type, server.auth_value
+                    )
+                except Exception as e:
+                    print(f"Skipping MCP Server {server.name} due to connection error: {e}")
+                    continue
+
                 # For each tool in the cache, create a wrapper function
                 for tool_def in server.tools_cache:
                     tool_name = tool_def.get("name")
                     if not tool_name: continue
                     
                     # Create a closure to capture server details and tool name
-                    def create_mcp_wrapper(s_url, s_auth_type, s_auth_val, s_name, t_name, t_desc):
+                    def create_mcp_wrapper(s_name, t_name, t_desc, session: ClientSession):
                         # Construct a unique, clean name for the tool
                         safe_s_name = s_name.lower().replace(" ", "_").replace("-", "_")
                         safe_t_name = t_name.lower().replace(" ", "_").replace("-", "_")
@@ -732,41 +788,13 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
                         # Define the actual tool function that the LLM will call
                         async def mcp_tool_func(**kwargs) -> str:
                             """MCP Tool: {t_desc} (from {s_name})"""
-                            headers = {
-                                "Accept": "application/json, text/event-stream",
-                                "Content-Type": "application/json"
-                            }
-                            if s_auth_type == "bearer" and s_auth_val:
-                                headers["Authorization"] = f"Bearer {s_auth_val}"
-                            elif s_auth_type == "api_key" and s_auth_val:
-                                headers["X-API-Key"] = s_auth_val
-
                             try:
-                                async with httpx.AsyncClient(timeout=30.0) as client:
-                                    # MCP protocol uses tools/call for execution
-                                    rpc_res = await client.post(
-                                        s_url,
-                                        json={
-                                            "jsonrpc": "2.0",
-                                            "method": f"tools/call",
-                                            "params": {
-                                                "name": t_name,
-                                                "arguments": kwargs
-                                            },
-                                            "id": 1
-                                        },
-                                        headers=headers
-                                    )
-                                    if rpc_res.status_code == 200:
-                                        res_data = rpc_res.json()
-                                        if "result" in res_data:
-                                            # Return content blocks merged or as string
-                                            content = res_data["result"].get("content", [])
-                                            return "\n".join([c.get("text", "") for c in content if c.get("type") == "text"]) or str(res_data["result"])
-                                        return f"Error: {res_data.get('error', 'Unknown Error')}"
-                                    return f"Error: HTTP {rpc_res.status_code}"
+                                result = await session.call_tool(t_name, arguments=kwargs)
+                                content = result.content
+                                # Extract string content blocks
+                                return "\n".join([str(c.text) for c in content if c.type == "text"]) or str(content)
                             except Exception as e:
-                                return f"Connection Error: {str(e)}"
+                                return f"Tool Execution Error: {str(e)}"
 
                         # Set metadata so Agno can interpret the tool
                         mcp_tool_func.__name__ = func_name
@@ -775,14 +803,13 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
 
                     # Add the wrapper to the tools list
                     wrapper = create_mcp_wrapper(
-                        server.url, 
-                        server.auth_type, 
-                        server.auth_value, 
                         server.name, 
                         tool_name, 
-                        tool_def.get("description", "No description")
+                        tool_def.get("description", "No description"),
+                        mcp_session
                     )
                     tools.append(wrapper)
+
 
         # Dynamic Worker Tools
         allowed_workers = settings.get("allowed_worker_types", [])

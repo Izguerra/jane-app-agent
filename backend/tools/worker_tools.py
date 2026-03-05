@@ -16,7 +16,19 @@ class WorkerTools:
         self.agent_id = agent_id
         # Store allowed worker types for permission enforcement
         self.allowed_worker_types = allowed_worker_types or []
+        self.session = None # Injected by Voice Agent
         print(f"DEBUG: WorkerTools initialized with allowed_worker_types: {self.allowed_worker_types}")
+
+    async def _play_filler(self, message: str = "One moment please..."):
+        """Plays a filler message to bridge latency for slow tools"""
+        if hasattr(self, 'session') and self.session:
+            try:
+                # LiveKit API changes dynamically depending on SDK version, try both
+                if hasattr(self.session, 'say'):
+                    self.session.say(message, allow_interruptions=False, add_to_chat_ctx=False)
+                    print(f"🔊 Playing filler audio: {message}")
+            except Exception as e:
+                print(f"🔊 Failed to play filler audio: {e}")
 
     # --- VALIDATION SCHEMAS (The Police) ---
     VALIDATION_SCHEMAS = {
@@ -307,6 +319,17 @@ class WorkerTools:
         error = self._validate_params(worker_type, parameters)
         if error:
             return error
+
+        # Play filler audio if supported
+        import random
+        fillers = [
+            "Let me look that up for you...",
+            "Just a moment...",
+            "Working on that now...",
+            "Give me one sec to find that...",
+            "Gathering the best info for you, one moment..."
+        ]
+        await self._play_filler(random.choice(fillers))
 
         from backend.database import SessionLocal
         from backend.services.worker_service import WorkerService

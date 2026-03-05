@@ -432,9 +432,18 @@ async def entrypoint(ctx: JobContext):
         # We replace placeholders in GATEKEEPER_INSTRUCTION if needed, or just prepend it.
         # {business_name}, {services}, {role} placeholders are handled below.
         
-        from zoneinfo import ZoneInfo
-        est_tz = ZoneInfo("America/Toronto")
-        current_datetime = datetime.now(est_tz).strftime("%A, %B %d, %Y at %I:%M %p")
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        
+        client_tz_str = settings.get("client_timezone", settings.get("personal_timezone", "America/Toronto"))
+        try:
+            client_tz = ZoneInfo(client_tz_str)
+        except ZoneInfoNotFoundError:
+            client_tz = ZoneInfo("America/Toronto")
+
+        current_datetime = datetime.now(client_tz).strftime("%A, %B %d, %Y at %I:%M %p")
+        
+        client_location = settings.get("client_location", settings.get("personal_location", ""))
+        location_context = f"CURRENT ENVIRONMENT CONTEXT:\\n- User's Timezone: {client_tz_str}\\n- User's Estimated Location (Coordinates if browser allowed): {client_location}\\n(Use this location to resolve generic 'near me' or 'closest' queries like 'closest pizzaville')\\n" if client_location else ""
         
         # Start with the STRONG System Instruction
         # Tool Usage Instructions
@@ -481,8 +490,8 @@ async def entrypoint(ctx: JobContext):
    - Get to the actual answer quickly after acknowledging
 
 """
-
-        prompt_template = f"{acknowledgement_rules}{GATEKEEPER_INSTRUCTION}\n\nCURRENT DATE AND TIME: {current_datetime}. Use this to interpret relative dates.\n\nRunning Mode: VOICE CONVERSATION.{tool_usage_instructions}\n\nCUSTOMER INSTRUCTIONS:\n{customer_template}"
+        # Master prompt template combining logic
+        prompt_template = f"{acknowledgement_rules}{GATEKEEPER_INSTRUCTION}\n\nCURRENT DATE AND TIME: {current_datetime}. Use this to interpret relative dates.\n\n{location_context}\n\nRunning Mode: VOICE CONVERSATION.{tool_usage_instructions}\n\nCUSTOMER INSTRUCTIONS:\n{customer_template}"
 
         # Inject Personality Prompt (SOUL.md style)
         if personality_prompt:
@@ -878,6 +887,12 @@ CRITICAL LANGUAGE REQUIREMENT:
                 tools=all_tools,
                 turn_handling=TurnHandlingConfig(interruption={"mode": "vad"}),
             )
+            
+            # Inject session into tool instances for proactive latency feedback
+            if agent_tools_instance:
+                agent_tools_instance.session = session
+            if worker_tools_instance:
+                worker_tools_instance.session = session
 
             voice_agent = Agent(instructions=prompt_template or "You are a helpful AI assistant.")
             

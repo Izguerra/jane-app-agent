@@ -12,6 +12,7 @@ from backend.database import get_db
 from backend.models_db import MCPServer
 from backend.lib.id_service import IdService
 import httpx
+from urllib.parse import urljoin
 
 router = APIRouter(prefix="/mcp-servers", tags=["mcp"])
 
@@ -173,38 +174,18 @@ async def test_mcp_server(
             headers["Accept"] = "application/json, text/event-stream"
             
             if server.transport == "sse":
-                # For SSE servers, try discovery via POST if GET is not supported
-                # or just proceed to discovery if GET succeeds.
-                response = None
-                try:
-                    response = await client.get(server.url, headers=headers)
-                    if response.status_code < 400:
-                        server.status = "connected"
-                    elif response.status_code == 405:
-                        # Some servers (like Context7) don't support GET on the base URL
-                        # but work fine with POST for tools/list.
-                        server.status = "pending"
-                    else:
-                        server.status = "error"
-                        return {
-                            "status": "error",
-                            "error": f"HTTP {response.status_code}: {response.text[:100]}"
-                        }
-                except Exception as e:
-                    server.status = "error"
-                    return {"status": "error", "error": f"Connection failed: {str(e)}"}
-
-                # Try to discover tools via MCP protocol (POST)
-                tools = await _discover_mcp_tools(client, server.url, headers)
+                # With official SDK, we go straight to discovery
+                tools = await _discover_mcp_tools(None, server.url, headers)
                 if tools:
                     server.status = "connected"
                     server.tools_cache = tools
-                elif server.status == "error" or not response or response.status_code >= 400:
+                else:
                     server.status = "error"
                     return {
                         "status": "error", 
-                        "error": "Failed to discover tools via MCP protocol."
+                        "error": f"Failed to discover tools via MCP protocol at {server.url}"
                     }
+
             else:
                 # For stdio servers, just mark as pending (requires local process)
                 server.status = "pending"
@@ -250,36 +231,27 @@ async def get_mcp_server_tools(
 # --------------- Helpers ---------------
 
 async def _discover_mcp_tools(client: httpx.AsyncClient, url: str, headers: dict) -> list:
-    """Attempt to discover tools from an MCP server using the MCP protocol."""
+    """Attempt to discover tools from an MCP server using the MCP protocol via official SDK."""
+    from mcp import ClientSession
+    from mcp.client.sse import sse_client
+    
+    # We don't use the injected httpx client since the MCP SDK manages its own HTTPX session internally
+    # with the necessary SSE and timeout configurations.
     try:
-        # MCP protocol: send tools/list request
-        # Ensure proper headers for JSON-RPC over HTTP
-        req_headers = {
-            **headers, 
-            "Content-Type": "application/json",
-            "Accept": "application/json, text/event-stream"
-        }
-        
-        response = await client.post(
-            url,
-            json={
-                "jsonrpc": "2.0",
-                "method": "tools/list",
-                "params": {},
-                "id": 1,
-            },
-            headers=req_headers,
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if "result" in data and "tools" in data["result"]:
+        async with sse_client(url=url, headers=headers) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                await session.initialize()
+                tools_result = await session.list_tools()
                 return [
                     {
-                        "name": tool.get("name"),
-                        "description": tool.get("description", ""),
+                        "name": tool.name,
+                        "description": tool.description or "",
                     }
-                    for tool in data["result"]["tools"]
+                    for tool in tools_result.tools
                 ]
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Discovery error: {e}")
     return []
+
