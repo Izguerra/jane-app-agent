@@ -187,6 +187,7 @@ class Communication(Base):
     call_context = Column(JSON, nullable=True)  # JSONB for appointment/deal/campaign data
     customer_id = Column(String(50), ForeignKey("customers.id"), nullable=True)
     twilio_call_sid = Column(Text, nullable=True)  # Twilio call SID for tracking
+    telnyx_call_id = Column(Text, nullable=True)   # Telnyx call ID for tracking
     retry_count = Column(Integer, default=0)
     parent_communication_id = Column(String(50), nullable=True)  # For retry tracking
     campaign_id = Column(Text, nullable=True)
@@ -316,6 +317,11 @@ class PhoneNumber(Base):
     
     # Twilio details
     twilio_sid = Column(String(255), unique=True, nullable=True, index=True)
+    
+    # Telnyx details
+    telnyx_id = Column(String(255), unique=True, nullable=True, index=True)
+    provider = Column(String(50), default="twilio", nullable=False) # 'twilio' or 'telnyx'
+
     agent_id = Column(String(50), ForeignKey("agents.id"), nullable=True)
     
     # Billing
