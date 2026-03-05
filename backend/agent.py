@@ -67,6 +67,7 @@ class AgentManager:
             "weather-worker": "Check Weather (REQUIRES: 'location'. Optional: 'date', 'units' [C/F], 'details' [sunrise, humidity, etc.])",
             "hr-onboarding": "HR Onboarding (REQUIRES: 'candidate_name')",
             "payment-billing": "Check Payments (REQUIRES: 'action', 'transaction_id' OR 'email')",
+            "web-research": "Search the web for real-time information",
             "openclaw": "Autonomous Web Browser (Use to browse websites, navigate pages, and extract data from URLs using dispatch_to_openclaw)",
         }
         
@@ -592,7 +593,7 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
         import functools
         import json
         from backend.database import SessionLocal
-        from backend.models_db import Agent, Communication, Customer, Integration
+        from backend.models_db import Agent, Communication, Customer, Integration, MCPServer
         from backend.services.customer_history_service import CustomerHistoryService
         from backend.tools.calendar_tools import CalendarTools
         from backend.tools.shopify_tools import ShopifyTools
@@ -671,18 +672,15 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
                 return cust, ctx
             tasks.append(fetch_crm())
 
-            # Task E: Knowledge Base Search (runs in parallel with DB)
-            async def fetch_kb():
-                try:
-                    kb_res = self.kb.search(message, workspace_id=workspace_id)
-                    if kb_res:
-                        return "Knowledge Base:\n" + "\n---\n".join(
-                            [f"Source: {d.get('name')}\n{d.get('text')}" for d in kb_res]
-                        )
-                except Exception:
-                    pass
-                return ""
             tasks.append(fetch_kb())
+            
+            async def fetch_mcp_servers():
+                return _db.query(MCPServer).filter(
+                    MCPServer.workspace_id == workspace_id,
+                    MCPServer.is_active == True,
+                    MCPServer.status == "connected"
+                ).all()
+            tasks.append(fetch_mcp_servers())
 
             results = await asyncio.gather(*tasks)
             settings.update(results[0])
@@ -690,6 +688,7 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
             integrations = results[2]
             current_customer, customer_history_context = results[3]
             kb_text = results[4]  # Pre-fetched KB context
+            mcp_servers = results[5]
             
         finally:
             if not db: _db.close()
@@ -711,6 +710,79 @@ CRITICAL: Always follow these preferences when making decisions, bookings, or re
         # Always-on CRM Tools
         cust_tools = CustomerTools(workspace_id=workspace_id, communication_id=communication_id)
         tools.extend([cust_tools.register_customer, cust_tools.check_registration_status])
+
+        # MCP Tools Integration
+        if mcp_servers:
+            import httpx
+            for server in mcp_servers:
+                if not server.tools_cache: continue
+                
+                # For each tool in the cache, create a wrapper function
+                for tool_def in server.tools_cache:
+                    tool_name = tool_def.get("name")
+                    if not tool_name: continue
+                    
+                    # Create a closure to capture server details and tool name
+                    def create_mcp_wrapper(s_url, s_auth_type, s_auth_val, s_name, t_name, t_desc):
+                        # Construct a unique, clean name for the tool
+                        safe_s_name = s_name.lower().replace(" ", "_").replace("-", "_")
+                        safe_t_name = t_name.lower().replace(" ", "_").replace("-", "_")
+                        func_name = f"mcp_{safe_s_name}_{safe_t_name}"
+
+                        # Define the actual tool function that the LLM will call
+                        async def mcp_tool_func(**kwargs) -> str:
+                            """MCP Tool: {t_desc} (from {s_name})"""
+                            headers = {
+                                "Accept": "application/json, text/event-stream",
+                                "Content-Type": "application/json"
+                            }
+                            if s_auth_type == "bearer" and s_auth_val:
+                                headers["Authorization"] = f"Bearer {s_auth_val}"
+                            elif s_auth_type == "api_key" and s_auth_val:
+                                headers["X-API-Key"] = s_auth_val
+
+                            try:
+                                async with httpx.AsyncClient(timeout=30.0) as client:
+                                    # MCP protocol uses tools/call for execution
+                                    rpc_res = await client.post(
+                                        s_url,
+                                        json={
+                                            "jsonrpc": "2.0",
+                                            "method": f"tools/call",
+                                            "params": {
+                                                "name": t_name,
+                                                "arguments": kwargs
+                                            },
+                                            "id": 1
+                                        },
+                                        headers=headers
+                                    )
+                                    if rpc_res.status_code == 200:
+                                        res_data = rpc_res.json()
+                                        if "result" in res_data:
+                                            # Return content blocks merged or as string
+                                            content = res_data["result"].get("content", [])
+                                            return "\n".join([c.get("text", "") for c in content if c.get("type") == "text"]) or str(res_data["result"])
+                                        return f"Error: {res_data.get('error', 'Unknown Error')}"
+                                    return f"Error: HTTP {rpc_res.status_code}"
+                            except Exception as e:
+                                return f"Connection Error: {str(e)}"
+
+                        # Set metadata so Agno can interpret the tool
+                        mcp_tool_func.__name__ = func_name
+                        mcp_tool_func.__doc__ = f"{t_desc} (Provider: {s_name})"
+                        return mcp_tool_func
+
+                    # Add the wrapper to the tools list
+                    wrapper = create_mcp_wrapper(
+                        server.url, 
+                        server.auth_type, 
+                        server.auth_value, 
+                        server.name, 
+                        tool_name, 
+                        tool_def.get("description", "No description")
+                    )
+                    tools.append(wrapper)
 
         # Dynamic Worker Tools
         allowed_workers = settings.get("allowed_worker_types", [])
