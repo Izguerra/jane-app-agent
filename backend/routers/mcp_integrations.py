@@ -170,17 +170,41 @@ async def test_mcp_server(
         
         # Try connecting to the MCP server endpoint
         async with httpx.AsyncClient(timeout=10.0) as client:
+            headers["Accept"] = "application/json, text/event-stream"
+            
             if server.transport == "sse":
-                # For SSE servers, try a GET to the base URL
-                response = await client.get(server.url, headers=headers)
-                if response.status_code < 400:
-                    server.status = "connected"
-                    # Try to discover tools via MCP protocol
-                    tools = await _discover_mcp_tools(client, server.url, headers)
-                    if tools:
-                        server.tools_cache = tools
-                else:
+                # For SSE servers, try discovery via POST if GET is not supported
+                # or just proceed to discovery if GET succeeds.
+                response = None
+                try:
+                    response = await client.get(server.url, headers=headers)
+                    if response.status_code < 400:
+                        server.status = "connected"
+                    elif response.status_code == 405:
+                        # Some servers (like Context7) don't support GET on the base URL
+                        # but work fine with POST for tools/list.
+                        server.status = "pending"
+                    else:
+                        server.status = "error"
+                        return {
+                            "status": "error",
+                            "error": f"HTTP {response.status_code}: {response.text[:100]}"
+                        }
+                except Exception as e:
                     server.status = "error"
+                    return {"status": "error", "error": f"Connection failed: {str(e)}"}
+
+                # Try to discover tools via MCP protocol (POST)
+                tools = await _discover_mcp_tools(client, server.url, headers)
+                if tools:
+                    server.status = "connected"
+                    server.tools_cache = tools
+                elif server.status == "error" or not response or response.status_code >= 400:
+                    server.status = "error"
+                    return {
+                        "status": "error", 
+                        "error": "Failed to discover tools via MCP protocol."
+                    }
             else:
                 # For stdio servers, just mark as pending (requires local process)
                 server.status = "pending"
@@ -229,14 +253,22 @@ async def _discover_mcp_tools(client: httpx.AsyncClient, url: str, headers: dict
     """Attempt to discover tools from an MCP server using the MCP protocol."""
     try:
         # MCP protocol: send tools/list request
+        # Ensure proper headers for JSON-RPC over HTTP
+        req_headers = {
+            **headers, 
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream"
+        }
+        
         response = await client.post(
             url,
             json={
                 "jsonrpc": "2.0",
                 "method": "tools/list",
+                "params": {},
                 "id": 1,
             },
-            headers={**headers, "Content-Type": "application/json"},
+            headers=req_headers,
         )
         if response.status_code == 200:
             data = response.json()
@@ -248,6 +280,6 @@ async def _discover_mcp_tools(client: httpx.AsyncClient, url: str, headers: dict
                     }
                     for tool in data["result"]["tools"]
                 ]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Discovery error: {e}")
     return []
