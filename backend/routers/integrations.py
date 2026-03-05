@@ -197,6 +197,27 @@ async def configure_integration(
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Invalid Meta credentials: {str(e)}")
     
+    # Validate Telnyx credentials
+    if provider == "telnyx" and config.credentials:
+        api_key = config.credentials.get("api_key")
+        if api_key:
+            try:
+                import requests
+                # Verify API key by fetching messaging profiles (lightweight call)
+                response = requests.get(
+                    "https://api.telnyx.com/v2/messaging_profiles",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=5
+                )
+                if response.status_code == 401:
+                    raise ValueError("Invalid Telnyx API Key")
+                elif response.status_code != 200:
+                    raise ValueError(f"Telnyx API Error: {response.text}")
+            except ValueError:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid Telnyx credentials: {str(e)}")
+    
     # SPECIAL HANDLING: Instagram
     # Ensure instagram_account_id is available in settings (unencrypted) for webhook lookup
     if provider == "instagram" and config.credentials and "instagram_account_id" in config.credentials:

@@ -184,6 +184,9 @@ from backend.routers import mcp_integrations
 app.include_router(mcp_integrations.router)
 app.include_router(mcp_integrations.router, prefix="/agent")
 
+from backend.routers import telnyx as telnyx_router
+app.include_router(telnyx_router.router)
+
 # Worker Executor lifecycle
 from backend.workers import start_executor, stop_executor
 

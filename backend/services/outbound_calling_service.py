@@ -35,6 +35,7 @@ class OutboundCallingService:
         campaign_id: Optional[str] = None,
         campaign_name: Optional[str] = None,
         agent_id: Optional[str] = None,
+        provider: str = "twilio",
         db: Session = None
     ) -> Dict[str, Any]:
         """
@@ -55,8 +56,15 @@ class OutboundCallingService:
         Returns:
             Dict with call details including communication_id and twilio_call_sid
         """
-        if not self.client:
-            raise Exception("Twilio client not configured")
+        if provider == "twilio":
+            if not self.client:
+                raise Exception("Twilio client not configured")
+        elif provider == "telnyx":
+            telnyx_api_key = os.getenv("TELNYX_API_KEY")
+            if not telnyx_api_key:
+                raise Exception("Telnyx API Key not configured")
+            import telnyx
+            telnyx.api_key = telnyx_api_key
         
         # Use default phone number if not provided
         if not from_phone:
@@ -118,14 +126,34 @@ class OutboundCallingService:
             except Exception as e:
                 print(f"WARNING: Failed to pre-create room (continuing anyway): {e}")
 
-            # Initiate call via Twilio
-            call = self.client.calls.create(
-                to=to_phone,
-                from_=from_phone,
-                url=twiml_url,
-                status_callback=f"{os.getenv('BACKEND_URL')}/api/voice/status-callback",
-                status_callback_event=['initiated', 'ringing', 'answered', 'completed']
-            )
+            # Initiate call via selected provider
+            call_sid = None
+            if provider == "twilio":
+                call = self.client.calls.create(
+                    to=to_phone,
+                    from_=from_phone,
+                    url=twiml_url,
+                    status_callback=f"{os.getenv('BACKEND_URL')}/api/voice/status-callback",
+                    status_callback_event=['initiated', 'ringing', 'answered', 'completed']
+                )
+                call_sid = call.sid
+            elif provider == "telnyx":
+                # For Telnyx, we use the TeXML application connection_id
+                # which should be configured in settings/env
+                texml_app_id = os.getenv("TELNYX_TEXML_APP_ID")
+                if not texml_app_id:
+                    raise Exception("TELNYX_TEXML_APP_ID not configured for outbound TeXML calls")
+                
+                import telnyx
+                call = telnyx.Call.create(
+                    connection_id=texml_app_id,
+                    to=to_phone,
+                    from_=from_phone,
+                    # For TeXML, Telnyx will fetch the XML from the URL configured in the TeXML App
+                    # However, we can also pass a TeXML script or override if needed.
+                    # Usually, the URL is static in the app config.
+                )
+                call_sid = call.id
             
             # Create communication record in database
             if db:
@@ -141,7 +169,8 @@ class OutboundCallingService:
                     call_intent=call_intent,
                     call_context=call_context,
                     customer_id=customer_id,
-                    twilio_call_sid=call.sid,
+                    twilio_call_sid=call_sid if provider == "twilio" else None,
+                    telnyx_call_id=call_sid if provider == "telnyx" else None,
                     campaign_id=campaign_id,
                     campaign_name=campaign_name,
                     started_at=datetime.utcnow()
