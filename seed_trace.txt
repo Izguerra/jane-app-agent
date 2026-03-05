@@ -1,0 +1,144 @@
+Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~^
+        cursor,
+        ^^^^^^^
+    ...<2 lines>...
+        context,
+        ^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.DatatypeMismatch: column "allowed_tools" is of type text[] but expression is of type json
+LINE 1: ...uested by the user. Summarize findings clearly.', '["web_sea...
+                                                             ^
+HINT:  You will need to rewrite or cast the expression.
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/randyesguerra/Documents/Documents-Randy/Projects/JaneAppAgent/backend/scripts/seed_skills.py", line 246, in seed_skills
+    db.commit()
+    ~~~~~~~~~^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 2030, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1311, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 1286, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4331, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4466, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/util/langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/session.py", line 4427, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        insert,
+        ^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/orm/persistence.py", line 1143, in _emit_insert_statements
+    result = connection.execute(
+        statement, multiparams, execution_options=execution_options
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 1844, in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2133, in _exec_insertmany_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e,
+        ^^
+    ...<4 lines>...
+        is_sub_exec=True,
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/base.py", line 2125, in _exec_insertmany_context
+    dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~^
+        cursor,
+        ^^^^^^^
+    ...<2 lines>...
+        context,
+        ^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/lib/python3.13/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.DatatypeMismatch) column "allowed_tools" is of type text[] but expression is of type json
+LINE 1: ...uested by the user. Summarize findings clearly.', '["web_sea...
+                                                             ^
+HINT:  You will need to rewrite or cast the expression.
+
+[SQL: INSERT INTO skills (id, name, slug, category, description, icon, instructions, allowed_tools, is_system, workspace_id) VALUES (%(id__0)s, %(name__0)s, %(slug__0)s, %(category__0)s, %(description__0)s, %(icon__0)s, %(instructions__0)s, %(allowed_tools ... 4201 characters truncated ... d_tools__23)s::JSON, %(is_system__23)s, %(workspace_id__23)s) RETURNING skills.created_at, skills.id]
+[parameters: {'name__0': 'Web Research', 'slug__0': 'web-research', 'description__0': 'Search the web during calls/chats for real-time info', 'instructions__0': 'Use the web_search tool to find accurate and up-to-date information requested by the user. Summarize findings clearly.', 'id__0': 'skll_000VCHFRTYPb7SO5H5TOw6jzzq', 'is_system__0': True, 'category__0': 'Research', 'icon__0': 'Globe', 'allowed_tools__0': '["web_search"]', 'workspace_id__0': None, 'name__1': 'Lead Research', 'slug__1': 'lead-research', 'description__1': "Deep-dive a lead's company before or during calls", 'instructions__1': "Research the caller's company or business background using web_search. Focus on services, size, and recent news to build rapport.", 'id__1': 'skll_000VCHFRUS1DH8r46pV7C54i5CD', 'is_system__1': True, 'category__1': 'Research', 'icon__1': 'UserSearch', 'allowed_tools__1': '["web_search", "search_customers"]', 'workspace_id__1': None, 'name__2': 'Competitor Analysis', 'slug__2': 'competitor-analysis', 'description__2': "Research competitors' pricing and features", 'instructions__2': 'Research competitor offerings using web_search. Compare pricing, features, and positioning to help the user handle competitive conversations.', 'id__2': 'skll_000VCHFRVB5uIQUpvKCJIb5e5S', 'is_system__2': True, 'category__2': 'Research', 'icon__2': 'Compare', 'allowed_tools__2': '["web_search"]', 'workspace_id__2': None, 'name__3': 'Market Intelligence', 'slug__3': 'market-intelligence', 'description__3': 'Gather industry trends and market data', 'instructions__3': 'Gather industry trends and news using web_search. Provide high-level market context to support business discussions.', 'id__3': 'skll_000VCHFRWC1TdG0kRbXnIMjNgzt', 'is_system__3': True, 'category__3': 'Research', 'icon__3': 'TrendingUp', 'allowed_tools__3': '["web_search"]', 'workspace_id__3': None, 'name__4': 'Email Composer', 'slug__4': 'email-composer', 'description__4': 'Draft and send professional emails', 'instructions__4': 'Draft professional emails based on conversation outcomes. Use the send_email tool when requested or appropriate for follow-up.', 'id__4': 'skll_000VCHFRX43tJuvAMhKwKmV9ba', 'is_system__4': True, 'category__4': 'Communication', 'icon__4': 'Mail', 'allowed_tools__4': '["send_email"]', 'workspace_id__4': None ... 140 parameters truncated ... 'name__19': 'Campaign Manager', 'slug__19': 'campaign-manager', 'description__19': 'Manage drip campaigns and reporting', 'instructions__19': 'Monitor campaign status, start or pause drips, and report on engagement metrics extracted from CRM data.', 'id__19': 'skll_000VCHFRiw63XmeuYGctE8k67K', 'is_system__19': True, 'category__19': 'Workflow', 'icon__19': 'BarChart2', 'allowed_tools__19': '["search_campaigns", "update_campaign"]', 'workspace_id__19': None, 'name__20': 'Data Entry', 'slug__20': 'data-entry', 'description__20': 'Automate CRM and form filling', 'instructions__20': 'Extract structured data from logs or transcripts and enter it directly into the CRM or external forms.', 'id__20': 'skll_000VCHFRjkVBZBdjB4N01to3gA', 'is_system__20': True, 'category__20': 'Workflow', 'icon__20': 'Database', 'allowed_tools__20': '["update_customer", "update_deal"]', 'workspace_id__20': None, 'name__21': 'Escalation Router', 'slug__21': 'escalation-router', 'description__21': 'Route to human agents when needed', 'instructions__21': 'Identify when a request is too complex and route the conversation to the appropriate human team member.', 'id__21': 'skll_000VCHFRkbNLQNZ3p0VM41Etca', 'is_system__21': True, 'category__21': 'Workflow', 'icon__21': 'ArrowUpRight', 'allowed_tools__21': '["route_to_human"]', 'workspace_id__21': None, 'name__22': 'Custom Skill Creator', 'slug__22': 'custom-skill-creator', 'description__22': 'Define reusable skills via guided flow', 'instructions__22': 'Guide the user through creating their own specialized skill, defining instructions and allowed tools.', 'id__22': 'skll_000VCHFRlLYK1dLpA0ockJUlS2', 'is_system__22': True, 'category__22': 'Workflow', 'icon__22': 'PlusCircle', 'allowed_tools__22': '[]', 'workspace_id__22': None, 'name__23': 'Event Triggers', 'slug__23': 'event-triggers', 'description__23': "Automate 'When X -> Y' action chains", 'instructions__23': 'Set up or execute automation chains triggered by specific conversational events or status changes.', 'id__23': 'skll_000VCHFRm7T7TehQ2bCKv8q7eE', 'is_system__23': True, 'category__23': 'Workflow', 'icon__23': 'Activity', 'allowed_tools__23': '["dispatch_worker"]', 'workspace_id__23': None}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Using PostgreSQL database: aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require
+Error seeding skills: (psycopg2.errors.DatatypeMismatch) column "allowed_tools" is of type text[] but expression is of type json
+LINE 1: ...uested by the user. Summarize findings clearly.', '["web_sea...
+                                                             ^
+HINT:  You will need to rewrite or cast the expression.
+
+[SQL: INSERT INTO skills (id, name, slug, category, description, icon, instructions, allowed_tools, is_system, workspace_id) VALUES (%(id__0)s, %(name__0)s, %(slug__0)s, %(category__0)s, %(description__0)s, %(icon__0)s, %(instructions__0)s, %(allowed_tools ... 4201 characters truncated ... d_tools__23)s::JSON, %(is_system__23)s, %(workspace_id__23)s) RETURNING skills.created_at, skills.id]
+[parameters: {'name__0': 'Web Research', 'slug__0': 'web-research', 'description__0': 'Search the web during calls/chats for real-time info', 'instructions__0': 'Use the web_search tool to find accurate and up-to-date information requested by the user. Summarize findings clearly.', 'id__0': 'skll_000VCHFRTYPb7SO5H5TOw6jzzq', 'is_system__0': True, 'category__0': 'Research', 'icon__0': 'Globe', 'allowed_tools__0': '["web_search"]', 'workspace_id__0': None, 'name__1': 'Lead Research', 'slug__1': 'lead-research', 'description__1': "Deep-dive a lead's company before or during calls", 'instructions__1': "Research the caller's company or business background using web_search. Focus on services, size, and recent news to build rapport.", 'id__1': 'skll_000VCHFRUS1DH8r46pV7C54i5CD', 'is_system__1': True, 'category__1': 'Research', 'icon__1': 'UserSearch', 'allowed_tools__1': '["web_search", "search_customers"]', 'workspace_id__1': None, 'name__2': 'Competitor Analysis', 'slug__2': 'competitor-analysis', 'description__2': "Research competitors' pricing and features", 'instructions__2': 'Research competitor offerings using web_search. Compare pricing, features, and positioning to help the user handle competitive conversations.', 'id__2': 'skll_000VCHFRVB5uIQUpvKCJIb5e5S', 'is_system__2': True, 'category__2': 'Research', 'icon__2': 'Compare', 'allowed_tools__2': '["web_search"]', 'workspace_id__2': None, 'name__3': 'Market Intelligence', 'slug__3': 'market-intelligence', 'description__3': 'Gather industry trends and market data', 'instructions__3': 'Gather industry trends and news using web_search. Provide high-level market context to support business discussions.', 'id__3': 'skll_000VCHFRWC1TdG0kRbXnIMjNgzt', 'is_system__3': True, 'category__3': 'Research', 'icon__3': 'TrendingUp', 'allowed_tools__3': '["web_search"]', 'workspace_id__3': None, 'name__4': 'Email Composer', 'slug__4': 'email-composer', 'description__4': 'Draft and send professional emails', 'instructions__4': 'Draft professional emails based on conversation outcomes. Use the send_email tool when requested or appropriate for follow-up.', 'id__4': 'skll_000VCHFRX43tJuvAMhKwKmV9ba', 'is_system__4': True, 'category__4': 'Communication', 'icon__4': 'Mail', 'allowed_tools__4': '["send_email"]', 'workspace_id__4': None ... 140 parameters truncated ... 'name__19': 'Campaign Manager', 'slug__19': 'campaign-manager', 'description__19': 'Manage drip campaigns and reporting', 'instructions__19': 'Monitor campaign status, start or pause drips, and report on engagement metrics extracted from CRM data.', 'id__19': 'skll_000VCHFRiw63XmeuYGctE8k67K', 'is_system__19': True, 'category__19': 'Workflow', 'icon__19': 'BarChart2', 'allowed_tools__19': '["search_campaigns", "update_campaign"]', 'workspace_id__19': None, 'name__20': 'Data Entry', 'slug__20': 'data-entry', 'description__20': 'Automate CRM and form filling', 'instructions__20': 'Extract structured data from logs or transcripts and enter it directly into the CRM or external forms.', 'id__20': 'skll_000VCHFRjkVBZBdjB4N01to3gA', 'is_system__20': True, 'category__20': 'Workflow', 'icon__20': 'Database', 'allowed_tools__20': '["update_customer", "update_deal"]', 'workspace_id__20': None, 'name__21': 'Escalation Router', 'slug__21': 'escalation-router', 'description__21': 'Route to human agents when needed', 'instructions__21': 'Identify when a request is too complex and route the conversation to the appropriate human team member.', 'id__21': 'skll_000VCHFRkbNLQNZ3p0VM41Etca', 'is_system__21': True, 'category__21': 'Workflow', 'icon__21': 'ArrowUpRight', 'allowed_tools__21': '["route_to_human"]', 'workspace_id__21': None, 'name__22': 'Custom Skill Creator', 'slug__22': 'custom-skill-creator', 'description__22': 'Define reusable skills via guided flow', 'instructions__22': 'Guide the user through creating their own specialized skill, defining instructions and allowed tools.', 'id__22': 'skll_000VCHFRlLYK1dLpA0ockJUlS2', 'is_system__22': True, 'category__22': 'Workflow', 'icon__22': 'PlusCircle', 'allowed_tools__22': '[]', 'workspace_id__22': None, 'name__23': 'Event Triggers', 'slug__23': 'event-triggers', 'description__23': "Automate 'When X -> Y' action chains", 'instructions__23': 'Set up or execute automation chains triggered by specific conversational events or status changes.', 'id__23': 'skll_000VCHFRm7T7TehQ2bCKv8q7eE', 'is_system__23': True, 'category__23': 'Workflow', 'icon__23': 'Activity', 'allowed_tools__23': '["dispatch_worker"]', 'workspace_id__23': None}]
+(Background on this error at: https://sqlalche.me/e/20/f405)

@@ -1,0 +1,9 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+httpx==0.27.0
+pyjwt==2.8.0
+requests==2.31.0
+pydantic==2.6.1
+python-multipart==0.0.9
+openai==1.12.0
+playwright==1.41.0

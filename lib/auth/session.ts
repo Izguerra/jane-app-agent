@@ -1,24 +1,11 @@
-import { compare, hash } from 'bcryptjs';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NewUser } from '@/lib/db/schema';
 
-const key = new TextEncoder().encode(process.env.AUTH_SECRET);
-const SALT_ROUNDS = 10;
-
-export async function hashPassword(password: string) {
-  return hash(password, SALT_ROUNDS);
-}
-
-export async function comparePasswords(
-  plainTextPassword: string,
-  hashedPassword: string
-) {
-  return compare(plainTextPassword, hashedPassword);
-}
+const key = new TextEncoder().encode(process.env.AUTH_SECRET || 'secret_placeholder');
 
 type SessionData = {
-  user: { id: number };
+  user: { id: string; teamId: string };
   expires: string;
 };
 
@@ -43,17 +30,39 @@ export async function getSession() {
   return await verifyToken(session);
 }
 
-export async function setSession(user: NewUser) {
+export async function setSession(user: NewUser, teamId: string) {
   const expiresInOneDay = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const session: SessionData = {
-    user: { id: user.id! },
+    user: { id: user.id!, teamId },
     expires: expiresInOneDay.toISOString(),
   };
   const encryptedSession = await signToken(session);
   (await cookies()).set('session', encryptedSession, {
     expires: expiresInOneDay,
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
   });
+}
+
+type ResetTokenPayload = {
+  userId: string;
+  type: 'reset';
+  expires: string;
+};
+
+export async function signResetToken(payload: Omit<ResetTokenPayload, 'expires'>) {
+  const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+  return await new SignJWT({ ...payload, expires: expires.toISOString() })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime(expires)
+    .sign(key);
+}
+
+export async function verifyResetToken(input: string) {
+  const { payload } = await jwtVerify(input, key, {
+    algorithms: ['HS256'],
+  });
+  return payload as ResetTokenPayload;
 }

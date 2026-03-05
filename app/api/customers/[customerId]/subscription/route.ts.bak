@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function POST(
+    request: NextRequest,
+    { params }: { params: { customerId: string } }
+) {
+    const { customerId } = await params;
+    const body = await request.json();
+
+    try {
+        const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/customers/${customerId}/subscription`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: request.headers.get('cookie') || '',
+                },
+                credentials: 'include',
+                body: JSON.stringify(body),
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json(data, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Create subscription error:', error);
+        return NextResponse.json(
+            { error: 'Failed to create subscription' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function PUT(
+    request: NextRequest,
+    { params }: { params: { customerId: string } }
+) {
+    const { customerId } = await params;
+    const body = await request.json();
+
+    try {
+        const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/customers/${customerId}/subscription`,
+            {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: request.headers.get('cookie') || '',
+                },
+                credentials: 'include',
+                body: JSON.stringify(body),
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json(data, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Update subscription error:', error);
+        return NextResponse.json(
+            { error: 'Failed to update subscription' },
+            { status: 500 }
+        );
+    }
+}

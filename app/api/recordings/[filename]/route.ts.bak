@@ -1,0 +1,39 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: { filename: string } }
+) {
+    const { filename } = await params;
+    // Backend URL (FastAPI)
+    const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const targetUrl = `${backendUrl}/api/recordings/${filename}`;
+
+    try {
+        // Fetch from backend with manual redirect handling
+        const response = await fetch(targetUrl, {
+            method: 'GET',
+            redirect: 'manual', // Do not follow redirects automatically
+        });
+
+        // Valid S3 redirect (307 or 302)
+        if (response.status === 307 || response.status === 302 || response.status === 301) {
+            const location = response.headers.get('location');
+            if (location) {
+                return NextResponse.redirect(location);
+            }
+        }
+
+        if (!response.ok) {
+            return new NextResponse(`Backend error: ${response.statusText}`, { status: response.status });
+        }
+
+        // If backend returns 200 (unexpected for our current logic but possible), just pipe it?
+        // unlikely given we return RedirectResponse
+        return new NextResponse("Unexpected response from backend", { status: 500 });
+
+    } catch (error) {
+        console.error('Error proxying recording request:', error);
+        return new NextResponse("Internal Server Error", { status: 500 });
+    }
+}

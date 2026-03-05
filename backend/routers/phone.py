@@ -86,7 +86,7 @@ async def voice_webhook():
     return """
     <?xml version="1.0" encoding="UTF-8"?>
     <Response>
-        <Say>Connecting you to Jane AI.</Say>
+        <Say>Connecting you to SupaAgent AI.</Say>
         <Connect>
             <Stream url="wss://your-livekit-server.com" />
         </Connect>

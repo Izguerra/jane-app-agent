@@ -1,0 +1,44 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ customerId: string }> }
+) {
+    const { customerId } = await params;
+    const { searchParams } = new URL(request.url);
+    const newPlan = searchParams.get('new_plan');
+
+    if (!newPlan) {
+        return NextResponse.json(
+            { error: 'new_plan query parameter required' },
+            { status: 400 }
+        );
+    }
+
+    try {
+        const response = await fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/customers/${customerId}/proration?new_plan=${newPlan}`,
+            {
+                method: 'GET',
+                headers: {
+                    Cookie: request.headers.get('cookie') || '',
+                },
+                credentials: 'include',
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return NextResponse.json(data, { status: response.status });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        console.error('Proration calculation error:', error);
+        return NextResponse.json(
+            { error: 'Failed to calculate proration' },
+            { status: 500 }
+        );
+    }
+}
