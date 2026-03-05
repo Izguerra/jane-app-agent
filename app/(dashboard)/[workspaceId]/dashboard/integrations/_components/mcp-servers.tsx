@@ -5,7 +5,8 @@ import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import {
     Plug, Plus, Trash2, RefreshCw, CheckCircle2, XCircle, Clock,
-    Wrench, ExternalLink, ChevronDown, ChevronUp, Loader2, Shield
+    Wrench, ExternalLink, ChevronDown, ChevronUp, Loader2, Shield,
+    Pencil
 } from "lucide-react";
 
 const fetcher = (url: string) =>
@@ -33,18 +34,20 @@ const STATUS_BADGES: Record<string, { color: string; icon: React.ReactNode; labe
     pending: { color: "bg-yellow-100 text-yellow-700", icon: <Clock className="h-3 w-3" />, label: "Pending" },
 };
 
-interface AddModalProps {
+interface MCPServerModalProps {
+    server?: any;
     onClose: () => void;
 }
 
-function AddMCPServerModal({ onClose }: AddModalProps) {
-    const [name, setName] = useState("");
-    const [url, setUrl] = useState("");
-    const [transport, setTransport] = useState("sse");
-    const [authType, setAuthType] = useState("none");
-    const [authValue, setAuthValue] = useState("");
+function MCPServerModal({ server, onClose }: MCPServerModalProps) {
+    const isEditing = !!server;
+    const [name, setName] = useState(server?.name || "");
+    const [url, setUrl] = useState(server?.url || "");
+    const [transport, setTransport] = useState(server?.transport || "sse");
+    const [authType, setAuthType] = useState(server?.auth_type || "none");
+    const [authValue, setAuthValue] = useState(""); // Don't pre-fill sensitive values
     const [loading, setLoading] = useState(false);
-    const [showPresets, setShowPresets] = useState(true);
+    const [showPresets, setShowPresets] = useState(!isEditing);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -52,26 +55,36 @@ function AddMCPServerModal({ onClose }: AddModalProps) {
 
         setLoading(true);
         try {
-            const res = await fetch("/api/mcp-servers", {
-                method: "POST",
+            const endpoint = isEditing ? `/api/mcp-servers/${server.id}` : "/api/mcp-servers";
+            const method = isEditing ? "PUT" : "POST";
+
+            const payload: any = {
+                name: name.trim(),
+                url: url.trim(),
+                transport,
+                auth_type: authType,
+            };
+
+            if (authValue) {
+                payload.auth_value = authValue;
+            } else if (!isEditing) {
+                payload.auth_value = null;
+            }
+
+            const res = await fetch(endpoint, {
+                method,
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({
-                    name: name.trim(),
-                    url: url.trim(),
-                    transport,
-                    auth_type: authType,
-                    auth_value: authValue || null,
-                }),
+                body: JSON.stringify(payload),
             });
 
             if (!res.ok) throw new Error(await res.text());
 
-            toast.success("MCP server added successfully");
+            toast.success(isEditing ? "MCP server updated" : "MCP server added");
             mutate("/api/mcp-servers");
             onClose();
         } catch (err: any) {
-            toast.error("Failed to add MCP server: " + err.message);
+            toast.error(`Failed to ${isEditing ? 'update' : 'add'} MCP server: ` + err.message);
         } finally {
             setLoading(false);
         }
@@ -89,20 +102,21 @@ function AddMCPServerModal({ onClose }: AddModalProps) {
                 <div className="p-6">
                     <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
                         <Plug className="h-5 w-5 text-violet-600" />
-                        Add MCP Server
+                        {isEditing ? `Edit ${server.name}` : "Add MCP Server"}
                     </h2>
                     <p className="text-sm text-slate-500 mb-5">
-                        Connect an external MCP server to expand your agent&apos;s capabilities.
+                        {isEditing ? "Update your MCP server configuration." : "Connect an external MCP server to expand your agent's capabilities."}
                     </p>
 
                     {/* Popular Presets */}
-                    {showPresets && (
+                    {showPresets && !isEditing && (
                         <div className="mb-5">
                             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Popular Integrations</h3>
                             <div className="grid grid-cols-3 gap-2">
                                 {MCP_PRESETS.map((preset) => (
                                     <button
                                         key={preset.name}
+                                        type="button"
                                         onClick={() => applyPreset(preset)}
                                         className="p-2.5 rounded-lg border border-slate-200 hover:border-violet-300 hover:bg-violet-50/50 text-center transition-all"
                                     >
@@ -111,6 +125,7 @@ function AddMCPServerModal({ onClose }: AddModalProps) {
                                     </button>
                                 ))}
                                 <button
+                                    type="button"
                                     onClick={() => setShowPresets(false)}
                                     className="p-2.5 rounded-lg border border-dashed border-slate-300 hover:border-violet-400 text-center transition-all"
                                 >
@@ -167,21 +182,24 @@ function AddMCPServerModal({ onClose }: AddModalProps) {
                                 </select>
                             </div>
                         </div>
-                        {authType !== "none" && (
-                            <div>
-                                <label className="text-xs font-medium text-slate-700 mb-1 block flex items-center gap-1">
-                                    <Shield className="h-3 w-3" />
-                                    {authType === "api_key" ? "API Key" : "Bearer Token"}
-                                </label>
-                                <input
-                                    value={authValue}
-                                    onChange={(e) => setAuthValue(e.target.value)}
-                                    type="password"
-                                    placeholder="Enter your key..."
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
-                                />
-                            </div>
-                        )}
+                        <div className="space-y-1">
+                            {authType !== "none" && (
+                                <>
+                                    <label className="text-xs font-medium text-slate-700 mb-1 block flex items-center gap-1">
+                                        <Shield className="h-3 w-3" />
+                                        {authType === "api_key" ? "API Key" : "Bearer Token"}
+                                        {isEditing && <span className="font-normal text-slate-400 ml-1">(Leave blank to keep current)</span>}
+                                    </label>
+                                    <input
+                                        value={authValue}
+                                        onChange={(e) => setAuthValue(e.target.value)}
+                                        type="password"
+                                        placeholder={isEditing ? "••••••••" : "Enter your key..."}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
+                                    />
+                                </>
+                            )}
+                        </div>
                         <div className="flex gap-3 pt-2">
                             <button
                                 type="button"
@@ -195,8 +213,8 @@ function AddMCPServerModal({ onClose }: AddModalProps) {
                                 disabled={loading || !name.trim() || !url.trim()}
                                 className="flex-1 px-4 py-2.5 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                             >
-                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                Add Server
+                                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (isEditing ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />)}
+                                {isEditing ? "Save Changes" : "Add Server"}
                             </button>
                         </div>
                     </form>
@@ -209,7 +227,12 @@ function AddMCPServerModal({ onClose }: AddModalProps) {
 
 // ─────────── MCP Server Card ───────────
 
-function MCPServerCard({ server }: { server: any }) {
+interface MCPServerCardProps {
+    server: any;
+    onEdit: (server: any) => void;
+}
+
+function MCPServerCard({ server, onEdit }: MCPServerCardProps) {
     const [expanded, setExpanded] = useState(false);
     const [testing, setTesting] = useState(false);
 
@@ -249,6 +272,11 @@ function MCPServerCard({ server }: { server: any }) {
         } catch (err: any) {
             toast.error("Failed to remove: " + err.message);
         }
+    };
+
+    const handleEdit = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onEdit(server);
     };
 
     const badge = STATUS_BADGES[server.status] || STATUS_BADGES.pending;
@@ -316,6 +344,13 @@ function MCPServerCard({ server }: { server: any }) {
                             Test Connection
                         </button>
                         <button
+                            onClick={handleEdit}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition-colors"
+                        >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                        </button>
+                        <button
                             onClick={handleDelete}
                             className="flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors"
                         >
@@ -334,7 +369,7 @@ function MCPServerCard({ server }: { server: any }) {
 
 export function MCPServersSection() {
     const { data: servers, isLoading } = useSWR("/api/mcp-servers", fetcher);
-    const [showAddModal, setShowAddModal] = useState(false);
+    const [modalConfig, setModalConfig] = useState<{ open: boolean; server?: any }>({ open: false });
 
     const safeServers = Array.isArray(servers) ? servers : [];
     const connectedCount = safeServers.filter(s => s.status === "connected").length;
@@ -351,7 +386,7 @@ export function MCPServersSection() {
                     </p>
                 </div>
                 <button
-                    onClick={() => setShowAddModal(true)}
+                    onClick={() => setModalConfig({ open: true })}
                     className="flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors shadow-sm"
                 >
                     <Plus className="h-4 w-4" />
@@ -371,7 +406,7 @@ export function MCPServersSection() {
                         Connect to MCP servers like Zapier, GitHub, Notion, or create a custom connection to extend your agents&apos; capabilities.
                     </p>
                     <button
-                        onClick={() => setShowAddModal(true)}
+                        onClick={() => setModalConfig({ open: true })}
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
                     >
                         <Plus className="h-4 w-4" />
@@ -381,12 +416,21 @@ export function MCPServersSection() {
             ) : (
                 <div className="grid gap-3">
                     {safeServers.map((server: any) => (
-                        <MCPServerCard key={server.id} server={server} />
+                        <MCPServerCard
+                            key={server.id}
+                            server={server}
+                            onEdit={(s) => setModalConfig({ open: true, server: s })}
+                        />
                     ))}
                 </div>
             )}
 
-            {showAddModal && <AddMCPServerModal onClose={() => setShowAddModal(false)} />}
+            {modalConfig.open && (
+                <MCPServerModal
+                    server={modalConfig.server}
+                    onClose={() => setModalConfig({ open: false })}
+                />
+            )}
         </section>
     );
 }
