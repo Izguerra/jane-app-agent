@@ -6,6 +6,7 @@ from backend.database import get_db, generate_phone_id
 from backend.models_db import PhoneNumber, Workspace
 from backend.auth import get_current_user, AuthUser
 from backend.services.twilio_service import TwilioService
+from backend.services.telnyx_service import TelnyxService
 import logging
 
 router = APIRouter(prefix="/phone-numbers", tags=["phone-numbers"])
@@ -17,11 +18,13 @@ class PhoneNumberSearch(BaseModel):
     area_code: Optional[str] = None
     voice_enabled: bool = True
     sms_enabled: bool = False
+    provider: str = "twilio"
 
 class PhoneNumberPurchase(BaseModel):
     phone_number: str
     friendly_name: Optional[str] = None
     workspace_id: str
+    provider: str = "twilio"
 
 class PhoneNumberConfig(BaseModel):
     voice_enabled: Optional[bool] = None
@@ -41,22 +44,35 @@ class PhoneNumberResponse(BaseModel):
     is_active: bool
     agent_id: Optional[str] = None
     agent_name: Optional[str] = None
+    provider: str = "twilio"
 
 @router.get("/search")
 async def search_numbers(
     country: str = "US",
     area_code: Optional[str] = None,
+    provider: str = "twilio",
     current_user: AuthUser = Depends(get_current_user)
 ):
     """Search for available phone numbers"""
-    twilio = TwilioService()
     try:
-        numbers = twilio.search_phone_numbers(
-            country_code=country,
-            area_code=area_code,
-            voice_enabled=True
-        )
-        return numbers
+        if provider == "twilio":
+            twilio = TwilioService()
+            numbers = twilio.search_phone_numbers(
+                country_code=country,
+                area_code=area_code,
+                voice_enabled=True
+            )
+            return numbers
+        elif provider == "telnyx":
+            telnyx = TelnyxService()
+            numbers = telnyx.search_phone_numbers(
+                country_code=country,
+                area_code=area_code,
+                features=["voice", "sms"]
+            )
+            return numbers
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -76,26 +92,47 @@ async def purchase_number(
     if not workspace:
         raise HTTPException(status_code=403, detail="Access to workspace denied")
     
-    twilio = TwilioService()
     try:
-        # Purchase from Twilio
-        result = twilio.purchase_phone_number(
-            phone_number=purchase.phone_number,
-            friendly_name=purchase.friendly_name
-        )
-        
-        # Save to database
-        db_number = PhoneNumber(
-            id=generate_phone_id(),
-            workspace_id=purchase.workspace_id,
-            phone_number=result["phone_number"],
-            friendly_name=result.get("friendly_name"),
-            twilio_sid=result["sid"],
-            voice_enabled=result["capabilities"]["voice"],
-            sms_enabled=result["capabilities"]["sms"],
-            monthly_cost=999, # $9.99 (in cents)
-            country_code="US" # Defaulting for now as Twilio result usually needs parsing for this
-        )
+        if purchase.provider == "twilio":
+            twilio = TwilioService()
+            result = twilio.purchase_phone_number(
+                phone_number=purchase.phone_number,
+                friendly_name=purchase.friendly_name
+            )
+            
+            db_number = PhoneNumber(
+                id=generate_phone_id(),
+                workspace_id=purchase.workspace_id,
+                phone_number=result["phone_number"],
+                friendly_name=result.get("friendly_name"),
+                twilio_sid=result["sid"],
+                provider="twilio",
+                voice_enabled=result["capabilities"]["voice"],
+                sms_enabled=result["capabilities"]["sms"],
+                monthly_cost=999,
+                country_code="US"
+            )
+        elif purchase.provider == "telnyx":
+            telnyx = TelnyxService()
+            result = telnyx.purchase_phone_number(
+                phone_number=purchase.phone_number,
+                workspace_id=purchase.workspace_id
+            )
+            
+            db_number = PhoneNumber(
+                id=generate_phone_id(),
+                workspace_id=purchase.workspace_id,
+                phone_number=result["phone_number"],
+                friendly_name=result.get("friendly_name", purchase.phone_number),
+                telnyx_id=result["id"],
+                provider="telnyx",
+                voice_enabled=True, # Assuming true for standard purchase
+                sms_enabled=True,
+                monthly_cost=200, # Telnyx is usually cheaper
+                country_code="US"
+            )
+        else:
+            raise ValueError(f"Unsupported provider: {purchase.provider}")
         
         db.add(db_number)
         
@@ -105,14 +142,6 @@ async def purchase_number(
         db.commit()
         db.refresh(db_number)
         
-        # Auto-configure SIP Trunk for voice
-        if db_number.voice_enabled:
-            # LIVEKIT_SIP_TRUNK_URL should be in env
-            # Or constructed dynamically
-            # For now, we'll leaving this as a placeholder to be filled by the next step
-            # logic for configuring SIP
-            pass
-            
         return db_number
         
     except Exception as e:
@@ -178,19 +207,28 @@ async def release_number(
     if not workspace:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    twilio = TwilioService()
     try:
-        # Release from Twilio
-        if number.twilio_sid:
+        # Release from Provider
+        if number.provider == "twilio" and number.twilio_sid:
             try:
+                twilio = TwilioService()
                 twilio.release_phone_number(number.twilio_sid)
             except Exception as e:
                 logger.error(f"Failed to release number from Twilio: {e}")
-                # We proceed to delete from DB anyway to avoid sync issues, 
-                # but we log it. Ideally we might want to alert admin.
+                
+        elif number.provider == "telnyx" and number.telnyx_id:
+            try:
+                import telnyx
+                telnyx_api_key = os.getenv("TELNYX_API_KEY")
+                if telnyx_api_key:
+                    telnyx.api_key = telnyx_api_key
+                    # Telnyx SDK uses PhoneNumber to delete
+                    num = telnyx.PhoneNumber.retrieve(number.telnyx_id)
+                    num.delete()
+            except Exception as e:
+                logger.error(f"Failed to release number from Telnyx: {e}")
 
-        
-        # Remove from DB (or mark inactive)
+        # Remove from DB
         db.delete(number)
         db.commit()
         return {"status": "success"}

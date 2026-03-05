@@ -12,29 +12,34 @@ interface PhoneManagementProps {
 }
 
 export function PhoneManagement({ phoneNumbers }: PhoneManagementProps) {
-    const [isPurchasing, setIsPurchasing] = useState(false);
+    const [isPurchasingTwilio, setIsPurchasingTwilio] = useState(false);
+    const [isPurchasingTelnyx, setIsPurchasingTelnyx] = useState(false);
 
-    async function handlePurchaseNumber() {
-        setIsPurchasing(true);
+    async function handlePurchaseNumber(provider: 'twilio' | 'telnyx') {
+        if (provider === 'twilio') setIsPurchasingTwilio(true);
+        else setIsPurchasingTelnyx(true);
+
         try {
             const purchaseRes = await fetch("/api/billing/purchase-phone-number", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" }
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ provider })
             });
 
             if (!purchaseRes.ok) {
                 const errorData = await purchaseRes.json().catch(() => ({}));
-                throw new Error(errorData.detail || "Purchase failed");
+                throw new Error(errorData.detail || `Purchase from ${provider} failed`);
             }
 
             const result = await purchaseRes.json();
-            toast.success(`Successfully purchased ${result.phone_number}`);
+            toast.success(`Successfully purchased ${result.phone_number} via ${provider}`);
             mutate("/api/agent/phone-numbers");
 
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed to purchase number");
+            toast.error(e instanceof Error ? e.message : `Failed to purchase ${provider} number`);
         } finally {
-            setIsPurchasing(false);
+            if (provider === 'twilio') setIsPurchasingTwilio(false);
+            else setIsPurchasingTelnyx(false);
         }
     }
 
@@ -46,7 +51,7 @@ export function PhoneManagement({ phoneNumbers }: PhoneManagementProps) {
                         <CardTitle>Phone Management</CardTitle>
                     </div>
                 </div>
-                <CardDescription>Manage your Twilio phone numbers and agent assignments.</CardDescription>
+                <CardDescription>Manage your phone numbers across Twilio and Telnyx.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="space-y-4">
@@ -62,6 +67,9 @@ export function PhoneManagement({ phoneNumbers }: PhoneManagementProps) {
                                             <p className="font-bold">{phone.phone_number}</p>
                                             <div className="flex flex-wrap gap-2 mt-1">
                                                 <span className="text-xs text-muted-foreground">{phone.friendly_name}</span>
+                                                <span className={`text-xs px-1.5 py-0.5 rounded capitalize ${phone.provider === 'telnyx' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                                                    {phone.provider || 'twilio'}
+                                                </span>
                                                 {phone.voice_enabled && <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Voice</span>}
                                                 {phone.sms_enabled && <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">SMS</span>}
                                                 {phone.agent_id ? (
@@ -87,13 +95,17 @@ export function PhoneManagement({ phoneNumbers }: PhoneManagementProps) {
                         <p className="text-sm text-muted-foreground">You don't have any phone numbers.</p>
                     )}
 
-                    <div className="flex items-center gap-2 pt-2">
-                        <Button onClick={handlePurchaseNumber} disabled={isPurchasing}>
-                            {isPurchasing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
-                            {isPurchasing ? "Purchasing..." : "Purchase Additional Number ($9.99/mo)"}
+                    <div className="flex items-center gap-2 pt-2 flex-wrap">
+                        <Button onClick={() => handlePurchaseNumber('twilio')} disabled={isPurchasingTwilio || isPurchasingTelnyx} variant="outline">
+                            {isPurchasingTwilio ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4 text-red-500" />}
+                            {isPurchasingTwilio ? "Purchasing..." : "Purchase Twilio Number ($9.99/mo)"}
                         </Button>
-                        <p className="text-xs text-muted-foreground ml-2">
-                            Included numbers are provisioned automatically based on your plan.
+                        <Button onClick={() => handlePurchaseNumber('telnyx')} disabled={isPurchasingTwilio || isPurchasingTelnyx} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                            {isPurchasingTelnyx ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Phone className="mr-2 h-4 w-4" />}
+                            {isPurchasingTelnyx ? "Purchasing..." : "Purchase Telnyx Number ($2.00/mo)"}
+                        </Button>
+                        <p className="text-xs text-muted-foreground ml-2 w-full mt-2">
+                            Telnyx is recommended for better scalability and cheaper rates. Numbers are provisioned instantly.
                         </p>
                     </div>
                 </div>

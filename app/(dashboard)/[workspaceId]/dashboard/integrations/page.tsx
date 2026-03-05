@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PhoneManagement } from "./_components/phone-management";
 import { JaneAppIntegration } from "./_components/jane-app";
 import { WhatsAppTwilio } from "./_components/whatsapp-twilio";
+import { TelnyxIntegration } from "./_components/telnyx";
 import { WhatsAppMeta } from "./_components/whatsapp-meta";
 import { InstagramIntegration } from "./_components/instagram";
 import { ShopifyIntegration } from "./_components/shopify";
@@ -79,6 +80,7 @@ export default function IntegrationsPage() {
                 <div className="grid gap-4">
                     <PhoneManagement phoneNumbers={phoneNumbers} />
                     <WhatsAppTwilio integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
+                    <TelnyxIntegration integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                     <WhatsAppMeta integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                     <InstagramIntegration integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                     <WebsiteWidget workspaceId={workspaceId} expanded={expanded} onToggleExpand={toggleExpand} />
