@@ -8,8 +8,7 @@ echo "========================================================="
 
 # 1. Stop and remove existing container
 echo "Stopping existing container..."
-ssh root@147.182.149.234 "docker stop supaagent_asterisk || true"
-ssh root@147.182.149.234 "docker rm supaagent_asterisk || true"
+ssh root@147.182.149.234 "docker rm -f supaagent_asterisk || true"
 
 # 2. Run new container with EXPLICIT PORTS
 # -p 5060:5060/udp : SIP Signaling

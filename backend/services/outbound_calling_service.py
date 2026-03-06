@@ -35,7 +35,7 @@ class OutboundCallingService:
         campaign_id: Optional[str] = None,
         campaign_name: Optional[str] = None,
         agent_id: Optional[str] = None,
-        provider: str = "twilio",
+        provider: str = "auto",
         db: Session = None
     ) -> Dict[str, Any]:
         """
@@ -56,6 +56,48 @@ class OutboundCallingService:
         Returns:
             Dict with call details including communication_id and twilio_call_sid
         """
+        # Auto-detect provider from workspace's phone numbers if not explicitly set
+        if provider == "auto":
+            try:
+                from backend.database import SessionLocal
+                from backend.models_db import PhoneNumber, Workspace
+                _db = db or SessionLocal()
+                
+                # 1. Try current workspace
+                tel_num = _db.query(PhoneNumber).filter(
+                    PhoneNumber.workspace_id == workspace_id,
+                    PhoneNumber.provider == "telnyx",
+                    PhoneNumber.is_active == True
+                ).first()
+                
+                # 2. If not found, try any workspace in the same team
+                if not tel_num:
+                    ws = _db.query(Workspace).filter(Workspace.id == workspace_id).first()
+                    if ws:
+                        # Find all workspaces in the same team
+                        team_workspaces = _db.query(Workspace.id).filter(Workspace.team_id == ws.team_id).all()
+                        team_ws_ids = [w[0] for w in team_workspaces]
+                        
+                        tel_num = _db.query(PhoneNumber).filter(
+                            PhoneNumber.workspace_id.in_(team_ws_ids),
+                            PhoneNumber.provider == "telnyx",
+                            PhoneNumber.is_active == True
+                        ).first()
+                
+                if tel_num:
+                    provider = "telnyx"
+                    from_phone = tel_num.phone_number
+                    print(f"DEBUG: Auto-detected Telnyx provider for team/workspace, from_phone={from_phone}")
+                else:
+                    provider = "twilio"
+                    print(f"DEBUG: No Telnyx number found for workspace {workspace_id} or its team, defaulting to Twilio")
+                
+                if not db:
+                    _db.close()
+            except Exception as e:
+                print(f"WARNING: Provider auto-detect failed ({e}), defaulting to twilio")
+                provider = "twilio"
+        
         if provider == "twilio":
             if not self.client:
                 raise Exception("Twilio client not configured")
@@ -117,7 +159,7 @@ class OutboundCallingService:
                         empty_timeout=60,
                         max_participants=2,
                         agents=[
-                            api.RoomAgentDispatch(agent_name="supaagent-voice-agent")
+                            api.RoomAgentDispatch(agent_name="supaagent-voice-agent-v2")
                         ],
                         metadata=json.dumps(dict(room_metadata))
                     ))
@@ -138,22 +180,25 @@ class OutboundCallingService:
                 )
                 call_sid = call.sid
             elif provider == "telnyx":
-                # For Telnyx, we use the TeXML application connection_id
-                # which should be configured in settings/env
-                texml_app_id = os.getenv("TELNYX_TEXML_APP_ID")
-                if not texml_app_id:
-                    raise Exception("TELNYX_TEXML_APP_ID not configured for outbound TeXML calls")
+                # Reverting to Call Control as TeXML was 404ing
+                from backend.services.telnyx_service import TelnyxService
+                telnyx_svc = TelnyxService()
+                connection_id = os.getenv("TELNYX_CONNECTION_ID")
                 
-                import telnyx
-                call = telnyx.Call.create(
-                    connection_id=texml_app_id,
-                    to=to_phone,
-                    from_=from_phone,
-                    # For TeXML, Telnyx will fetch the XML from the URL configured in the TeXML App
-                    # However, we can also pass a TeXML script or override if needed.
-                    # Usually, the URL is static in the app config.
-                )
-                call_sid = call.id
+                print(f"DEBUG: Initiating Telnyx Call Control call from {from_phone} to {to_phone} using Connection ID: {connection_id}")
+                
+                if connection_id:
+                    if not telnyx_svc.client:
+                        raise Exception("Telnyx client not initialized")
+                    call_result = telnyx_svc.client.calls.dial(
+                        connection_id=connection_id,
+                        to=to_phone,
+                        from_=from_phone
+                    )
+                    call_sid = call_result.data.call_control_id
+                else:
+                    print("WARNING: No TELNYX_CONNECTION_ID configured.")
+                    call_sid = f"err_{communication_id}"
             
             # Create communication record in database
             if db:
@@ -181,10 +226,11 @@ class OutboundCallingService:
             return {
                 "success": True,
                 "communication_id": communication_id,
-                "twilio_call_sid": call.sid,
-                "status": call.status,
+                "call_id": call_sid,
+                "status": "initiated",
                 "to": to_phone,
-                "from": from_phone
+                "from": from_phone,
+                "provider": provider
             }
         
         except Exception as e:

@@ -417,6 +417,7 @@ async def update_subscription(
 class PurchaseNumberRequest(BaseModel):
     area_code: Optional[str] = "415"
     phone_number: Optional[str] = None # If user pre-selected a number
+    provider: Optional[str] = "twilio" # "twilio" or "telnyx"
 
 @router.post("/purchase-phone-number")
 async def purchase_phone_number(
@@ -432,86 +433,121 @@ async def purchase_phone_number(
     if not team or not team.stripe_subscription_id:
         raise HTTPException(status_code=400, detail="Active subscription required")
 
-    # 1. Find Price ID for "Additional Phone Number"
-    price_id = os.getenv("STRIPE_ADDITIONAL_NUMBER_PRICE_ID")
-    if not price_id:
+    # Check for "Included" number slots
+    plan = team.plan_name or "Starter"
+    allowed_count = PLAN_ALLOWANCE.get(plan, 1)
+    
+    workspace = db.query(Workspace).filter(Workspace.team_id == team_id).first()
+    if not workspace:
+         raise HTTPException(status_code=404, detail="Workspace not found")
+
+    current_numbers = db.query(PhoneNumber).filter(
+        PhoneNumber.workspace_id == workspace.id,
+        PhoneNumber.is_active == True
+    ).all()
+    
+    # Count numbers that don't have a Stripe Sub Item (these are the "Included" ones)
+    included_count = len([n for n in current_numbers if not n.stripe_subscription_item_id])
+    is_included_slot = included_count < allowed_count
+
+    sub_item = None
+    if not is_included_slot:
+        # 1. Find Price ID for "Additional Phone Number"
+        price_search_query = "name:'Additional Twilio Phone Number'" if req.provider == 'twilio' else "name:'Additional Telnyx Phone Number'"
+        price_id = os.getenv("STRIPE_ADDITIONAL_NUMBER_PRICE_ID")
+        if not price_id:
+            try:
+                products = stripe.Product.search(query=price_search_query, limit=1)
+                if products.data:
+                    product_id = products.data[0].id
+                    prices = stripe.Price.list(product=product_id, limit=1)
+                    if prices.data:
+                        price_id = prices.data[0].id
+            except Exception as e:
+                print(f"Error finding product: {e}")
+                
+        if not price_id:
+            raise HTTPException(status_code=500, detail="Product not configured")
+
         try:
-            products = stripe.Product.search(query="name:'Additional Twilio Phone Number'", limit=1)
-            if products.data:
-                product_id = products.data[0].id
-                prices = stripe.Price.list(product=product_id, limit=1)
-                if prices.data:
-                    price_id = prices.data[0].id
+            # 2. Add Subscription Item in Stripe (This charges the user)
+            sub_item = stripe.SubscriptionItem.create(
+                subscription=team.stripe_subscription_id,
+                price=price_id,
+                quantity=1
+            )
         except Exception as e:
-            print(f"Error finding product: {e}")
-            
-    if not price_id:
-        raise HTTPException(status_code=500, detail="Product not configured")
+            raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
 
     try:
-        # 2. Add Subscription Item in Stripe
-        sub_item = stripe.SubscriptionItem.create(
-            subscription=team.stripe_subscription_id,
-            price=price_id,
-            quantity=1
-        )
-        
         # 3. Provision Number
-        from backend.models_db import Workspace, PhoneNumber
-        from backend.services.twilio_service import TwilioService
-        
-        workspace = db.query(Workspace).filter(Workspace.team_id == team_id).first()
-        if not workspace:
-             raise HTTPException(status_code=404, detail="Workspace not found")
-             
-        twilio_service = TwilioService()
+        requested_provider = (req.provider or "twilio").lower()
+        if requested_provider == "telnyx":
+            from backend.services.telnyx_service import TelnyxService
+            service = TelnyxService()
+        else:
+            service = TwilioService()
         
         purchased = None
+        friendly_name_prefix = "Included" if is_included_slot else "Add-on"
         
         if req.phone_number:
             # Buy specific number
             try:
-                purchased = twilio_service.purchase_phone_number(
+                purchased = service.purchase_phone_number(
                     phone_number=req.phone_number,
-                    friendly_name=f"Add-on - {workspace.name}"
+                    friendly_name=f"{friendly_name_prefix} - {workspace.name}"
                 )
             except Exception as e:
-                # If purchasing specific number fails, fallback? No, error out.
-                stripe.SubscriptionItem.delete(sub_item.id)
+                if sub_item:
+                    stripe.SubscriptionItem.delete(sub_item.id)
                 raise HTTPException(status_code=400, detail=f"Failed to purchase selected number: {str(e)}")
         else:
             # Auto-search
             area_code = req.area_code or "415"
-            numbers = twilio_service.search_phone_numbers(limit=1, area_code=area_code)
+            numbers = service.search_phone_numbers(limit=1, area_code=area_code)
             if not numbers and req.area_code:
-                 numbers = twilio_service.search_phone_numbers(limit=1, area_code=area_code, country_code="CA")
+                 numbers = service.search_phone_numbers(limit=1, area_code=area_code, country_code="CA")
             
             if not numbers:
-                 numbers = twilio_service.search_phone_numbers(limit=1, country_code="US")
+                 numbers = service.search_phone_numbers(limit=1, country_code="US")
                  
             if not numbers:
-                 stripe.SubscriptionItem.delete(sub_item.id)
+                 if sub_item:
+                     stripe.SubscriptionItem.delete(sub_item.id)
                  raise HTTPException(status_code=500, detail="No phone numbers available")
             
             selected = numbers[0]
-            purchased = twilio_service.purchase_phone_number(
+            purchased = service.purchase_phone_number(
                 phone_number=selected["phone_number"],
-                friendly_name=f"Add-on - {workspace.name}"
+                friendly_name=f"{friendly_name_prefix} - {workspace.name}"
             )
         
-        # 4. Save to DB
+        # 4. Optional: Auto-configure Voice for Telnyx
+        if requested_provider == "telnyx":
+            # Link to generic connection for LiveKit SIP if configured
+            connection_id = os.getenv("TELNYX_CONNECTION_ID")
+            if connection_id:
+                try:
+                    service.configure_voice_connection(purchased["id"], connection_id)
+                    print(f"DEBUG: Configured Telnyx voice for {purchased['phone_number']}")
+                except Exception as ve:
+                    print(f"WARNING: Failed to auto-configure Telnyx voice: {ve}")
+
+        # 5. Save to DB
         new_number = PhoneNumber(
             id=f"pn_{''.join(random.choices(string.ascii_lowercase + string.digits, k=10))}",
             workspace_id=workspace.id,
             phone_number=purchased["phone_number"],
-            friendly_name=purchased.get("friendly_name", f"Add-on {purchased['phone_number']}"),
+            friendly_name=purchased.get("friendly_name", f"{friendly_name_prefix} {purchased['phone_number']}"),
             country_code=purchased.get("iso_country", "US"),
-            twilio_sid=purchased["sid"],
+            twilio_sid=purchased.get("sid", purchased.get("id")), # Telnyx uses 'id' instead of 'sid'
+            provider=requested_provider,
             is_active=True,
             voice_enabled=True,
             sms_enabled=True,
-            stripe_subscription_item_id=sub_item.id,
-            monthly_cost=999 # 9.99
+            stripe_subscription_item_id=sub_item.id if sub_item else None,
+            monthly_cost=0 if is_included_slot else (999 if req.provider == 'twilio' else 200)
         )
         
         db.add(new_number)
@@ -521,8 +557,16 @@ async def purchase_phone_number(
         return {
             "status": "success",
             "phone_number": new_number.phone_number,
-            "id": new_number.id
+            "id": new_number.id,
+            "is_included": is_included_slot
         }
+
+    except Exception as e:
+        print(f"Purchase Error: {e}")
+        if sub_item:
+             try: stripe.SubscriptionItem.delete(sub_item.id)
+             except: pass
+        raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
         print(f"Purchase Error: {e}")
