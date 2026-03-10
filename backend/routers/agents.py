@@ -73,6 +73,10 @@ class AgentCreate(BaseModel):
     is_active: Optional[bool] = True
     tavus_replica_id: Optional[str] = None
     tavusReplicaId: Optional[str] = None
+    anam_persona_id: Optional[str] = None
+    anamPersonaId: Optional[str] = None
+    avatar_provider: Optional[str] = None
+    avatarProvider: Optional[str] = None
     avatar_voice_id: Optional[str] = None
     avatarVoiceId: Optional[str] = None
     use_tavus_avatar: Optional[bool] = False
@@ -141,6 +145,10 @@ class AgentUpdate(BaseModel):
     whitelisted_domains: Optional[str] = None
     tavus_replica_id: Optional[str] = None
     tavusReplicaId: Optional[str] = None
+    anam_persona_id: Optional[str] = None
+    anamPersonaId: Optional[str] = None
+    avatar_provider: Optional[str] = None
+    avatarProvider: Optional[str] = None
     avatar_voice_id: Optional[str] = None
     avatarVoiceId: Optional[str] = None
     use_tavus_avatar: Optional[bool] = None
@@ -540,6 +548,8 @@ async def update_agent(
                 snake_key = key
                 if key == "openClawInstanceId": snake_key = "open_claw_instance_id"
                 if key == "tavusReplicaId": snake_key = "tavus_replica_id"
+                if key == "anamPersonaId": snake_key = "anam_persona_id"
+                if key == "avatarProvider": snake_key = "avatar_provider"
                 if key == "avatarVoiceId": snake_key = "avatar_voice_id"
                 if key == "useTavusAvatar": snake_key = "use_tavus_avatar"
                 
@@ -560,6 +570,8 @@ async def update_agent(
                 # Clean up old casing if it exists
                 if snake_key == "open_claw_instance_id": current_settings.pop("openClawInstanceId", None)
                 if snake_key == "tavus_replica_id": current_settings.pop("tavusReplicaId", None)
+                if snake_key == "anam_persona_id": current_settings.pop("anamPersonaId", None)
+                if snake_key == "avatar_provider": current_settings.pop("avatarProvider", None)
                 if snake_key == "avatar_voice_id": current_settings.pop("avatarVoiceId", None)
                 if snake_key == "use_tavus_avatar": current_settings.pop("useTavusAvatar", None)
                 if snake_key == "owner_name": current_settings.pop("ownerName", None)

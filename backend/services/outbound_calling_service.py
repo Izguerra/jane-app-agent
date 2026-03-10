@@ -12,17 +12,24 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 
+from backend.services.integration_service import IntegrationService
+
 class OutboundCallingService:
     def __init__(self):
-        self.twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
-        self.twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-        self.twilio_phone_number = os.getenv("TWILIO_PHONE_NUMBER")
         self.livekit_url = os.getenv("LIVEKIT_URL")
+        # Credentials will be fetched dynamically per workspace where possible
+        # Default platform credentials for Twilio
+        self.default_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        self.default_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        self.default_phone_number = os.getenv("TWILIO_PHONE_NUMBER")
+    
+    def _get_twilio_client(self, workspace_id: str):
+        account_sid = IntegrationService.get_provider_key(workspace_id, "twilio", "TWILIO_ACCOUNT_SID")
+        auth_token = IntegrationService.get_provider_key(workspace_id, "twilio", "TWILIO_AUTH_TOKEN")
         
-        if self.twilio_account_sid and self.twilio_auth_token:
-            self.client = Client(self.twilio_account_sid, self.twilio_auth_token)
-        else:
-            self.client = None
+        if account_sid and auth_token:
+            return Client(account_sid, auth_token)
+        return None
     
     async def initiate_call(
         self,
@@ -35,6 +42,7 @@ class OutboundCallingService:
         campaign_id: Optional[str] = None,
         campaign_name: Optional[str] = None,
         agent_id: Optional[str] = None,
+        provider: str = "auto",
         db: Session = None
     ) -> Dict[str, Any]:
         """
@@ -55,19 +63,71 @@ class OutboundCallingService:
         Returns:
             Dict with call details including communication_id and twilio_call_sid
         """
-        if not self.client:
-            raise Exception("Twilio client not configured")
+        # Auto-detect provider from workspace's phone numbers if not explicitly set
+        if provider == "auto":
+            try:
+                from backend.database import SessionLocal
+                from backend.models_db import PhoneNumber, Workspace
+                _db = db or SessionLocal()
+                
+                # 1. Try current workspace
+                tel_num = _db.query(PhoneNumber).filter(
+                    PhoneNumber.workspace_id == workspace_id,
+                    PhoneNumber.provider == "telnyx",
+                    PhoneNumber.is_active == True
+                ).first()
+                
+                # 2. If not found, try any workspace in the same team
+                if not tel_num:
+                    ws = _db.query(Workspace).filter(Workspace.id == workspace_id).first()
+                    if ws:
+                        # Find all workspaces in the same team
+                        team_workspaces = _db.query(Workspace.id).filter(Workspace.team_id == ws.team_id).all()
+                        team_ws_ids = [w[0] for w in team_workspaces]
+                        
+                        tel_num = _db.query(PhoneNumber).filter(
+                            PhoneNumber.workspace_id.in_(team_ws_ids),
+                            PhoneNumber.provider == "telnyx",
+                            PhoneNumber.is_active == True
+                        ).first()
+                
+                if tel_num:
+                    provider = "telnyx"
+                    from_phone = tel_num.phone_number
+                    print(f"DEBUG: Auto-detected Telnyx provider for team/workspace, from_phone={from_phone}")
+                else:
+                    provider = "twilio"
+                    print(f"DEBUG: No Telnyx number found for workspace {workspace_id} or its team, defaulting to Twilio")
+                
+                if not db:
+                    _db.close()
+            except Exception as e:
+                print(f"WARNING: Provider auto-detect failed ({e}), defaulting to twilio")
+                provider = "twilio"
+        
+        if provider == "twilio":
+            client = self._get_twilio_client(workspace_id)
+            if not client:
+                raise Exception("Twilio client not configured for this workspace")
+        elif provider == "telnyx":
+            telnyx_api_key = IntegrationService.get_provider_key(workspace_id, "telnyx", "TELNYX_API_KEY")
+            if not telnyx_api_key:
+                raise Exception("Telnyx API Key not configured for this workspace")
+            import telnyx
+            telnyx.api_key = telnyx_api_key
         
         # Use default phone number if not provided
         if not from_phone:
-            from_phone = self.twilio_phone_number
+            from_phone = IntegrationService.get_provider_key(workspace_id, "twilio", "TWILIO_PHONE_NUMBER")
         
+        print(f"DEBUG outbound: Create communication record for {to_phone}")
         # Create communication record
         communication_id = generate_comm_id()
         
         # Generate unique room name for this call
-        # Use 'outbound_' prefix so Asterisk can route to correct context
-        room_name = f"outbound_{communication_id}"
+        # Use 'outbound-' prefix so Asterisk can route to correct context
+        # and so that it matches telnyx strict SIP header validation
+        room_name = f"outbound-{communication_id}".replace("_", "-")
         
         # Encode call context in LiveKit room metadata
         room_metadata = {
@@ -109,24 +169,45 @@ class OutboundCallingService:
                         empty_timeout=60,
                         max_participants=2,
                         agents=[
-                            api.RoomAgentDispatch(agent_name="supaagent-voice-agent")
+                            api.RoomAgentDispatch()
                         ],
                         metadata=json.dumps(dict(room_metadata))
                     ))
+
                     await lkapi.aclose()
                     print(f"DEBUG: Pre-created room {room_name} successfully")
             except Exception as e:
                 print(f"WARNING: Failed to pre-create room (continuing anyway): {e}")
 
-            # Initiate call via Twilio
-            call = self.client.calls.create(
-                to=to_phone,
-                from_=from_phone,
-                url=twiml_url,
-                status_callback=f"{os.getenv('BACKEND_URL')}/api/voice/status-callback",
-                status_callback_event=['initiated', 'ringing', 'answered', 'completed']
-            )
-            
+            print(f"DEBUG outbound: Initiating call via {provider}")
+            # Initiate call via selected provider
+            call_sid = None
+            if provider == "twilio":
+                call = client.calls.create(
+                    to=to_phone,
+                    from_=from_phone,
+                    url=twiml_url,
+                    status_callback=f"{os.getenv('BACKEND_URL')}/api/voice/status-callback",
+                    status_callback_event=['initiated', 'ringing', 'answered', 'completed']
+                )
+                call_sid = call.sid
+            elif provider == "telnyx":
+                from backend.services.telnyx_service import TelnyxService
+                telnyx_svc = TelnyxService(workspace_id=workspace_id)
+                connection_id = IntegrationService.get_provider_key(workspace_id, "telnyx", "TELNYX_CONNECTION_ID")
+                
+                print(f"DEBUG: Initiating Telnyx Call Control call from {from_phone} to {to_phone} using Connection ID: {connection_id}")
+                
+                if connection_id:
+                    call_result = await telnyx_svc.create_call(
+                        from_=from_phone,
+                        to=to_phone,
+                        connection_id=connection_id
+                    )
+                    call_sid = call_result.get("id")
+                else:
+                    print("WARNING: No TELNYX_CONNECTION_ID configured.")
+                    call_sid = f"err_{communication_id}"
             # Create communication record in database
             if db:
                 communication = Communication(
@@ -141,7 +222,8 @@ class OutboundCallingService:
                     call_intent=call_intent,
                     call_context=call_context,
                     customer_id=customer_id,
-                    twilio_call_sid=call.sid,
+                    twilio_call_sid=call_sid if provider == "twilio" else None,
+                    telnyx_call_id=call_sid if provider == "telnyx" else None,
                     campaign_id=campaign_id,
                     campaign_name=campaign_name,
                     started_at=datetime.utcnow()
@@ -152,10 +234,11 @@ class OutboundCallingService:
             return {
                 "success": True,
                 "communication_id": communication_id,
-                "twilio_call_sid": call.sid,
-                "status": call.status,
+                "call_id": call_sid,
+                "status": "initiated",
                 "to": to_phone,
-                "from": from_phone
+                "from": from_phone,
+                "provider": provider
             }
         
         except Exception as e:

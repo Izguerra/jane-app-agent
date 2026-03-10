@@ -13,16 +13,8 @@ import argparse
 # Add project root to path
 sys.path.insert(0, '/Users/randyesguerra/Documents/Projects/JaneAppAgent')
 
-# Load environment variables
-try:
-    with open('.env', 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, value = line.split('=', 1)
-                os.environ[key] = value
-except FileNotFoundError:
-    print("Warning: .env file not found")
+from dotenv import load_dotenv
+load_dotenv()
 
 from backend.services.outbound_calling_service import outbound_calling_service
 from backend.database import SessionLocal
@@ -37,12 +29,7 @@ async def test_twilio_outbound(to_phone):
     print()
     
     # Check configuration
-    print('Checking configuration...')
-    if not os.getenv("TWILIO_ACCOUNT_SID"):
-        print('❌ ERROR: TWILIO_ACCOUNT_SID not set')
-        return
-        
-    print(f'✅ Twilio Account SID: {os.getenv("TWILIO_ACCOUNT_SID")[:6]}...')
+    print('Checking DB configuration for workspace...')
     print()
     
     # Get workspace
@@ -69,9 +56,11 @@ async def test_twilio_outbound(to_phone):
             to_phone=to_phone,
             call_intent='test_outbound',
             call_context={
-                'test': 'Twilio outbound calling',
+                'test': 'Telnyx outbound calling',
                 'timestamp': str(asyncio.get_event_loop().time())
             },
+            provider="telnyx",
+            from_phone="+18382061295",
             db=db
         )
         
@@ -79,8 +68,8 @@ async def test_twilio_outbound(to_phone):
         print('✅ CALL INITIATED SUCCESSFULLY!')
         print('=' * 70)
         print()
-        print(f'Communication ID: {result["communication_id"]}')
-        print(f'Twilio Call SID: {result["twilio_call_sid"]}')
+        print(f'Communication ID: {result.get("communication_id")}')
+        print(f'Telephony Provider ID: {result.get("twilio_call_sid") or result.get("telnyx_call_id") or "N/A"}')
         print(f'Status: {result["status"]}')
         print()
         print('🔔 YOUR PHONE SHOULD BE RINGING!')

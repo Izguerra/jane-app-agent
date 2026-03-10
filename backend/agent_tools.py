@@ -160,9 +160,15 @@ class AgentTools:
             date: Future date in YYYY-MM-DD format (optional)
             units: "metric" (C) or "imperial" (F)
         """
+        if self.worker_tools and self.worker_tools.allowed_worker_types and "weather-worker" not in self.worker_tools.allowed_worker_types:
+            print(f"🚫 BLOCKED: Tool 'get_weather' requires 'weather-worker'. Allowed: {self.worker_tools.allowed_worker_types}")
+            return "Error: The weather tool is not enabled for this agent."
+
+        await self._play_filler(random.choice(["Checking the weather for you...", "Looking up the local forecast...", "Getting the weather info..."]))
+
         # Always use ExternalTools directly (bypass Worker layer for speed/reliability)
         from backend.tools.external_tools import ExternalTools
-        tools = ExternalTools()
+        tools = ExternalTools(workspace_id=self.workspace_id)
         return await tools.get_current_weather(location, date=date, units=units)
 
     @llm.function_tool(
@@ -179,8 +185,14 @@ class AgentTools:
             date: Date in YYYY-MM-DD format (optional).
             approx_time: Approximate time for schedule search (e.g. "5pm", "17:00")
         """
+        if self.worker_tools and self.worker_tools.allowed_worker_types and "flight-tracker" not in self.worker_tools.allowed_worker_types:
+            print(f"🚫 BLOCKED: Tool 'get_flight_status' requires 'flight-tracker'. Allowed: {self.worker_tools.allowed_worker_types}")
+            return "Error: The flight tracking tool is not enabled for this agent."
+
+        await self._play_filler(random.choice(["Checking the flight status...", "Looking up those flight details...", "Checking the skies for you..."]))
+
         from backend.tools.external_tools import ExternalTools
-        tools = ExternalTools()
+        tools = ExternalTools(workspace_id=self.workspace_id)
         return await tools.get_flight_status(flight_number, origin, destination, airline, date=date, approx_time=approx_time)
 
     @llm.function_tool(
@@ -194,8 +206,16 @@ class AgentTools:
             destination: Destination
             mode: Mode of transport ("driving", "walking", "bicycling", "transit"). Default is "driving".
         """
+        # The condition `self.worker_tools.allowed_worker_types` evaluates to False if the list is empty,
+        # effectively allowing the tool when the list is empty.
+        if self.worker_tools and self.worker_tools.allowed_worker_types and "map-worker" not in self.worker_tools.allowed_worker_types:
+            print(f"🚫 BLOCKED: Tool 'get_directions' requires 'map-worker'. Allowed: {self.worker_tools.allowed_worker_types}")
+            return "Error: The directions tool is not enabled for this agent."
+
+        await self._play_filler(random.choice(["Checking the best route for you...", "Looking up those directions...", "Calculating your travel time..."]))
+
         from backend.tools.external_tools import ExternalTools
-        tools = ExternalTools()
+        tools = ExternalTools(workspace_id=self.workspace_id)
         return await tools.get_directions(origin, destination, mode)
 
     @llm.function_tool(
@@ -297,6 +317,30 @@ class AgentTools:
                     safe_event['description'] = "\n".join(clean_lines).strip()
                     
                     user_events.append(safe_event)
+
+                    # --- KEY FIX: Link Communication to Real Customer on Verification ---
+                    if not self.customer_id and self.communication_id and verify_email:
+                        try:
+                            from backend.models_db import Customer, Communication
+                            from sqlalchemy import func
+                            
+                            # Find the customer by verified email
+                            customer = db.query(Customer).filter(
+                                Customer.workspace_id == self.workspace_id,
+                                func.lower(Customer.email) == verify_email.lower()
+                            ).first()
+                            
+                            if customer:
+                                comm_record = db.query(Communication).filter(Communication.id == self.communication_id).first()
+                                if comm_record and comm_record.customer_id != customer.id:
+                                    print(f"DEBUG: Linking Communication {self.communication_id} to Customer {customer.id} (List)")
+                                    comm_record.customer_id = customer.id
+                                    # Update session customer_id
+                                    self.customer_id = customer.id
+                                    db.commit()
+                        except Exception as e:
+                            print(f"Error linking communication in list: {e}")
+                    # -----------------------------------------------------------
             
             range_msg = f"Search Range: {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')}"
             

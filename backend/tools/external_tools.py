@@ -3,23 +3,32 @@ import aiohttp
 import json
 from datetime import datetime
 
-class ExternalTools:
-    def __init__(self):
-        self.weather_api_key = os.getenv("OPENWEATHERMAP_API_KEY")
-        self.aviation_api_key = os.getenv("AVIATIONSTACK_API_KEY")
-        self.google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
-        
-        # Debug Logs
-        print(f"DEBUG: ExternalTools Init. WeatherKey present: {bool(self.weather_api_key)}")
-        print(f"DEBUG: ExternalTools Init. AviationKey present: {bool(self.aviation_api_key)}")
-        print(f"DEBUG: ExternalTools Init. MapsKey present: {bool(self.google_maps_api_key)}")
+from backend.services.integration_service import IntegrationService
 
-    async def get_current_weather(self, location: str, date: str = None, units: str = "metric"):
+class ExternalTools:
+    def __init__(self, workspace_id: str = None):
+        self.workspace_id = workspace_id
+        
+    def __init__(self, workspace_id: str = None):
+        self.workspace_id = workspace_id
+        self.weather_api_key = None
+        self.aviation_api_key = None
+        self.google_maps_api_key = None
+
+    async def get_current_weather(self, location: str, date: str = None, units: str = "metric", **kwargs):
         """
         Get weather for a location. 
         Supports future dates (approximate).
         """
-        print(f"DEBUG: get_current_weather called for {location}, Date: {date}, Unit: {units}")
+        details = kwargs.get("details", [])
+        if not self.weather_api_key:
+            self.weather_api_key = await IntegrationService.async_get_provider_key(
+                workspace_id=self.workspace_id, 
+                provider="openweathermap", 
+                env_fallback="OPENWEATHERMAP_API_KEY"
+            )
+
+        print(f"DEBUG: get_current_weather called for {location}, Date: {date}, Unit: {units}, Details: {details}. Key found: {bool(self.weather_api_key)}")
         if not self.weather_api_key:
             return "Weather API key is not configured."
 
@@ -87,7 +96,14 @@ class ExternalTools:
         Get status for a specific flight using AviationStack. 
         Supports Route-based schedule lookup with time filtering.
         """
-        print(f"DEBUG: get_flight_status called. F:{flight_number} O:{origin} D:{destination} T:{approx_time}")
+        if not self.aviation_api_key:
+            self.aviation_api_key = await IntegrationService.async_get_provider_key(
+                workspace_id=self.workspace_id, 
+                provider="aviationstack", 
+                env_fallback="AVIATIONSTACK_API_KEY"
+            )
+
+        print(f"DEBUG: get_flight_status called. F:{flight_number} O:{origin} D:{destination} T:{approx_time}. Key found: {bool(self.aviation_api_key)}")
         if not self.aviation_api_key:
             return "AviationStack API key is not configured."
             
@@ -173,7 +189,14 @@ class ExternalTools:
 
     async def get_directions(self, origin: str, destination: str, mode: str = "driving"):
         """Get directions and traffic info using Google Maps."""
-        print(f"DEBUG: get_directions called: {origin} -> {destination}")
+        if not self.google_maps_api_key:
+            self.google_maps_api_key = await IntegrationService.async_get_provider_key(
+                workspace_id=self.workspace_id, 
+                provider="google_maps", 
+                env_fallback="GOOGLE_MAPS_API_KEY"
+            )
+
+        print(f"DEBUG: get_directions called: {origin} -> {destination}. Key found: {bool(self.google_maps_api_key)}")
         if not self.google_maps_api_key:
             print("DEBUG: Maps API key missing.")
             return "Google Maps API key is not configured."

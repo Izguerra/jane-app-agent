@@ -4,9 +4,16 @@ import logging
 
 logger = logging.getLogger("tavus-service")
 
+from backend.services.integration_service import IntegrationService
+
 class TavusService:
-    def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv("TAVUS_API_KEY")
+    def __init__(self, workspace_id: str = None, api_key: str = None):
+        self.workspace_id = workspace_id
+        self.api_key = api_key or IntegrationService.get_provider_key(
+            workspace_id=self.workspace_id,
+            provider="tavus",
+            env_fallback="TAVUS_API_KEY"
+        )
         self.base_url = "https://tavusapi.com/v2" 
         
         if not self.api_key:

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { PhoneManagement } from "./_components/phone-management";
 import { JaneAppIntegration } from "./_components/jane-app";
 import { WhatsAppTwilio } from "./_components/whatsapp-twilio";
+import { TelnyxIntegration } from "./_components/telnyx";
 import { WhatsAppMeta } from "./_components/whatsapp-meta";
 import { InstagramIntegration } from "./_components/instagram";
 import { ShopifyIntegration } from "./_components/shopify";
@@ -22,6 +23,7 @@ import { OutlookCalendarIntegration } from "./_components/outlook-calendar";
 import { ICloudCalendarIntegration } from "./_components/icloud-calendar";
 import { GoogleDriveIntegration } from "./_components/google-drive";
 import { TavusIntegration } from "./_components/tavus-avatar";
+import { AnamIntegration } from "./_components/anam-avatar";
 import { OpenClawIntegration } from "./_components/openclaw";
 import { MCPServersSection } from "./_components/mcp-servers";
 
@@ -79,6 +81,7 @@ export default function IntegrationsPage() {
                 <div className="grid gap-4">
                     <PhoneManagement phoneNumbers={phoneNumbers} />
                     <WhatsAppTwilio integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
+                    <TelnyxIntegration integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                     <WhatsAppMeta integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                     <InstagramIntegration integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                     <WebsiteWidget workspaceId={workspaceId} expanded={expanded} onToggleExpand={toggleExpand} />
@@ -118,6 +121,7 @@ export default function IntegrationsPage() {
                 <h2 className="text-lg font-semibold mb-4 text-muted-foreground">🤖 AI & Avatars</h2>
                 <div className="grid gap-4">
                     <TavusIntegration integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
+                    <AnamIntegration integrations={integrations} expanded={expanded} onToggleExpand={toggleExpand} />
                 </div>
             </section>
 

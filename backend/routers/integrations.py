@@ -7,8 +7,10 @@ from backend.models_db import Integration, Workspace
 from backend.auth import get_current_user, AuthUser
 from sqlalchemy.orm import Session
 import json
+import os
 
 from backend.services.tavus_service import TavusService
+from backend.services.anam_service import AnamService
 
 # Initialize Crypto Service
 crypto_service = CryptoService()
@@ -66,14 +68,7 @@ async def get_tavus_replicas(
         return []
         
     try:
-        # Platform Managed Key (Tavus)
-        import os
-        api_key = os.getenv("TAVUS_API_KEY")
-        if not api_key:
-             print("TAVUS_API_KEY not found in environment.")
-             return []
-        
-        service = TavusService(api_key=api_key)
+        service = TavusService(workspace_id=workspace.id)
         # Pass a flag to verify if integration record is actually active before returning?
         # The query above already filters by active.
         
@@ -104,17 +99,67 @@ async def get_tavus_personas(
         return []
         
     try:
-        import os
-        api_key = os.getenv("TAVUS_API_KEY")
-        if not api_key:
-             return []
-        
-        service = TavusService(api_key=api_key)
+        service = TavusService(workspace_id=workspace.id)
         personas = service.list_personas()
         return personas
     except Exception as e:
         print(f"Error fetching personas: {e}")
         return []
+
+# --- Anam.ai Endpoints ---
+
+@router.get("/anam/personas")
+async def get_anam_personas(
+    current_user: AuthUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    integration = db.query(Integration).filter(
+        Integration.workspace_id == workspace.id,
+        Integration.provider == "anam",
+        Integration.is_active == True
+    ).first()
+
+    if not integration:
+        return []
+
+    try:
+        service = AnamService(workspace_id=workspace.id)
+        personas = service.list_personas()
+        return personas
+    except Exception as e:
+        print(f"Error fetching Anam personas: {e}")
+        return []
+
+@router.get("/anam/avatars")
+async def get_anam_avatars(
+    current_user: AuthUser = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    integration = db.query(Integration).filter(
+        Integration.workspace_id == workspace.id,
+        Integration.provider == "anam",
+        Integration.is_active == True
+    ).first()
+
+    if not integration:
+        return []
+
+    try:
+        service = AnamService(workspace_id=workspace.id)
+        avatars = service.list_avatars()
+        return avatars
+    except Exception as e:
+        print(f"Error fetching Anam avatars: {e}")
+        return []
+
 
 @router.post("/{provider}")
 async def configure_integration(
@@ -197,6 +242,27 @@ async def configure_integration(
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Invalid Meta credentials: {str(e)}")
     
+    # Validate Telnyx credentials
+    if provider == "telnyx" and config.credentials:
+        api_key = config.credentials.get("api_key")
+        if api_key:
+            try:
+                import requests
+                # Verify API key by fetching messaging profiles (lightweight call)
+                response = requests.get(
+                    "https://api.telnyx.com/v2/messaging_profiles",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=5
+                )
+                if response.status_code == 401:
+                    raise ValueError("Invalid Telnyx API Key")
+                elif response.status_code != 200:
+                    raise ValueError(f"Telnyx API Error: {response.text}")
+            except ValueError:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid Telnyx credentials: {str(e)}")
+    
     # SPECIAL HANDLING: Instagram
     # Ensure instagram_account_id is available in settings (unencrypted) for webhook lookup
     if provider == "instagram" and config.credentials and "instagram_account_id" in config.credentials:
@@ -239,9 +305,11 @@ async def configure_integration(
              # Tavus Exception: Platform Managed
              # Tavus Exception: Platform Managed
              if provider == "tavus":
-                 import os
                  if not os.getenv("TAVUS_API_KEY"):
                      raise HTTPException(status_code=400, detail="System Error: Tavus is not configured on this server.")
+             elif provider == "anam":
+                 if not os.getenv("ANAM_API_KEY"):
+                     raise HTTPException(status_code=400, detail="System Error: Anam.ai is not configured on this server.")
              elif provider == "openclaw":
                  # OpenClaw uses settings for instances/connection info
                  pass
@@ -260,7 +328,21 @@ async def configure_integration(
             is_active=True
         )
         db.add(integration)
-    
+
+    # --- Mutual Exclusion: Avatar Providers ---
+    # Only one avatar provider (tavus OR anam) can be active at a time.
+    avatar_providers = {"tavus", "anam"}
+    if provider in avatar_providers:
+        other_provider = (avatar_providers - {provider}).pop()
+        other_integration = db.query(Integration).filter(
+            Integration.workspace_id == workspace.id,
+            Integration.provider == other_provider,
+            Integration.is_active == True
+        ).first()
+        if other_integration:
+            other_integration.is_active = False
+            print(f"Auto-deactivated {other_provider} (mutual exclusion with {provider})")
+
     db.commit()
     db.refresh(integration)
     

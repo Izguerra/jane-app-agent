@@ -18,7 +18,8 @@ DEFAULT_SETTINGS = {
         "Keep your responses concise and conversational."
     ),
     "welcome_message": "Hi there! I'm SupaAgent, your AI assistant. How can I help you today?",
-    "is_active": True
+    "is_active": True,
+    "allowed_worker_types": ["weather-worker", "flight-tracker", "map-worker", "web-search", "advanced-browsing"]
 }
 
 def get_settings(workspace_id: int = None) -> Dict[str, Any]:
@@ -84,6 +85,7 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
                 prompt_template=DEFAULT_SETTINGS["prompt_template"],
                 welcome_message=DEFAULT_SETTINGS["welcome_message"],
                 is_active=DEFAULT_SETTINGS["is_active"],
+                allowed_worker_types=DEFAULT_SETTINGS["allowed_worker_types"],
                 is_orchestrator=True # Default to orchestrator if it's the first one
             )
             db.add(settings)

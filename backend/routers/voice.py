@@ -15,7 +15,7 @@ from backend.models_db import Workspace, Team, Communication
 from backend.subscription_limits import get_plan_limits
 from datetime import datetime, timezone
 
-router = APIRouter(prefix="/voice", tags=["voice"])
+router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 from typing import Optional, Dict, Any
 

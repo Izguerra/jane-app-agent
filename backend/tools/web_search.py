@@ -27,6 +27,8 @@ except ImportError:
     TavilyClient = None
 
 
+from backend.services.integration_service import IntegrationService
+
 class WebSearchTool:
     """
     Web search tool for AI agents using Tavily API.
@@ -35,12 +37,17 @@ class WebSearchTool:
     structured search results without raw HTML.
     
     Usage:
-        tool = WebSearchTool()
+        tool = WebSearchTool(workspace_id="ws_123")
         results = tool.search("job openings for software engineers in NYC")
     """
     
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("TAVILY_API_KEY")
+    def __init__(self, workspace_id: Optional[str] = None):
+        self.workspace_id = workspace_id
+        self.api_key = IntegrationService.get_provider_key(
+            workspace_id=self.workspace_id,
+            provider="tavily",
+            env_fallback="TAVILY_API_KEY"
+        )
         self._client = None
         
         if not self.api_key:

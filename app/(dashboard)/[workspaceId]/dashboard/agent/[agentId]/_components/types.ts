@@ -39,7 +39,7 @@ export interface AgentFormData {
     creativityLevel: number;
     responseLength: number;
     proactiveFollowups: boolean;
-    intentRules: { type: string; condition: string; action: string }[];
+    intentRules: { intent: string; action: string }[];
     handoffMessage: string;
     notificationEmail: string;
     slackWebhook: string;

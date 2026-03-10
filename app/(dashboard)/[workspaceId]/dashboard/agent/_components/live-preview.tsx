@@ -215,6 +215,8 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         // Avatar Context
         tavus_replica_id: formData.tavusReplicaId,
         tavus_persona_id: formData.tavusPersonaId,
+        anam_persona_id: formData.anamPersonaId,
+        avatar_provider: formData.avatarProvider || 'tavus',
         avatar_voice_id: formData.avatarVoiceId,
         use_tavus_avatar: formData.useTavusAvatar,
 
@@ -293,7 +295,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                 return;
             }
 
-            if (mode === 'avatar' && !formData.tavusReplicaId) {
+            if (mode === 'avatar' && !formData.tavusReplicaId && !formData.anamPersonaId) {
                 // Do not connect if no avatar is selected
                 setError("Please select an avatar to start.");
                 setIsConnecting(false);

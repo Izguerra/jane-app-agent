@@ -1,0 +1,571 @@
+2025-11-29 21:52:14,739 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:15,330 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:15,393 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:15,400 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:15,412 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:15,818 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:16,460 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:16,474 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:16,482 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:16,509 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:20,687 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:52:21,466 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:53:30,581 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:53:31,424 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:53:32,336 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:21,703 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:21,703 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:21,703 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:21,706 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:21,715 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:21,837 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:22,902 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:22,933 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:22,950 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:22,950 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:22,972 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:54:23,223 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:08,913 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:08,914 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:08,915 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:08,916 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:08,925 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:09,106 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:10,119 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:10,131 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:10,149 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:10,159 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:10,246 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:10,455 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:14,775 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:55:14,779 - voice-agent - INFO - Entrypoint called for room debug-room-a821a05f
+2025-11-29 21:55:14,779 - voice-agent - INFO - connecting to room debug-room-a821a05f
+2025-11-29 21:55:14,779 - voice-agent - INFO - Entrypoint called for room debug-room-a821a05f
+2025-11-29 21:55:14,779 - voice-agent - INFO - connecting to room debug-room-a821a05f
+2025-11-29 21:55:15,418 - voice-agent - INFO - Waiting for participant...
+2025-11-29 21:55:15,418 - voice-agent - INFO - starting voice assistant for participant debug-user-6def86ea
+2025-11-29 21:55:15,418 - voice-agent - WARNING - No metadata found in participant
+2025-11-29 21:55:15,418 - voice-agent - INFO - Waiting for participant...
+2025-11-29 21:55:15,418 - voice-agent - INFO - starting voice assistant for participant debug-user-6def86ea
+2025-11-29 21:55:15,418 - voice-agent - WARNING - No metadata found in participant
+2025-11-29 21:55:15,508 - voice-agent - INFO - Logged call start with ID 9
+2025-11-29 21:55:15,508 - voice-agent - INFO - Logged call start with ID 9
+2025-11-29 21:55:15,509 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-29 21:55:15,509 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-29 21:55:15,552 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-29 21:55:15,552 - voice-agent - WARNING - No workspace_id available, skipping business context
+2025-11-29 21:55:15,552 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-29 21:55:15,552 - voice-agent - ERROR - Error in entrypoint: 'Agent' object has no attribute 'on'
+Traceback (most recent call last):
+  File "/Users/randyesguerra/Documents/Projects/JaneAppAgent/backend/voice_agent.py", line 210, in entrypoint
+    @agent.on("user_started_speaking")
+     ^^^^^^^^
+AttributeError: 'Agent' object has no attribute 'on'
+2025-11-29 21:55:15,552 - voice-agent - WARNING - No workspace_id available, skipping business context
+2025-11-29 21:55:15,552 - voice-agent - ERROR - Error in entrypoint: 'Agent' object has no attribute 'on'
+Traceback (most recent call last):
+  File "/Users/randyesguerra/Documents/Projects/JaneAppAgent/backend/voice_agent.py", line 210, in entrypoint
+    @agent.on("user_started_speaking")
+     ^^^^^^^^
+AttributeError: 'Agent' object has no attribute 'on'
+2025-11-29 21:55:15,556 - voice-agent - INFO - Logged call end for ID 9, duration 0s
+2025-11-29 21:55:15,556 - voice-agent - INFO - Logged call end for ID 9, duration 0s
+2025-11-29 21:56:00,432 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:00,432 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:00,436 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:00,440 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:00,446 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:00,818 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:01,763 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:01,765 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:01,766 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:01,794 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:01,856 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:02,276 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:02,283 - voice-agent - INFO - Entrypoint called for room debug-room-a821a05f
+2025-11-29 21:56:02,284 - voice-agent - INFO - connecting to room debug-room-a821a05f
+2025-11-29 21:56:02,283 - voice-agent - INFO - Entrypoint called for room debug-room-a821a05f
+2025-11-29 21:56:02,284 - voice-agent - INFO - connecting to room debug-room-a821a05f
+2025-11-29 21:56:02,343 - voice-agent - INFO - Voice agent logger initialized
+2025-11-29 21:56:02,989 - voice-agent - INFO - Waiting for participant...
+2025-11-29 21:56:02,989 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:13:54,875 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:13:55,833 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:13:56,725 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:13:57,286 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:13:57,314 - voice-agent - INFO - Entrypoint called for room debug-room-9287b233
+2025-11-30 09:13:57,314 - voice-agent - INFO - connecting to room debug-room-9287b233
+2025-11-30 09:13:57,314 - voice-agent - INFO - Entrypoint called for room debug-room-9287b233
+2025-11-30 09:13:57,314 - voice-agent - INFO - connecting to room debug-room-9287b233
+2025-11-30 09:13:59,162 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:13:59,163 - voice-agent - INFO - starting voice assistant for participant debug-user-f1204ce9
+2025-11-30 09:13:59,163 - voice-agent - WARNING - No metadata found in participant
+2025-11-30 09:13:59,162 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:13:59,163 - voice-agent - INFO - starting voice assistant for participant debug-user-f1204ce9
+2025-11-30 09:13:59,163 - voice-agent - WARNING - No metadata found in participant
+2025-11-30 09:13:59,226 - voice-agent - INFO - Logged call start with ID 10
+2025-11-30 09:13:59,226 - voice-agent - INFO - Logged call start with ID 10
+2025-11-30 09:13:59,228 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:13:59,228 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:13:59,280 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:13:59,280 - voice-agent - WARNING - No workspace_id available, skipping business context
+2025-11-30 09:13:59,281 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:13:59,280 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:13:59,280 - voice-agent - WARNING - No workspace_id available, skipping business context
+2025-11-30 09:13:59,281 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:13:59,364 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:13:59,364 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:13:59,368 - voice-agent - INFO - Starting agent session for room debug-room-9287b233
+2025-11-30 09:13:59,368 - voice-agent - INFO - Starting agent session for room debug-room-9287b233
+2025-11-30 09:13:59,382 - voice-agent - INFO - session.start() returned
+2025-11-30 09:13:59,382 - voice-agent - INFO - Saying greeting: Hi there! I'm SupaAgent, your AI assistant. How can I help you today?
+2025-11-30 09:13:59,382 - voice-agent - INFO - session.start() returned
+2025-11-30 09:13:59,382 - voice-agent - INFO - Saying greeting: Hi there! I'm SupaAgent, your AI assistant. How can I help you today?
+2025-11-30 09:13:59,383 - voice-agent - ERROR - Error in entrypoint: a coroutine was expected, got <livekit.agents.voice.speech_handle.SpeechHandle object at 0x112a80590>
+Traceback (most recent call last):
+  File "/Users/randyesguerra/Documents/Projects/JaneAppAgent/backend/voice_agent.py", line 289, in entrypoint
+    asyncio.create_task(session.say(greeting))
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/tasks.py", line 410, in create_task
+    task = loop.create_task(coro, name=name)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 475, in create_task
+    task = tasks.Task(coro, loop=self, name=name, context=context, **kwargs)
+TypeError: a coroutine was expected, got <livekit.agents.voice.speech_handle.SpeechHandle object at 0x112a80590>
+2025-11-30 09:13:59,383 - voice-agent - ERROR - Error in entrypoint: a coroutine was expected, got <livekit.agents.voice.speech_handle.SpeechHandle object at 0x112a80590>
+Traceback (most recent call last):
+  File "/Users/randyesguerra/Documents/Projects/JaneAppAgent/backend/voice_agent.py", line 289, in entrypoint
+    asyncio.create_task(session.say(greeting))
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/tasks.py", line 410, in create_task
+    task = loop.create_task(coro, name=name)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/asyncio/base_events.py", line 475, in create_task
+    task = tasks.Task(coro, loop=self, name=name, context=context, **kwargs)
+TypeError: a coroutine was expected, got <livekit.agents.voice.speech_handle.SpeechHandle object at 0x112a80590>
+2025-11-30 09:13:59,425 - voice-agent - INFO - Logged call end for ID 10, duration 2s
+2025-11-30 09:13:59,425 - voice-agent - INFO - Logged call end for ID 10, duration 2s
+2025-11-30 09:15:06,611 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:15:07,482 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:16:30,499 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:16:31,291 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:16:32,201 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:16:33,878 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:16:33,883 - voice-agent - INFO - Entrypoint called for room debug-room-da588dda
+2025-11-30 09:16:33,883 - voice-agent - INFO - connecting to room debug-room-da588dda
+2025-11-30 09:16:33,883 - voice-agent - INFO - Entrypoint called for room debug-room-da588dda
+2025-11-30 09:16:33,883 - voice-agent - INFO - connecting to room debug-room-da588dda
+2025-11-30 09:16:34,486 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:16:34,487 - voice-agent - INFO - starting voice assistant for participant debug-user-225bdecd
+2025-11-30 09:16:34,487 - voice-agent - WARNING - No metadata found in participant
+2025-11-30 09:16:34,486 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:16:34,487 - voice-agent - INFO - starting voice assistant for participant debug-user-225bdecd
+2025-11-30 09:16:34,487 - voice-agent - WARNING - No metadata found in participant
+2025-11-30 09:16:34,526 - voice-agent - INFO - Logged call start with ID 11
+2025-11-30 09:16:34,526 - voice-agent - INFO - Logged call start with ID 11
+2025-11-30 09:16:34,526 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:16:34,526 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:16:34,559 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:16:34,559 - voice-agent - WARNING - No workspace_id available, skipping business context
+2025-11-30 09:16:34,559 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:16:34,559 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:16:34,559 - voice-agent - WARNING - No workspace_id available, skipping business context
+2025-11-30 09:16:34,559 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:16:34,595 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:16:34,595 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:16:34,600 - voice-agent - INFO - Starting agent session for room debug-room-da588dda
+2025-11-30 09:16:34,600 - voice-agent - INFO - Starting agent session for room debug-room-da588dda
+2025-11-30 09:16:34,612 - voice-agent - INFO - session.start() returned
+2025-11-30 09:16:34,612 - voice-agent - INFO - Saying greeting: Hi there! I'm SupaAgent, your AI assistant. How can I help you today?
+2025-11-30 09:16:34,612 - voice-agent - INFO - session.start() returned
+2025-11-30 09:16:34,612 - voice-agent - INFO - Saying greeting: Hi there! I'm SupaAgent, your AI assistant. How can I help you today?
+2025-11-30 09:17:05,345 - voice-agent - INFO - Participant debug-user-225bdecd disconnected
+2025-11-30 09:17:05,347 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:17:05,345 - voice-agent - INFO - Participant debug-user-225bdecd disconnected
+2025-11-30 09:17:05,347 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:17:05,377 - voice-agent - INFO - Logged call end for ID 11, duration 31s
+2025-11-30 09:17:05,377 - voice-agent - INFO - Logged call end for ID 11, duration 31s
+2025-11-30 09:18:19,422 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:18:19,427 - voice-agent - INFO - Entrypoint called for room room-79f6bd7e
+2025-11-30 09:18:19,427 - voice-agent - INFO - connecting to room room-79f6bd7e
+2025-11-30 09:18:19,427 - voice-agent - INFO - Entrypoint called for room room-79f6bd7e
+2025-11-30 09:18:19,427 - voice-agent - INFO - connecting to room room-79f6bd7e
+2025-11-30 09:18:20,029 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:18:20,030 - voice-agent - INFO - starting voice assistant for participant user-56ea8a98
+2025-11-30 09:18:20,030 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:18:20,029 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:18:20,030 - voice-agent - INFO - starting voice assistant for participant user-56ea8a98
+2025-11-30 09:18:20,030 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:18:20,087 - voice-agent - INFO - Logged call start with ID 12
+2025-11-30 09:18:20,087 - voice-agent - INFO - Logged call start with ID 12
+2025-11-30 09:18:20,088 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:18:20,088 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:18:20,140 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:18:20,140 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:18:20,146 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:18:20,146 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:18:20,147 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:18:20,147 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:18:20,186 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:18:20,186 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:18:20,191 - voice-agent - INFO - Starting agent session for room room-79f6bd7e
+2025-11-30 09:18:20,191 - voice-agent - INFO - Starting agent session for room room-79f6bd7e
+2025-11-30 09:18:20,202 - voice-agent - INFO - session.start() returned
+2025-11-30 09:18:20,202 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:18:20,202 - voice-agent - INFO - session.start() returned
+2025-11-30 09:18:20,202 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:18:27,479 - voice-agent - INFO - Participant user-56ea8a98 disconnected
+2025-11-30 09:18:27,480 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:18:27,479 - voice-agent - INFO - Participant user-56ea8a98 disconnected
+2025-11-30 09:18:27,480 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:18:27,486 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:18:27,486 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:18:27,501 - voice-agent - INFO - Logged call end for ID 12, duration 8s
+2025-11-30 09:18:27,501 - voice-agent - INFO - Logged call end for ID 12, duration 8s
+2025-11-30 09:18:43,087 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:18:43,092 - voice-agent - INFO - Entrypoint called for room room-ac72c86c
+2025-11-30 09:18:43,092 - voice-agent - INFO - connecting to room room-ac72c86c
+2025-11-30 09:18:43,092 - voice-agent - INFO - Entrypoint called for room room-ac72c86c
+2025-11-30 09:18:43,092 - voice-agent - INFO - connecting to room room-ac72c86c
+2025-11-30 09:18:43,662 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:18:43,664 - voice-agent - INFO - starting voice assistant for participant user-13f3584f
+2025-11-30 09:18:43,664 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:18:43,662 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:18:43,664 - voice-agent - INFO - starting voice assistant for participant user-13f3584f
+2025-11-30 09:18:43,664 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:18:43,704 - voice-agent - INFO - Logged call start with ID 13
+2025-11-30 09:18:43,704 - voice-agent - INFO - Logged call start with ID 13
+2025-11-30 09:18:43,706 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:18:43,706 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 09:18:43,749 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:18:43,749 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:18:43,753 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:18:43,753 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:18:43,754 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:18:43,754 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:18:43,825 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:18:43,825 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:18:43,829 - voice-agent - INFO - Starting agent session for room room-ac72c86c
+2025-11-30 09:18:43,829 - voice-agent - INFO - Starting agent session for room room-ac72c86c
+2025-11-30 09:18:43,842 - voice-agent - INFO - session.start() returned
+2025-11-30 09:18:43,843 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:18:43,842 - voice-agent - INFO - session.start() returned
+2025-11-30 09:18:43,843 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:18:45,902 - voice-agent - INFO - Participant user-13f3584f disconnected
+2025-11-30 09:18:45,903 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:18:45,902 - voice-agent - INFO - Participant user-13f3584f disconnected
+2025-11-30 09:18:45,903 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:18:45,913 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:18:45,913 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:18:45,926 - voice-agent - INFO - Logged call end for ID 13, duration 2s
+2025-11-30 09:18:45,926 - voice-agent - INFO - Logged call end for ID 13, duration 2s
+2025-11-30 09:18:49,397 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:18:49,397 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:18:54,194 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:18:54,198 - voice-agent - INFO - Entrypoint called for room room-0a0b7ab1
+2025-11-30 09:18:54,198 - voice-agent - INFO - connecting to room room-0a0b7ab1
+2025-11-30 09:18:54,198 - voice-agent - INFO - Entrypoint called for room room-0a0b7ab1
+2025-11-30 09:18:54,198 - voice-agent - INFO - connecting to room room-0a0b7ab1
+2025-11-30 09:18:54,740 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:18:54,741 - voice-agent - INFO - starting voice assistant for participant user-72409c7f
+2025-11-30 09:18:54,741 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:18:54,740 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:18:54,741 - voice-agent - INFO - starting voice assistant for participant user-72409c7f
+2025-11-30 09:18:54,741 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:18:54,782 - voice-agent - INFO - Logged call start with ID 14
+2025-11-30 09:18:54,782 - voice-agent - INFO - Logged call start with ID 14
+2025-11-30 09:18:54,782 - voice-agent - INFO - Agent configuration: voice=alloy, language=ja
+2025-11-30 09:18:54,782 - voice-agent - INFO - Agent configuration: voice=alloy, language=ja
+2025-11-30 09:18:54,825 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:18:54,825 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:18:54,831 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:18:54,831 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:18:54,831 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:18:54,831 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:18:54,871 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:18:54,871 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:18:54,876 - voice-agent - INFO - Starting agent session for room room-0a0b7ab1
+2025-11-30 09:18:54,876 - voice-agent - INFO - Starting agent session for room room-0a0b7ab1
+2025-11-30 09:18:54,886 - voice-agent - INFO - session.start() returned
+2025-11-30 09:18:54,886 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:18:54,886 - voice-agent - INFO - session.start() returned
+2025-11-30 09:18:54,886 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:19:00,765 - voice-agent - INFO - Participant user-72409c7f disconnected
+2025-11-30 09:19:00,766 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:19:00,765 - voice-agent - INFO - Participant user-72409c7f disconnected
+2025-11-30 09:19:00,766 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:19:00,775 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:19:00,775 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:19:00,784 - voice-agent - INFO - Logged call end for ID 14, duration 6s
+2025-11-30 09:19:00,784 - voice-agent - INFO - Logged call end for ID 14, duration 6s
+2025-11-30 09:19:05,314 - voice-agent - INFO - Voice agent logger initialized
+2025-11-30 09:19:05,318 - voice-agent - INFO - Entrypoint called for room room-27ead431
+2025-11-30 09:19:05,318 - voice-agent - INFO - connecting to room room-27ead431
+2025-11-30 09:19:05,318 - voice-agent - INFO - Entrypoint called for room room-27ead431
+2025-11-30 09:19:05,318 - voice-agent - INFO - connecting to room room-27ead431
+2025-11-30 09:19:05,841 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:19:05,841 - voice-agent - INFO - starting voice assistant for participant user-0f2c0ffb
+2025-11-30 09:19:05,842 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:19:05,841 - voice-agent - INFO - Waiting for participant...
+2025-11-30 09:19:05,841 - voice-agent - INFO - starting voice assistant for participant user-0f2c0ffb
+2025-11-30 09:19:05,842 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 09:19:05,878 - voice-agent - INFO - Logged call start with ID 15
+2025-11-30 09:19:05,878 - voice-agent - INFO - Logged call start with ID 15
+2025-11-30 09:19:05,879 - voice-agent - INFO - Agent configuration: voice=alloy, language=ja
+2025-11-30 09:19:05,879 - voice-agent - INFO - Agent configuration: voice=alloy, language=ja
+2025-11-30 09:19:05,918 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:19:05,918 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 09:19:05,924 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:19:05,924 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 09:19:05,925 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:19:05,925 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 09:19:05,963 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:19:05,963 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 09:19:05,967 - voice-agent - INFO - Starting agent session for room room-27ead431
+2025-11-30 09:19:05,967 - voice-agent - INFO - Starting agent session for room room-27ead431
+2025-11-30 09:19:05,980 - voice-agent - INFO - session.start() returned
+2025-11-30 09:19:05,980 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:19:05,980 - voice-agent - INFO - session.start() returned
+2025-11-30 09:19:05,980 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 09:19:08,923 - voice-agent - INFO - Participant user-0f2c0ffb disconnected
+2025-11-30 09:19:08,926 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:19:08,923 - voice-agent - INFO - Participant user-0f2c0ffb disconnected
+2025-11-30 09:19:08,926 - voice-agent - INFO - Agent shutting down
+2025-11-30 09:19:08,936 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:19:08,936 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 09:19:08,951 - voice-agent - INFO - Logged call end for ID 15, duration 3s
+2025-11-30 09:19:08,951 - voice-agent - INFO - Logged call end for ID 15, duration 3s
+2025-11-30 09:19:12,032 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:19:12,032 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:19:26,336 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:19:26,336 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:19:37,020 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 09:19:37,020 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 11:33:04,497 - voice-agent - INFO - Entrypoint called for room room-8767ea16
+2025-11-30 11:33:04,497 - voice-agent - INFO - connecting to room room-8767ea16
+2025-11-30 11:33:05,132 - voice-agent - INFO - Waiting for participant...
+2025-11-30 11:33:05,133 - voice-agent - INFO - starting voice assistant for participant user-7fd1c6c4
+2025-11-30 11:33:05,133 - voice-agent - INFO - Participant metadata: {"voice_id": "29vD33N1CtxCmqQRPOHJ", "language": "ja", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Hi there! I'm Randy, your AI assistant. How can I help you?", "is_active": true, "workspace_id": 2}
+2025-11-30 11:33:05,133 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 11:33:05,180 - voice-agent - INFO - Logged call start with ID 16
+2025-11-30 11:33:05,180 - voice-agent - INFO - Agent configuration: voice=29vD33N1CtxCmqQRPOHJ, language=ja
+2025-11-30 11:33:05,180 - voice-agent - INFO - Using ElevenLabs TTS with voice: 29vD33N1CtxCmqQRPOHJ
+2025-11-30 11:33:05,185 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 11:33:05,186 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 11:33:05,262 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 11:33:05,293 - voice-agent - INFO - Starting agent session for room room-8767ea16
+2025-11-30 11:33:05,297 - voice-agent - INFO - session.start() returned
+2025-11-30 11:33:05,297 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 11:33:13,222 - voice-agent - INFO - Participant user-7fd1c6c4 disconnected
+2025-11-30 11:33:13,227 - voice-agent - INFO - Agent shutting down
+2025-11-30 11:33:13,235 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 11:33:13,247 - voice-agent - INFO - Logged call end for ID 16, duration 8s
+2025-11-30 11:33:20,344 - voice-agent - INFO - Entrypoint called for room room-2f80bb20
+2025-11-30 11:33:20,344 - voice-agent - INFO - connecting to room room-2f80bb20
+2025-11-30 11:33:21,009 - voice-agent - INFO - Waiting for participant...
+2025-11-30 11:33:21,009 - voice-agent - INFO - starting voice assistant for participant user-43a7d155
+2025-11-30 11:33:21,009 - voice-agent - INFO - Participant metadata: {"voice_id": "29vD33N1CtxCmqQRPOHJ", "language": "fr", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Hi there! I'm Randy, your AI assistant. How can I help you?", "is_active": true, "workspace_id": 2}
+2025-11-30 11:33:21,010 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 11:33:21,047 - voice-agent - INFO - Logged call start with ID 17
+2025-11-30 11:33:21,048 - voice-agent - INFO - Agent configuration: voice=29vD33N1CtxCmqQRPOHJ, language=fr
+2025-11-30 11:33:21,048 - voice-agent - INFO - Using ElevenLabs TTS with voice: 29vD33N1CtxCmqQRPOHJ
+2025-11-30 11:33:21,055 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 11:33:21,056 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 11:33:21,099 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 11:33:21,133 - voice-agent - INFO - Starting agent session for room room-2f80bb20
+2025-11-30 11:33:21,137 - voice-agent - INFO - session.start() returned
+2025-11-30 11:33:21,137 - voice-agent - INFO - Saying greeting: Hi there! I'm Randy, your AI assistant. How can I help you?
+2025-11-30 11:33:28,135 - voice-agent - INFO - Participant user-43a7d155 disconnected
+2025-11-30 11:33:28,135 - voice-agent - INFO - Agent shutting down
+2025-11-30 11:33:28,142 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 11:33:28,148 - voice-agent - INFO - Logged call end for ID 17, duration 7s
+2025-11-30 11:33:36,783 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 11:33:52,964 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 11:39:09,171 - voice-agent - INFO - Entrypoint called for room room-23bd8ca6
+2025-11-30 11:39:09,171 - voice-agent - INFO - connecting to room room-23bd8ca6
+2025-11-30 11:39:09,807 - voice-agent - INFO - Waiting for participant...
+2025-11-30 11:39:09,808 - voice-agent - INFO - starting voice assistant for participant user-c1029e34
+2025-11-30 11:39:09,808 - voice-agent - INFO - Participant metadata: {"voice_id": "alloy", "language": "es", "prompt_template": "You are SupaAgent, a helpful AI assistant for a healthcare practice. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "\u00a1Hola! Soy SupaAgent, tu asistente de IA. \u00bfEn qu\u00e9 puedo ayudarte hoy?", "is_active": true, "workspace_id": 1}
+2025-11-30 11:39:09,808 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 1
+2025-11-30 11:39:09,845 - voice-agent - INFO - Logged call start with ID 18
+2025-11-30 11:39:09,845 - voice-agent - INFO - Agent configuration: voice=alloy, language=es
+2025-11-30 11:39:09,891 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 11:39:09,897 - voice-agent - INFO - Added business profile context for workspace Demo Workspace
+2025-11-30 11:39:09,897 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 11:39:09,969 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 11:39:09,973 - voice-agent - INFO - Starting agent session for room room-23bd8ca6
+2025-11-30 11:39:09,983 - voice-agent - INFO - session.start() returned
+2025-11-30 11:39:09,983 - voice-agent - INFO - Saying greeting: ¡Hola! Soy SupaAgent, tu asistente de IA. ¿En qué puedo ayudarte hoy?
+2025-11-30 11:39:33,108 - voice-agent - INFO - Participant user-c1029e34 disconnected
+2025-11-30 11:39:33,109 - voice-agent - INFO - Agent shutting down
+2025-11-30 11:39:33,143 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 11:39:33,158 - voice-agent - INFO - Logged call end for ID 18, duration 23s
+2025-11-30 11:39:43,678 - voice-agent - INFO - Entrypoint called for room room-d6fdc242
+2025-11-30 11:39:43,678 - voice-agent - INFO - connecting to room room-d6fdc242
+2025-11-30 11:39:44,281 - voice-agent - INFO - Waiting for participant...
+2025-11-30 11:39:44,281 - voice-agent - INFO - starting voice assistant for participant user-39e1fd6e
+2025-11-30 11:39:44,282 - voice-agent - INFO - Participant metadata: {"voice_id": "alloy", "language": "fr", "prompt_template": "You are SupaAgent, a helpful AI assistant for a healthcare practice. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Bonjour ! Je suis SupaAgent, votre assistant IA. Comment puis-je vous aider aujourd'hui ?", "is_active": true, "workspace_id": 1}
+2025-11-30 11:39:44,282 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 1
+2025-11-30 11:39:44,329 - voice-agent - INFO - Logged call start with ID 19
+2025-11-30 11:39:44,330 - voice-agent - INFO - Agent configuration: voice=alloy, language=fr
+2025-11-30 11:39:44,374 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 11:39:44,378 - voice-agent - INFO - Added business profile context for workspace Demo Workspace
+2025-11-30 11:39:44,379 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 11:39:44,416 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 11:39:44,421 - voice-agent - INFO - Starting agent session for room room-d6fdc242
+2025-11-30 11:39:44,431 - voice-agent - INFO - session.start() returned
+2025-11-30 11:39:44,431 - voice-agent - INFO - Saying greeting: Bonjour ! Je suis SupaAgent, votre assistant IA. Comment puis-je vous aider aujourd'hui ?
+2025-11-30 11:39:53,455 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 11:39:54,391 - voice-agent - INFO - Participant user-39e1fd6e disconnected
+2025-11-30 11:39:54,391 - voice-agent - INFO - Agent shutting down
+2025-11-30 11:39:54,402 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 11:39:54,413 - voice-agent - INFO - Logged call end for ID 19, duration 10s
+2025-11-30 11:40:18,450 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 15:32:29,916 - voice-agent - INFO - Entrypoint called for room room-48dd1ae5
+2025-11-30 15:32:29,916 - voice-agent - INFO - connecting to room room-48dd1ae5
+2025-11-30 15:32:30,551 - voice-agent - INFO - Waiting for participant...
+2025-11-30 15:32:30,551 - voice-agent - INFO - starting voice assistant for participant user-c2ef6bbd
+2025-11-30 15:32:30,552 - voice-agent - INFO - Participant metadata: {"voice_id": "alloy", "language": "en", "prompt_template": "You are SupaAgent, a helpful AI assistant for a healthcare practice. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Hello! I am SupaAgent, your AI Assistant. How can I assist you today?", "is_active": true, "workspace_id": 1}
+2025-11-30 15:32:30,552 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 1
+2025-11-30 15:32:30,606 - voice-agent - INFO - Logged call start with ID 23
+2025-11-30 15:32:30,607 - voice-agent - INFO - Agent configuration: voice=alloy, language=en
+2025-11-30 15:32:30,679 - voice-agent - INFO - Using OpenAI TTS with voice: alloy
+2025-11-30 15:32:30,691 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 15:32:30,692 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 15:32:30,778 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 15:32:30,783 - voice-agent - INFO - Starting agent session for room room-48dd1ae5
+2025-11-30 15:32:30,793 - voice-agent - INFO - session.start() returned
+2025-11-30 15:32:30,793 - voice-agent - INFO - Saying greeting: Hello! I am SupaAgent, your AI Assistant. How can I assist you today?
+2025-11-30 15:32:36,251 - voice-agent - INFO - Participant user-c2ef6bbd disconnected
+2025-11-30 15:32:36,251 - voice-agent - INFO - Agent shutting down
+2025-11-30 15:32:36,255 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 15:32:36,286 - voice-agent - INFO - Logged call end for ID 23, duration 6s
+2025-11-30 15:32:58,944 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 15:41:52,924 - voice-agent - INFO - Entrypoint called for room room-c9adb4f1
+2025-11-30 15:41:52,924 - voice-agent - INFO - connecting to room room-c9adb4f1
+2025-11-30 15:41:53,582 - voice-agent - INFO - Waiting for participant...
+2025-11-30 15:41:53,583 - voice-agent - INFO - starting voice assistant for participant user-e4c1b965
+2025-11-30 15:41:53,583 - voice-agent - INFO - Participant metadata: {"voice_id": "29vD33N1CtxCmqQRPOHJ", "language": "en", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Welcome! I'm Supa, your AI Assistant. How can I assist you today?", "is_active": true, "workspace_id": 2}
+2025-11-30 15:41:53,583 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 15:41:53,631 - voice-agent - INFO - Logged call start with ID 24
+2025-11-30 15:41:53,631 - voice-agent - INFO - Agent configuration: voice=29vD33N1CtxCmqQRPOHJ, language=en
+2025-11-30 15:41:53,631 - voice-agent - INFO - Using ElevenLabs TTS with voice: 29vD33N1CtxCmqQRPOHJ
+2025-11-30 15:41:53,635 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 15:41:53,636 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 15:41:53,706 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 15:41:53,736 - voice-agent - INFO - Starting agent session for room room-c9adb4f1
+2025-11-30 15:41:53,740 - voice-agent - INFO - session.start() returned
+2025-11-30 15:41:53,740 - voice-agent - INFO - Saying greeting: Welcome! I'm Supa, your AI Assistant. How can I assist you today?
+2025-11-30 15:42:25,853 - voice-agent - INFO - Participant user-e4c1b965 disconnected
+2025-11-30 15:42:25,854 - voice-agent - INFO - Agent shutting down
+2025-11-30 15:42:25,877 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 15:42:25,889 - voice-agent - INFO - Logged call end for ID 24, duration 32s
+2025-11-30 15:42:46,765 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 16:03:16,977 - voice-agent - INFO - Entrypoint called for room room-616726df
+2025-11-30 16:03:16,978 - voice-agent - INFO - connecting to room room-616726df
+2025-11-30 16:03:17,618 - voice-agent - INFO - Waiting for participant...
+2025-11-30 16:03:17,619 - voice-agent - INFO - starting voice assistant for participant user-64c24ae5
+2025-11-30 16:03:17,619 - voice-agent - INFO - Participant metadata: {"voice_id": "29vD33N1CtxCmqQRPOHJ", "language": "en", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Welcome! I'm Supa, your AI Assistant. How can I assist you today?", "is_active": true, "workspace_id": 2}
+2025-11-30 16:03:17,619 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 16:03:17,645 - voice-agent - INFO - Logged call start with ID 28
+2025-11-30 16:03:17,645 - voice-agent - INFO - Agent configuration: voice=29vD33N1CtxCmqQRPOHJ, language=en
+2025-11-30 16:03:17,646 - voice-agent - INFO - Using ElevenLabs TTS with voice: 29vD33N1CtxCmqQRPOHJ
+2025-11-30 16:03:17,649 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 16:03:17,649 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 16:03:17,692 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 16:03:17,729 - voice-agent - INFO - Starting agent session for room room-616726df
+2025-11-30 16:03:17,733 - voice-agent - INFO - session.start() returned
+2025-11-30 16:03:17,733 - voice-agent - INFO - Saying greeting: Welcome! I'm Supa, your AI Assistant. How can I assist you today?
+2025-11-30 16:03:57,292 - voice-agent - INFO - Participant user-64c24ae5 disconnected
+2025-11-30 16:03:57,293 - voice-agent - INFO - Agent shutting down
+2025-11-30 16:03:57,339 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 16:03:57,385 - voice-agent - INFO - Logged call end for ID 28, duration 40s
+2025-11-30 16:04:21,355 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 16:06:34,209 - voice-agent - INFO - Entrypoint called for room room-25d994a2
+2025-11-30 16:06:34,209 - voice-agent - INFO - connecting to room room-25d994a2
+2025-11-30 16:06:34,832 - voice-agent - INFO - Waiting for participant...
+2025-11-30 16:06:34,833 - voice-agent - INFO - starting voice assistant for participant user-6445acdc
+2025-11-30 16:06:34,833 - voice-agent - INFO - Participant metadata: {"voice_id": "29vD33N1CtxCmqQRPOHJ", "language": "es", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "\u00a1Bienvenido! Soy Supa, tu asistente de inteligencia artificial. \u00bfC\u00f3mo puedo ayudarte hoy?", "is_active": true, "workspace_id": 2}
+2025-11-30 16:06:34,833 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 16:06:34,876 - voice-agent - INFO - Logged call start with ID 29
+2025-11-30 16:06:34,877 - voice-agent - INFO - Agent configuration: voice=29vD33N1CtxCmqQRPOHJ, language=es
+2025-11-30 16:06:34,878 - voice-agent - INFO - Using ElevenLabs TTS with voice: 29vD33N1CtxCmqQRPOHJ
+2025-11-30 16:06:34,882 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 16:06:34,882 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 16:06:34,946 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 16:06:34,977 - voice-agent - INFO - Starting agent session for room room-25d994a2
+2025-11-30 16:06:34,981 - voice-agent - INFO - session.start() returned
+2025-11-30 16:06:34,981 - voice-agent - INFO - Saying greeting: ¡Bienvenido! Soy Supa, tu asistente de inteligencia artificial. ¿Cómo puedo ayudarte hoy?
+2025-11-30 16:06:54,485 - voice-agent - INFO - Participant user-6445acdc disconnected
+2025-11-30 16:06:54,487 - voice-agent - INFO - Agent shutting down
+2025-11-30 16:06:54,495 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 16:06:54,503 - voice-agent - INFO - Logged call end for ID 29, duration 20s
+2025-11-30 16:07:18,949 - voice-agent - INFO - Room disconnected: 10
+2025-11-30 16:07:31,258 - voice-agent - INFO - Entrypoint called for room room-c34864a6
+2025-11-30 16:07:31,258 - voice-agent - INFO - connecting to room room-c34864a6
+2025-11-30 16:07:31,905 - voice-agent - INFO - Waiting for participant...
+2025-11-30 16:07:31,905 - voice-agent - INFO - starting voice assistant for participant user-13e1e060
+2025-11-30 16:07:31,905 - voice-agent - INFO - Participant metadata: {"voice_id": "29vD33N1CtxCmqQRPOHJ", "language": "en", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational.", "welcome_message": "Welcome! I'm Supa, your AI Assistant. How can I assist you today?", "is_active": true, "workspace_id": 2}
+2025-11-30 16:07:31,906 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-11-30 16:07:31,945 - voice-agent - INFO - Logged call start with ID 33
+2025-11-30 16:07:31,946 - voice-agent - INFO - Agent configuration: voice=29vD33N1CtxCmqQRPOHJ, language=en
+2025-11-30 16:07:31,946 - voice-agent - INFO - Using ElevenLabs TTS with voice: 29vD33N1CtxCmqQRPOHJ
+2025-11-30 16:07:31,952 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-11-30 16:07:31,953 - voice-agent - INFO - Loading Silero VAD model...
+2025-11-30 16:07:32,007 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-11-30 16:07:32,041 - voice-agent - INFO - Starting agent session for room room-c34864a6
+2025-11-30 16:07:32,044 - voice-agent - INFO - session.start() returned
+2025-11-30 16:07:32,044 - voice-agent - INFO - Saying greeting: Welcome! I'm Supa, your AI Assistant. How can I assist you today?
+2025-11-30 16:08:31,045 - voice-agent - INFO - Participant user-13e1e060 disconnected
+2025-11-30 16:08:31,046 - voice-agent - INFO - Agent shutting down
+2025-11-30 16:08:31,055 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-11-30 16:08:31,062 - voice-agent - INFO - Logged call end for ID 33, duration 59s
+2025-11-30 16:08:51,702 - voice-agent - INFO - Room disconnected: 10
+2025-12-01 18:48:33,174 - voice-agent - INFO - Entrypoint called for room room-2ab9dcce
+2025-12-01 18:48:33,174 - voice-agent - INFO - connecting to room room-2ab9dcce
+2025-12-01 18:48:34,181 - voice-agent - INFO - Waiting for participant...
+2025-12-01 18:48:34,183 - voice-agent - INFO - starting voice assistant for participant user-950e70d2
+2025-12-01 18:48:34,183 - voice-agent - INFO - Participant metadata: {"voice_id": "21m00Tcm4TlvDq8ikWAM", "language": "en", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational. You should use the available tools that have been integrated into the app to support the business.", "welcome_message": "Welcome! I'm Supa, your AI Assistant. How can I assist you today?", "is_active": true, "workspace_id": 2}
+2025-12-01 18:48:34,183 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-12-01 18:48:34,242 - voice-agent - INFO - Logged call start with ID 153
+2025-12-01 18:48:34,249 - voice-agent - INFO - Agent configuration: voice=21m00Tcm4TlvDq8ikWAM, language=en
+2025-12-01 18:48:34,250 - voice-agent - INFO - Using ElevenLabs TTS with voice: 21m00Tcm4TlvDq8ikWAM
+2025-12-01 18:48:34,255 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-12-01 18:48:34,256 - voice-agent - INFO - Initializing AgentTools for workspace 2
+2025-12-01 18:48:34,256 - voice-agent - INFO - AgentTools initialized successfully
+2025-12-01 18:48:34,256 - voice-agent - INFO - Creating AgentSession...
+2025-12-01 18:48:34,256 - voice-agent - INFO - Loading Silero VAD model...
+2025-12-01 18:48:34,349 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-12-01 18:48:34,392 - voice-agent - INFO - AgentSession created successfully
+2025-12-01 18:48:34,393 - voice-agent - INFO - Starting agent session for room room-2ab9dcce
+2025-12-01 18:48:34,402 - voice-agent - INFO - session.start() returned successfully
+2025-12-01 18:48:34,402 - voice-agent - INFO - Saying greeting: Welcome! I'm Supa, your AI Assistant. How can I assist you today?
+2025-12-01 18:48:47,112 - voice-agent - INFO - Greeting spoken successfully
+2025-12-01 18:48:58,855 - voice-agent - INFO - Participant user-950e70d2 disconnected
+2025-12-01 18:48:58,856 - voice-agent - INFO - Agent shutting down
+2025-12-01 18:48:58,954 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-12-01 18:48:58,988 - voice-agent - INFO - Logged call end for ID 153, duration 25s
+2025-12-01 18:49:23,416 - voice-agent - INFO - Room disconnected: 10
+2025-12-01 19:27:49,215 - voice-agent - INFO - Entrypoint called for room room-29dced39
+2025-12-01 19:27:49,215 - voice-agent - INFO - connecting to room room-29dced39
+2025-12-01 19:27:49,770 - voice-agent - INFO - Waiting for participant...
+2025-12-01 19:27:49,770 - voice-agent - INFO - starting voice assistant for participant user-be4ad3c9
+2025-12-01 19:27:49,770 - voice-agent - INFO - Participant metadata: {"voice_id": "21m00Tcm4TlvDq8ikWAM", "language": "en", "prompt_template": "You are a helpful AI assistant for a tattoo studio. You can help with scheduling, answering questions about the clinic, and general inquiries. Keep your responses concise and conversational. You should use the available tools that have been integrated into the app to support the business.", "welcome_message": "Welcome! I'm Supa, your AI Assistant. How can I assist you today?", "is_active": true, "workspace_id": 2}
+2025-12-01 19:27:49,770 - voice-agent - INFO - Loaded settings from metadata. Workspace ID: 2
+2025-12-01 19:27:49,828 - voice-agent - INFO - Logged call start with ID 168
+2025-12-01 19:27:49,829 - voice-agent - INFO - Agent configuration: voice=21m00Tcm4TlvDq8ikWAM, language=en
+2025-12-01 19:27:49,830 - voice-agent - INFO - Using ElevenLabs TTS with voice: 21m00Tcm4TlvDq8ikWAM
+2025-12-01 19:27:49,836 - voice-agent - INFO - Added business profile context for workspace Jungle Tattoo
+2025-12-01 19:27:49,837 - voice-agent - INFO - Initializing AgentTools for workspace 2
+2025-12-01 19:27:49,837 - voice-agent - INFO - AgentTools initialized successfully
+2025-12-01 19:27:49,838 - voice-agent - INFO - Creating AgentSession...
+2025-12-01 19:27:49,838 - voice-agent - INFO - Loading Silero VAD model...
+2025-12-01 19:27:49,891 - voice-agent - INFO - Silero VAD model loaded successfully
+2025-12-01 19:27:49,926 - voice-agent - INFO - AgentSession created successfully
+2025-12-01 19:27:49,926 - voice-agent - INFO - Starting agent session for room room-29dced39
+2025-12-01 19:27:49,932 - voice-agent - INFO - session.start() returned successfully
+2025-12-01 19:27:49,932 - voice-agent - INFO - Saying greeting: Welcome! I'm Supa, your AI Assistant. How can I assist you today?
+2025-12-01 19:28:20,193 - voice-agent - INFO - Greeting spoken successfully
+2025-12-01 19:28:25,773 - voice-agent - INFO - Participant user-be4ad3c9 disconnected
+2025-12-01 19:28:25,774 - voice-agent - INFO - Agent shutting down
+2025-12-01 19:28:25,811 - voice-agent - INFO - Updated voice usage: +1 minutes
+2025-12-01 19:28:25,830 - voice-agent - INFO - Logged call end for ID 168, duration 36s
+2025-12-01 19:28:46,776 - voice-agent - INFO - Room disconnected: 10

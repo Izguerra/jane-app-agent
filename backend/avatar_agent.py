@@ -153,6 +153,8 @@ async def entrypoint(ctx: JobContext):
                 # Handle camelCase and snake_case unification
                 settings["tavus_replica_id"] = meta.get("tavus_replica_id") or meta.get("tavusReplicaId")
                 settings["tavus_persona_id"] = meta.get("tavus_persona_id") or meta.get("tavusPersonaId")
+                settings["anam_persona_id"] = meta.get("anam_persona_id") or meta.get("anamPersonaId")
+                settings["avatar_provider"] = meta.get("avatar_provider") or meta.get("avatarProvider") or "tavus"
                 
                 # CRITICAL FIX: Check for avatarVoiceId and avatar_voice_id first (avatar mode)
                 # Then fallback to voiceId/voice_id (voice mode)
@@ -171,8 +173,9 @@ async def entrypoint(ctx: JobContext):
                 logger.error(f"Failed to load settings from metadata: {e}")
 
         # Fallback: Check Participant Metadata (Frontend usually sends it here)
-        if not settings.get("tavus_replica_id") or not workspace_id:
-             logger.info("No Tavus ID or Workspace ID in Room Metadata. Checking Participant...")
+        has_avatar_id = settings.get("tavus_replica_id") or settings.get("anam_persona_id")
+        if not has_avatar_id or not workspace_id:
+             logger.info("No Avatar ID or Workspace ID in Room Metadata. Checking Participant...")
              try:
                  # Use the 'participant' we just waited for or resolved
                  if participant and participant.metadata:
@@ -186,6 +189,8 @@ async def entrypoint(ctx: JobContext):
                          # Handle camelCase
                          if meta.get("tavusReplicaId"): settings["tavus_replica_id"] = meta.get("tavusReplicaId")
                          if meta.get("tavusPersonaId"): settings["tavus_persona_id"] = meta.get("tavusPersonaId")
+                         if meta.get("anamPersonaId"): settings["anam_persona_id"] = meta.get("anamPersonaId")
+                         if meta.get("avatarProvider"): settings["avatar_provider"] = meta.get("avatarProvider")
                          
                          # CRITICAL FIX: Check for avatarVoiceId and avatar_voice_id first
                          if meta.get("avatarVoiceId"): 
@@ -265,6 +270,12 @@ async def entrypoint(ctx: JobContext):
     
         tavus_replica_id = settings.get("tavus_replica_id")
         tavus_persona_id = settings.get("tavus_persona_id")
+        anam_persona_id = settings.get("anam_persona_id")
+        avatar_provider = settings.get("avatar_provider", "tavus")
+        
+        # Auto-detect provider from IDs if not explicitly set
+        if anam_persona_id and not tavus_replica_id:
+            avatar_provider = "anam"
         
         # ... (Fallback logic for resolving persona) ...
         if tavus_replica_id and not tavus_persona_id:
@@ -540,9 +551,31 @@ async def entrypoint(ctx: JobContext):
         agent_logic = Agent(
             instructions=full_prompt or "You are a helpful AI assistant."
         )
-        # 6. Create Tavus Session (The Body)
+        # 6. Create Avatar Session (The Body) — Tavus OR Anam.ai
         avatar = None
-        if tavus_replica_id:
+        if avatar_provider == "anam" and anam_persona_id:
+            try:
+                from livekit.plugins import anam
+                logger.info(f"Initializing Anam.ai avatar with persona={anam_persona_id}")
+                avatar = anam.AvatarSession(
+                    persona_id=anam_persona_id,
+                )
+                logger.info("Starting Anam.ai Avatar...")
+                await avatar.start(session, room=ctx.room)
+                logger.info("Anam.ai Avatar Started!")
+                with open("backend/debug_avatar.log", "a") as f: 
+                    f.write(f"ANAM AVATAR STARTED! Persona ID: {anam_persona_id}\n")
+                    f.flush()
+            except Exception as e:
+                msg = f"ANAM ERROR: {e}"
+                logger.error(msg)
+                with open("backend/debug_avatar_error.log", "a") as f: 
+                    f.write(f"{msg}\n")
+                    f.write(f"Persona: {anam_persona_id}\n")
+                    import traceback
+                    f.write(traceback.format_exc() + "\n")
+                    f.flush()
+        elif tavus_replica_id:
             try:
                 # --- WSS FIX: Ensure LiveKit URL uses wss:// for Tavus ---
                 original_url = os.environ.get("LIVEKIT_URL", "")
@@ -600,7 +633,7 @@ async def entrypoint(ctx: JobContext):
                     f.write(traceback.format_exc() + "\n")
                     f.flush()
         else:
-            logger.warning(f"Skipping Tavus Connection. Replica: {tavus_replica_id}, Persona: {tavus_persona_id}")
+            logger.warning(f"Skipping Avatar. Provider: {avatar_provider}, Tavus: {tavus_replica_id}, Anam: {anam_persona_id}")
 
         # 7. Start the Voice/Agent Session
         await session.start(agent_logic, room=ctx.room)

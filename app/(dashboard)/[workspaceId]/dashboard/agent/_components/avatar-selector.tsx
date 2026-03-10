@@ -4,12 +4,13 @@ import { useEffect, useState, useRef } from "react";
 import useSWR from "swr";
 import { AgentFormData } from "./types";
 import { Switch } from "@/components/ui/switch";
-import { Info, AlertTriangle, Loader2, User, Play, Square } from "lucide-react";
+import { Info, AlertTriangle, Loader2, User, Play, Square, Sparkles, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 interface AvatarSelectorProps {
     formData: AgentFormData;
@@ -48,9 +49,8 @@ const DEPRECATED_AVATARS = ['Destiny', 'Steph - Selfie', 'Deprecated', '(Depreca
 const getAvatarGender = (name: string): 'male' | 'female' | 'neutral' => {
     const n = name.toLowerCase();
 
-    // Specific Name Lists (Precise mapping)
     const femaleNames = [
-        'female', 'woman', 'girl', 'lady', // explicit gender labels
+        'female', 'woman', 'girl', 'lady',
         'sarah', 'emily', 'jessica', 'linda', 'olivia', 'sophia', 'mia', 'isabella',
         'charlotte', 'amelia', 'harper', 'evelyn', 'abigail', 'steph', 'lily', 'grace',
         'chloe', 'victoria', 'madison', 'scarlett', 'ariana', 'penelope', 'layla',
@@ -60,7 +60,7 @@ const getAvatarGender = (name: string): 'male' | 'female' | 'neutral' => {
     ];
 
     const maleNames = [
-        'male', 'man', 'boy', 'gentleman', // explicit gender labels
+        'male', 'man', 'boy', 'gentleman',
         'james', 'john', 'robert', 'michael', 'william', 'david', 'richard', 'joseph',
         'thomas', 'charles', 'christopher', 'daniel', 'matthew', 'anthony', 'mark',
         'donald', 'steven', 'paul', 'andrew', 'joshua', 'kenneth', 'kevin', 'brian',
@@ -69,11 +69,6 @@ const getAvatarGender = (name: string): 'male' | 'female' | 'neutral' => {
         'diego', 'santa', 'danny', 'carter', 'liam', 'jakey', 'kai', 'owen', 'zane',
         'raj', 'nathan'
     ];
-
-    // Check specific names first (word boundary safety)
-    // We check if the name string *contains* the name as a distinct word or start/end
-    // But since these are mostly distinct names, 'includes' is okay IF we avoided short pronouns like 'she'
-    // "Bookshelf" was triggering 'she'. 'she' is removed from the list above.
 
     if (femaleNames.some(p => n.includes(p))) return 'female';
     if (maleNames.some(p => n.includes(p))) return 'male';
@@ -85,64 +80,102 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
     const [isPlaying, setIsPlaying] = useState(false);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
-    const { data: replicas, error, isLoading } = useSWR("/api/integrations/tavus/replicas", fetcher);
-    useEffect(() => {
-        // Tavus Replicas loaded
-    }, [replicas]);
+    // Auto-detect active avatar provider from integrations
+    const { data: integrations } = useSWR("/api/agent/integrations", fetcher);
+    const activeProvider: 'tavus' | 'anam' | null = (() => {
+        if (!integrations || !Array.isArray(integrations)) return null;
+        const anam = integrations.find((i: any) => i.provider === 'anam' && i.is_active);
+        if (anam) return 'anam';
+        const tavus = integrations.find((i: any) => i.provider === 'tavus' && i.is_active);
+        if (tavus) return 'tavus';
+        return null;
+    })();
 
-    // Helper functions lifted to module scope
+    // Fetch avatars from active provider
+    const { data: tavusReplicas, isLoading: tavusLoading } = useSWR(
+        activeProvider === 'tavus' ? "/api/integrations/tavus/replicas" : null,
+        fetcher
+    );
+    const { data: anamAvatars, isLoading: anamLoading } = useSWR(
+        activeProvider === 'anam' ? "/api/integrations/anam/avatars" : null,
+        fetcher
+    );
+
+    const isLoading = tavusLoading || anamLoading;
+
+    // Normalize avatars to a common format
+    const avatars = activeProvider === 'anam'
+        ? (anamAvatars || []).map((p: any) => ({
+            id: p.id,
+            name: p.displayName || p.name || "Unnamed",
+            thumbnail_image_url: p.imageUrl || p.avatarImageUrl || p.thumbnail_image_url || null,
+            thumbnail_video_url: p.videoUrl || p.avatarVideoUrl || p.thumbnail_video_url || null,
+            provider: 'anam' as const,
+            raw: p,
+        }))
+        : (tavusReplicas || [])
+            .filter((r: any) => !DEPRECATED_AVATARS.some(d => (r.replica_name || "").includes(d)))
+            .map((r: any) => ({
+                id: r.replica_id,
+                name: r.replica_name || "Unnamed",
+                thumbnail_image_url: r.thumbnail_image_url,
+                thumbnail_video_url: r.thumbnail_video_url,
+                provider: 'tavus' as const,
+                raw: r,
+            }));
 
     const selectedVoiceGender = formData.avatarVoiceId ? VOICE_GENDERS[formData.avatarVoiceId] || 'neutral' : 'neutral';
 
-    const filteredReplicas = replicas ? replicas.filter((r: any) => {
-        const name = r.replica_name || "";
-
-        // 1. Filter out Deprecated
-        if (DEPRECATED_AVATARS.some(deprecated => name.includes(deprecated))) return false;
-
-        // 2. Gender Filtering
+    const filteredAvatars = avatars.filter((a: any) => {
         if (!formData.avatarVoiceId) return true;
         if (selectedVoiceGender === 'neutral') return true;
 
-        const avatarGender = getAvatarGender(name);
-
-        // Strict Filtering: If voice is Male, ONLY show Male. If Female, ONLY show Female.
-        // Neutral avatars are usually safe to show for both, BUT user said:
-        // "let's just have male and female avatars for now" and "neutral avatars... that should be female"
-        // So we try to match strictly if possible.
-        // If the avatar is explicitly Neutral, we show it (fallback). 
-        // But if it's Male, don't show on Female voice.
-
+        const avatarGender = getAvatarGender(a.name);
         if (selectedVoiceGender === 'male' && avatarGender === 'female') return false;
         if (selectedVoiceGender === 'female' && avatarGender === 'male') return false;
-
         return true;
-    }) : [];
+    });
+
+    const selectedAvatarId = activeProvider === 'anam' ? formData.anamPersonaId : formData.tavusReplicaId;
 
     const handleToggle = (checked: boolean) => {
         setFormData((prev: AgentFormData) => ({
             ...prev,
             useTavusAvatar: checked,
-            tavusReplicaId: checked ? prev.tavusReplicaId : undefined
+            avatarProvider: activeProvider || undefined,
+            tavusReplicaId: checked ? prev.tavusReplicaId : undefined,
+            anamPersonaId: checked ? prev.anamPersonaId : undefined,
         }));
     };
 
-    const handleSelect = (replica: any) => {
-        setFormData((prev: AgentFormData) => ({
-            ...prev,
-            tavusReplicaId: replica.replica_id,
-            avatarUrl: replica.thumbnail_video_url || prev.avatarUrl
-        }));
+    const handleSelect = (avatar: any) => {
+        if (avatar.provider === 'anam') {
+            setFormData((prev: AgentFormData) => ({
+                ...prev,
+                anamPersonaId: avatar.id,
+                avatarProvider: 'anam',
+                tavusReplicaId: undefined,
+                avatarUrl: avatar.thumbnail_video_url || avatar.thumbnail_image_url || prev.avatarUrl,
+            }));
+        } else {
+            setFormData((prev: AgentFormData) => ({
+                ...prev,
+                tavusReplicaId: avatar.id,
+                avatarProvider: 'tavus',
+                anamPersonaId: undefined,
+                avatarUrl: avatar.thumbnail_video_url || prev.avatarUrl,
+            }));
+        }
     };
 
-    if (error) {
+    if (!activeProvider) {
         return (
-            <div className="p-4 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive flex gap-3">
+            <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 flex gap-3">
                 <AlertTriangle className="h-5 w-5 shrink-0" />
                 <div>
-                    <h5 className="font-medium mb-1">Integration Error</h5>
+                    <h5 className="font-medium mb-1">No Avatar Provider Connected</h5>
                     <p className="text-sm">
-                        Could not load Tavus Avatars. Please ensure the integration is connected.
+                        Please go to Integrations → AI & Avatars and enable either <strong>Tavus</strong> or <strong>Anam.ai</strong>.
                     </p>
                 </div>
             </div>
@@ -165,6 +198,20 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
 
             {formData.useTavusAvatar && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                    {/* Provider indicator */}
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                        {activeProvider === 'anam' ? (
+                            <Sparkles className="h-4 w-4 text-cyan-600" />
+                        ) : (
+                            <Bot className="h-4 w-4 text-purple-600" />
+                        )}
+                        <span className="text-sm font-medium text-slate-600">
+                            Provider: {activeProvider === 'anam' ? 'Anam.ai' : 'Tavus'}
+                        </span>
+                        <Badge variant="outline" className="ml-auto text-xs">Active</Badge>
+                    </div>
+
+                    {/* Voice selector */}
                     <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
                         <Label className="text-base font-medium">Select Avatar Voice</Label>
                         <div className="flex gap-2">
@@ -243,20 +290,21 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                         </div>
                     </div>
 
+                    {/* Avatar Grid */}
                     <div className="space-y-4">
                         <Label className="text-base font-medium">Choose Your Avatar</Label>
                         {isLoading ? (
                             <div className="flex items-center justify-center p-8">
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>
-                        ) : filteredReplicas.length > 0 ? (
+                        ) : filteredAvatars.length > 0 ? (
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                {filteredReplicas.map((replica: any) => (
-                                    <ReplicaCard
-                                        key={replica.replica_id}
-                                        replica={replica}
-                                        isSelected={formData.tavusReplicaId === replica.replica_id}
-                                        onSelect={() => handleSelect(replica)}
+                                {filteredAvatars.map((avatar: any) => (
+                                    <AvatarCard
+                                        key={avatar.id}
+                                        avatar={avatar}
+                                        isSelected={selectedAvatarId === avatar.id}
+                                        onSelect={() => handleSelect(avatar)}
                                     />
                                 ))}
                             </div>
@@ -265,8 +313,8 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                 <Info className="h-8 w-8 text-slate-300 mb-2" />
                                 <h5 className="font-medium text-slate-600">No Matching Avatars</h5>
                                 <p className="text-sm text-slate-500">
-                                    We filtered out avatars that don't match the selected voice gender ({selectedVoiceGender}).
-                                    <br />Try selecting a different voice or a 'Neutral' one.
+                                    We filtered out avatars that don&apos;t match the selected voice gender ({selectedVoiceGender}).
+                                    <br />Try selecting a different voice or a &apos;Neutral&apos; one.
                                 </p>
                             </div>
                         )}
@@ -277,7 +325,7 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
     );
 }
 
-function ReplicaCard({ replica, isSelected, onSelect }: { replica: any, isSelected: boolean, onSelect: () => void }) {
+function AvatarCard({ avatar, isSelected, onSelect }: { avatar: any, isSelected: boolean, onSelect: () => void }) {
     const [isHovered, setIsHovered] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -298,15 +346,15 @@ function ReplicaCard({ replica, isSelected, onSelect }: { replica: any, isSelect
     }, []);
 
     useEffect(() => {
-        if (videoRef.current && replica.thumbnail_video_url && isVisible) {
+        if (videoRef.current && avatar.thumbnail_video_url && isVisible) {
             if (isHovered) {
                 videoRef.current.play().catch(() => { });
             } else {
                 videoRef.current.pause();
-                videoRef.current.currentTime = 0; // Reset to frame 0
+                videoRef.current.currentTime = 0;
             }
         }
-    }, [isHovered, replica.thumbnail_video_url, isVisible]);
+    }, [isHovered, avatar.thumbnail_video_url, isVisible]);
 
     return (
         <div
@@ -320,27 +368,35 @@ function ReplicaCard({ replica, isSelected, onSelect }: { replica: any, isSelect
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className="aspect-[3/4] bg-slate-100 relative overflow-hidden">
-                {/* 
-                    Always use the video tag if visible. 
-                    If not visible yet, we show nothing (or just the bgColor from bg-slate-100) 
-                    to save bandwidth. Tavus's thumbnail_image_url is sometimes slow or broken.
-                */}
-                {isVisible && replica.thumbnail_video_url ? (
+                {isVisible && avatar.thumbnail_video_url ? (
                     <video
                         ref={videoRef}
-                        src={`${replica.thumbnail_video_url}#t=0.1`}
-                        poster={replica.thumbnail_image_url}
+                        src={`${avatar.thumbnail_video_url}#t=0.1`}
+                        poster={avatar.thumbnail_image_url}
                         className="object-cover w-full h-full bg-slate-200"
                         loop
                         muted
                         playsInline
                         preload="metadata"
                     />
+                ) : isVisible && avatar.thumbnail_image_url ? (
+                    <img
+                        src={avatar.thumbnail_image_url}
+                        alt={avatar.name}
+                        className="object-cover w-full h-full bg-slate-200"
+                    />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
                         <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
                     </div>
                 )}
+
+                {/* Provider badge */}
+                <div className="absolute top-2 left-2 z-10">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 bg-white/80 backdrop-blur-sm">
+                        {avatar.provider === 'anam' ? '✨ Anam' : '🟣 Tavus'}
+                    </Badge>
+                </div>
 
                 {isSelected && (
                     <div className="absolute top-2 right-2 z-10">
@@ -354,13 +410,12 @@ function ReplicaCard({ replica, isSelected, onSelect }: { replica: any, isSelect
             </div>
             <div className="p-2 bg-white border-t text-center">
                 <p className="font-semibold text-xs truncate text-slate-700">
-                    {replica.replica_name || "Unnamed Avatar"}
+                    {avatar.name}
                     <span className="text-muted-foreground font-normal ml-1 opacity-70 capitalize">
-                        ({getAvatarGender(replica.replica_name || "")})
+                        ({getAvatarGender(avatar.name)})
                     </span>
                 </p>
             </div>
         </div>
     );
 }
-

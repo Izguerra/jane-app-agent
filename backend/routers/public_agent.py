@@ -61,6 +61,8 @@ async def get_public_agent_settings(
         "voice_id": settings.get("voice_id"),
         "use_tavus_avatar": settings.get("use_tavus_avatar") or settings.get("useTavusAvatar", False),
         "tavus_replica_id": settings.get("tavus_replica_id") or settings.get("tavusReplicaId"),
+        "anam_persona_id": settings.get("anam_persona_id") or settings.get("anamPersonaId"),
+        "avatar_provider": settings.get("avatar_provider") or settings.get("avatarProvider", "tavus"),
     }
 
 @router.get("/active-agent-settings")
@@ -115,6 +117,8 @@ async def get_active_agent_settings(
         "agent_id": agent.id if agent else None,
         "use_tavus_avatar": settings.get("use_tavus_avatar") or settings.get("useTavusAvatar", False),
         "tavus_replica_id": settings.get("tavus_replica_id") or settings.get("tavusReplicaId"),
+        "anam_persona_id": settings.get("anam_persona_id") or settings.get("anamPersonaId"),
+        "avatar_provider": settings.get("avatar_provider") or settings.get("avatarProvider", "tavus"),
     }
 
 @router.post("/chat/{clinic_id}")

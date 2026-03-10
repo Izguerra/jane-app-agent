@@ -124,7 +124,7 @@ class WorkerTools:
     @llm.function_tool(
         description="Dispatch a LONG-RUNNING background worker task (e.g., thorough research, report generation, mass emails). Do NOT use this for quick questions or interactive tasks. This returns a Task ID, not the result."
     )
-    async def dispatch_worker_task(self, worker_type: str, parameters: dict) -> str:
+    async def dispatch_worker_task(self, worker_type: str, parameters: Dict[str, Any]) -> str:
         """
         Dispatch a background worker task for long-running operations.
         
@@ -261,7 +261,7 @@ class WorkerTools:
     @llm.function_tool(
         description="Schedule a worker task to run repeatedly. Use expressions like 'daily at 9am', 'hourly', or 'every Monday at 10:00'."
     )
-    async def schedule_worker_task(self, worker_type: str, schedule_expression: str, parameters: dict) -> str:
+    async def schedule_worker_task(self, worker_type: str, schedule_expression: str, parameters: Dict[str, Any]) -> str:
         """
         Schedule a worker task to run repeatedly.
         
@@ -297,7 +297,7 @@ class WorkerTools:
     @llm.function_tool(
         description="Execute a task IMMEDIATELY and return the result. Use this for ALL normal interactive requests (Weather, Flights, Job Search, Research, Email, etc.) where the user is waiting for an answer.",
     )
-    async def run_task_now(self, worker_type: str, parameters: dict) -> str:
+    async def run_task_now(self, worker_type: str, parameters: Dict[str, Any]) -> str:
         """
         Execute a worker synchronously and get the result immediately.
         

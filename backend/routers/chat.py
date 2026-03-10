@@ -12,7 +12,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import desc
 from backend.services.vector_sync import sync_chat_message
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 @router.post("")
 async def chat(

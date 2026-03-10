@@ -93,12 +93,18 @@ async def handle_subscription_change(subscription):
             PhoneNumber.is_active == True
         ).all()
         
-        count = len(current_numbers)
+        # Count only "Included" numbers (those without a stripe_subscription_item_id, or marked specifically)
+        # For now, let's assume any number with stripe_subscription_item_id is an Add-on
+        included_numbers_count = len([n for n in current_numbers if not n.stripe_subscription_item_id])
         
-        if count < allowed_count:
-            needed = allowed_count - count
-            logger.info(f"Provisioning {needed} new numbers for workspace {workspace.id}")
+        # [DISABLED] Auto-provisioning disabled per user request to move towards manual control/Telnyx.
+        # Users should claim their "Included" numbers via the dashboard.
+        """
+        if included_numbers_count < allowed_count:
+            needed = allowed_count - included_numbers_count
+            logger.info(f"Provisioning {needed} new 'Included' numbers for workspace {workspace.id}. (Allowed: {allowed_count}, Existing Included: {included_numbers_count})")
             
+            from backend.services.twilio_service import TwilioService
             twilio_service = TwilioService()
             
             for _ in range(needed):
@@ -178,6 +184,7 @@ async def handle_subscription_change(subscription):
                         
                 except Exception as e:
                     logger.error(f"Error provisioning number: {e}")
+        """
                     
     finally:
         db.close()

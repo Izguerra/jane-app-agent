@@ -33,21 +33,28 @@ from livekit.agents import (
     WorkerOptions, # Added WorkerOptions
 )
 # from livekit.agents.pipeline import VoicePipelineAgent # REMOVED - Causing ModuleNotFoundError
-from livekit.plugins import deepgram, openai, silero, elevenlabs # Moved from entrypoint
+from livekit.plugins import deepgram, openai, elevenlabs
+try:
+    from livekit.plugins import silero
+except ImportError:
+    import livekit.plugins.silero as silero
 
 
 # Using AgentSession and Agent for 1.3.x compatibility
 # Plugins and Voice imports moved to local scope to prevent IPC crash
-from livekit.agents.voice.turn import TurnHandlingConfig
+# from livekit.agents.voice.turn import TurnHandlingConfig
+
 
 # Import settings store
 try:
     from backend.settings_store import get_settings
+    from backend.services.integration_service import IntegrationService
 except ImportError:
     # Fallback if path setup is still weird
     import sys
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from backend.settings_store import get_settings
+    from backend.services.integration_service import IntegrationService
 
 load_dotenv()
 
@@ -56,8 +63,10 @@ if os.getenv("GOOGLE_GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
     os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_GEMINI_API_KEY")
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("voice-agent")
+logger.setLevel(logging.DEBUG)
+logging.getLogger("livekit").setLevel(logging.DEBUG)
 
 # Check for Mistral API Key
 if not os.getenv("MISTRAL_API_KEY"):
@@ -100,13 +109,13 @@ async def entrypoint(ctx: JobContext):
     try:
         log_debug("Step 1: Imports starting")
         from livekit.agents.voice import AgentSession, Agent
-        from livekit.plugins import deepgram, google, silero, elevenlabs
+        from livekit.plugins import deepgram, silero, elevenlabs
         log_debug("Step 2: LiveKit plugins imported")
         
         from backend.settings_store import get_settings
         from backend.agent_tools import AgentTools
         from backend.database import SessionLocal, generate_comm_id
-        from backend.models_db import Communication, Workspace, Agent as AgentModel, Customer
+        from backend.models_db import Communication, Workspace, Agent as AgentModel, Customer, PhoneNumber
         from backend.services.skill_service import SkillService
         from backend.services.personality_service import PersonalityService
         log_debug("Step 3: Backend modules imported")
@@ -131,7 +140,9 @@ async def entrypoint(ctx: JobContext):
         # AgentSession.start(room=ctx.room) will reuse this connection via RoomIO
         # and automatically publish lk.agent.state attributes.
         if ctx.room.connection_state == ConnectionState.CONN_DISCONNECTED:
+            log_debug("Connecting to room...")
             await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+            log_debug("Connected to room.")
 
         # -----------------------------------------------------------------
         # MODE CHECK: Prevents Voice Agent from speaking during Avatar calls
@@ -147,36 +158,70 @@ async def entrypoint(ctx: JobContext):
             except Exception as me:
                 logger.warning(f"Failed to parse room metadata for mode check: {me}")
         
-        # Check waiting for participant early to catch mode from participant metadata
-        logger.info("Waiting for participant...")
+        logger.info(f"Waiting for participant in {ctx.room.name}...")
+        log_debug(f"DEBUG: Waiting for participant in {ctx.room.name} (timeout 5s)...")
         try:
-            participant = await asyncio.wait_for(ctx.wait_for_participant(), timeout=20.0)
-            
-            # CHECK PARTICIPANT METADATA FOR MODE
-            if participant.metadata:
-                try:
-                    p_meta = json.loads(participant.metadata)
-                    if p_meta.get("mode") == "avatar":
-                         logger.info(f"Participant metadata indicates 'avatar' mode. Waiting 5s before stepping down.")
-                         await asyncio.sleep(5)
-                         logger.info("Voice agent stepping down after participant avatar mode delay.")
-                         return
-                except: pass
-
-            msg_identity = f"DEBUG: Participant connected: {participant.identity}"
-            print(msg_identity, flush=True)
-            logger.info(msg_identity)
-            
-            msg_metadata = f"DEBUG: Participant Metadata: {participant.metadata}"
-            print(msg_metadata, flush=True)
-            logger.info(msg_metadata)
-            
-            msg_attributes = f"DEBUG: Participant Attributes: {participant.attributes}"
-            print(msg_attributes, flush=True)
-            logger.info(msg_attributes)
+            # Short wait first, then check for other rooms if empty
+            participant = await asyncio.wait_for(ctx.wait_for_participant(), timeout=5.0)
+            log_debug(f"Participant joined: {participant.identity}")
         except asyncio.TimeoutError:
-            logger.warning("Timed out waiting for participant. Exiting job to free worker.")
-            return
+            # SELF-HEALING: Check if participant landed in a different room
+            log_debug("Room is still empty. SCANNING ALL ACTIVE ROOMS for SIP participants...")
+            try:
+                from livekit import api
+                # Ensure we use HTTPS for the API client
+                lk_url = os.getenv("LIVEKIT_URL")
+                if "://" in lk_url:
+                    lk_url = lk_url.split("://")[1]
+                api_url = f"https://{lk_url}"
+                
+                lkapi = api.LiveKitAPI(
+                    api_url,
+                    os.getenv("LIVEKIT_API_KEY"),
+                    os.getenv("LIVEKIT_API_SECRET")
+                )
+                rooms_res = await lkapi.room.list_rooms(api.ListRoomsRequest())
+                fallback_room = None
+                
+                log_debug(f"Found {len(rooms_res.rooms)} active rooms total.")
+                
+                for r in rooms_res.rooms:
+                    if r.name == ctx.room.name:
+                        continue
+                        
+                    log_debug(f"Checking Room: {r.name} ({r.num_participants} participants)")
+                    if r.num_participants > 0:
+                        try:
+                             p_res = await lkapi.room.list_participants(api.ListParticipantsRequest(room=r.name))
+                             for p in p_res.participants:
+                                 log_debug(f"  - Observed Participant: {p.identity} (Kind: {p.kind})")
+                                 # If we find a SIP participant, follow them!
+                                 if p.identity.startswith("sip_") or "sip" in p.identity.lower() or p.kind == 3:
+                                      fallback_room = r.name
+                                      log_debug(f"!!! MATCH FOUND !!! Following {p.identity} in room {r.name}.")
+                                      break
+                        except Exception as pe:
+                             log_debug(f"  - Failed to list participants for {r.name}: {pe}")
+                    
+                    if fallback_room: break
+                
+                await lkapi.aclose()
+                
+                if fallback_room:
+                    log_debug(f"MIGRATING AGENT to {fallback_room} now.")
+                    logger.info(f"Moving agent from {ctx.room.name} to {fallback_room} to follow SIP participant.")
+                    await ctx.room.disconnect()
+                    await ctx.connect(room=fallback_room, auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+                    log_debug(f"Connection established in room: {fallback_room}")
+                    # Re-wait for participant in the new room (short timeout since they should be there)
+                    participant = await asyncio.wait_for(ctx.wait_for_participant(), timeout=5.0)
+                    log_debug(f"Participant confirmed in new room: {participant.identity}")
+                else:
+                    log_debug("No SIP participant found in ANY active room. Worker timing out.")
+                    return
+            except Exception as fe:
+                log_debug(f"Self-healing CRITICAL FAILURE: {fe}")
+                return
         
         # --- Context Resolution Logic (Preserved) ---
         settings = {}
@@ -190,6 +235,8 @@ async def entrypoint(ctx: JobContext):
         
         # FIRST: Try to get workspace_id and agent_id from room metadata (most reliable)
         agent_id = None
+        settings = {}
+        call_context = None
         if ctx.room.metadata:
             try:
                 room_settings = json.loads(ctx.room.metadata)
@@ -202,77 +249,176 @@ async def entrypoint(ctx: JobContext):
                 logger.error(f"DEBUG: Failed to parse room metadata: {e}")
         
         try:
-            # STRATEGY 1: Outbound Call via Room Name
-            if ctx.room.name.startswith("outbound_"):
-                comm_id = ctx.room.name.replace("outbound_", "")
+            # STRATEGY 1: Outbound Call via Room Name (outbound-comm_XXX or outbound-XXX)
+            if ctx.room.name.startswith("outbound-"):
+                # Handle double dash discrepancy (outbound--+1...) if Asterisk translates anything
+                if ctx.room.name.startswith("outbound--"):
+                    logger.info(f"🔍 Strategy 1 (Discrepancy): Detected outbound__ room: {ctx.room.name}")
+                    # Try to extract phone number: outbound__+14167865786_...
+                    parts = ctx.room.name.split('_')
+                    phone_match = None
+                    for p in parts:
+                        if p.startswith('+'):
+                            phone_match = p
+                            break
+                    
+                    if phone_match:
+                        db = SessionLocal()
+                        try:
+                            # Find the most recent initiated outbound call to this number
+                            comm_record = db.query(Communication).filter(
+                                Communication.user_identifier == phone_match,
+                                Communication.direction == "outbound"
+                            ).order_by(Communication.started_at.desc()).first()
+                            
+                            if comm_record:
+                                workspace_id = comm_record.workspace_id
+                                if not agent_id: agent_id = comm_record.agent_id
+                                call_context = comm_record.call_context
+                                log_debug(f"✅ Strategy 1 (Discrepancy Resolved): Workspace={workspace_id}, Agent={agent_id}")
+                        except Exception as db_e:
+                            logger.error(f"Failed to lookup communication record (discrepancy): {db_e}")
+                        finally:
+                            db.close()
+                else:
+                    raw_id = ctx.room.name.replace("outbound-", "")
+                    # Restore underscore for DB lookup if the room string was outbound-comm-XXX
+                    comm_id = raw_id.replace("comm-", "comm_") if raw_id.startswith("comm-") else raw_id
+                    db = SessionLocal()
+                    try:
+                        comm_record = db.query(Communication).filter(Communication.id == comm_id).first()
+                        if comm_record:
+                            workspace_id = comm_record.workspace_id
+                            if not agent_id: agent_id = comm_record.agent_id
+                            call_context = comm_record.call_context
+                            if not call_context and comm_record.call_intent:
+                                  call_context = {
+                                      "intent": comm_record.call_intent,
+                                      "customer_id": comm_record.customer_id
+                                  }
+                            logger.info(f"✅ Strategy 1 (Outbound Room): Workspace={workspace_id}, Agent={agent_id}")
+                            
+                            if call_context and call_context.get("customer_id") and not call_context.get("customer"):
+                                 cust = db.query(Customer).filter(Customer.id == call_context.get("customer_id")).first()
+                                 if cust:
+                                     call_context["customer"] = {
+                                         "first_name": cust.first_name,
+                                         "last_name": cust.last_name,
+                                         "phone": cust.phone,
+                                         "email": cust.email
+                                     }
+                    except Exception as db_e:
+                        logger.error(f"Failed to lookup communication record: {db_e}")
+                    finally:
+                        db.close()
+
+            # STRATEGY 1b: Inbound Call via Telnyx Room Name (call-v3-XXXXX or inbound-comm_XXX)
+            if not workspace_id and (ctx.room.name.startswith("call-") or ctx.room.name.startswith("inbound-")):
+                logger.info(f"🔍 Strategy 1b: Detected Telnyx inbound room: {ctx.room.name}")
+                # The room name is "call-v3-XXXXX" where XXXXX is the sanitized telnyx_call_id
+                # Reconstruct the original call ID: replace first "call-" and convert dashes back
+                if ctx.room.name.startswith("call-"):
+                    # Room format: call-v3-XXXXX → original: v3:XXXXX
+                    raw_id = ctx.room.name[5:]  # Remove "call-"
+                    # The first dash after "v3" should be a colon
+                    if raw_id.startswith("v3-"):
+                        reconstructed_call_id = "v3:" + raw_id[3:]
+                    else:
+                        reconstructed_call_id = raw_id
+                    logger.info(f"🔍 Reconstructed telnyx_call_id: {reconstructed_call_id}")
+                elif ctx.room.name.startswith("inbound-"):
+                    raw_id = ctx.room.name.replace("inbound-", "")
+                    comm_id = raw_id.replace("comm-", "comm_") if raw_id.startswith("comm-") else raw_id
+                    reconstructed_call_id = None
+                
                 db = SessionLocal()
                 try:
-                    comm_record = db.query(Communication).filter(Communication.id == comm_id).first()
+                    comm_record = None
+                    if ctx.room.name.startswith("inbound-"):
+                        comm_record = db.query(Communication).filter(Communication.id == comm_id).first()
+                    
+                    if not comm_record and reconstructed_call_id:
+                        # Try exact match first
+                        comm_record = db.query(Communication).filter(
+                            Communication.telnyx_call_id == reconstructed_call_id
+                        ).first()
+                    
                     if comm_record:
                         workspace_id = comm_record.workspace_id
-                        call_context = comm_record.call_context
-                        if not call_context and comm_record.call_intent:
-                              call_context = {
-                                  "intent": comm_record.call_intent,
-                                  "customer_id": comm_record.customer_id
-                              }
-                        logger.info(f"Resolved Context from DB: Workspace={workspace_id}, Intent={call_context.get('intent') if call_context else 'None'}")
-                        
-                        if call_context and call_context.get("customer_id") and not call_context.get("customer"):
-                             cust = db.query(Customer).filter(Customer.id == call_context.get("customer_id")).first()
-                             if cust:
-                                 call_context["customer"] = {
-                                     "first_name": cust.first_name,
-                                     "last_name": cust.last_name,
-                                     "phone": cust.phone,
-                                     "email": cust.email
-                                 }
+                        if not agent_id: agent_id = comm_record.agent_id
+                        logger.info(f"✅ Strategy 1b: Found comm {comm_record.id} → Workspace={workspace_id}")
+                    else:
+                        logger.warning(f"⚠️ Strategy 1b: No comm record found for room {ctx.room.name}")
                 except Exception as db_e:
-                    logger.error(f"Failed to lookup communication record: {db_e}")
+                    logger.error(f"Strategy 1b DB error: {db_e}")
                 finally:
                     db.close()
 
-            # STRATEGY 2: Inbound SIP Call
+            # STRATEGY 2: Inbound SIP Call - resolve via PhoneNumber table
             if not workspace_id:
                 sip_to = participant.attributes.get("sip.callTo") or participant.attributes.get("to")
-                if sip_to:
-                    logger.info(f"Detected SIP call to: {sip_to}")
-                    db = SessionLocal()
-                    try:
+                sip_from = participant.attributes.get("sip.callFrom") or participant.attributes.get("from")
+                logger.info(f"🔍 Strategy 2: SIP attributes - to={sip_to}, from={sip_from}")
+                
+                db = SessionLocal()
+                try:
+                    # Use PhoneNumber table (more reliable than Workspace.inbound_agent_phone)
+                    for phone_candidate in [sip_to, sip_from]:
+                        if phone_candidate:
+                            # Clean SIP URI to plain phone number
+                            clean_phone = phone_candidate
+                            if "@" in clean_phone:
+                                clean_phone = clean_phone.split("@")[0]
+                            if clean_phone.startswith("sip:"):
+                                clean_phone = clean_phone[4:]
+                            # Remove any leading + encoding
+                            clean_phone = clean_phone.strip()
+                            
+                            p_rec = db.query(PhoneNumber).filter(PhoneNumber.phone_number == clean_phone).first()
+                            if not p_rec and not clean_phone.startswith("+"):
+                                p_rec = db.query(PhoneNumber).filter(PhoneNumber.phone_number == f"+{clean_phone}").first()
+                            
+                            if p_rec:
+                                workspace_id = p_rec.workspace_id
+                                logger.info(f"✅ Strategy 2: Resolved workspace {workspace_id} from PhoneNumber {clean_phone}")
+                                break
+
+                    # Legacy fallback: Workspace.inbound_agent_phone
+                    if not workspace_id and sip_to:
                         workspace = db.query(Workspace).filter(Workspace.inbound_agent_phone == sip_to).first()
                         if workspace:
                             workspace_id = workspace.id
-                            logger.info(f"Resolved Workspace ID {workspace_id} from phone number {sip_to}")
-                    finally:
-                         db.close()
+                            logger.info(f"✅ Strategy 2 (legacy): Resolved Workspace {workspace_id} from inbound_agent_phone")
+                finally:
+                     db.close()
 
-            # STRATEGY 3: Metadata / Fallback
+            # STRATEGY 3: Participant Metadata
             if not workspace_id and participant.metadata:
                 try:
-                    logger.info(f"DEBUG S3: Parsing participant metadata: {participant.metadata[:200]}...")
+                    logger.info(f"🔍 Strategy 3: Parsing participant metadata...")
                     parsed_metadata = json.loads(participant.metadata)
-                    logger.info(f"DEBUG S3: Parsed keys: {list(parsed_metadata.keys())}")
                     workspace_id = parsed_metadata.get("workspace_id")
                     if not agent_id: agent_id = parsed_metadata.get("agent_id")
                     call_context = parsed_metadata.get("call_context")
-                    settings = parsed_metadata  # Use the full metadata as settings
+                    settings = parsed_metadata
                     if workspace_id:
-                        logger.info(f"DEBUG S3: Found workspace_id={workspace_id} in participant metadata!")
+                        logger.info(f"✅ Strategy 3: Found workspace_id={workspace_id} in participant metadata")
                     else:
-                        logger.warning(f"DEBUG S3: 'workspace_id' key NOT FOUND in metadata. Available: {list(parsed_metadata.keys())}")
+                        logger.warning(f"⚠️ Strategy 3: 'workspace_id' not in metadata. Keys: {list(parsed_metadata.keys())}")
                 except json.JSONDecodeError as je:
-                    logger.error(f"DEBUG S3: Failed to parse metadata as JSON: {je}")
-                    pass
+                    logger.error(f"Strategy 3: JSON parse error: {je}")
 
             if not workspace_id:
-                # Default Fallback
-                logger.warning(f"DEBUG FALLBACK: No workspace_id found. Using default fallback.")
-                workspace_id = "wrk_000V7MkytiPCf7GFQzZN3O1K8O"
+                # Default Fallback - use the primary workspace
+                logger.warning(f"⚠️ FALLBACK: No workspace_id resolved via any strategy. Using primary workspace.")
+                workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
                 settings = get_settings(workspace_id)
 
         except Exception as e:
             logger.error(f"Error resolving context: {e}")
-            workspace_id = "wrk_000V7MkytiPCf7GFQzZN3O1K8O"
+            import traceback
+            logger.error(traceback.format_exc())
+            workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
             settings = get_settings(workspace_id)
 
         # Fetch Agent Settings
@@ -310,7 +456,17 @@ async def entrypoint(ctx: JobContext):
             if existing_log_id:
                 logger.info(f"Using existing log_id from metadata: {existing_log_id}")
                 log_id = existing_log_id
-                # Optional: Update status to running if needed, or trust token generation
+                
+                # Ensure agent_id is updated for this session
+                if agent_id:
+                    try:
+                        db_update = SessionLocal()
+                        comm_record = db_update.query(Communication).filter(Communication.id == log_id).first()
+                        if comm_record and not comm_record.agent_id:
+                            comm_record.agent_id = agent_id
+                            db_update.commit()
+                        db_update.close()
+                    except: pass
             else:
                 log_entry = Communication(
                     id=generate_comm_id(),
@@ -349,6 +505,12 @@ async def entrypoint(ctx: JobContext):
                              for k, v in agent_settings.settings.items():
                                  if v is not None: settings[k] = v
                          except: pass
+                    
+                    # FETCH PERMISSIONS FROM COLUMN (Crucial Fix)
+                    if hasattr(agent_settings, 'allowed_worker_types') and agent_settings.allowed_worker_types:
+                        settings["allowed_worker_types"] = agent_settings.allowed_worker_types
+                        logger.info(f"✅ ALLOWED_WORKERS from database column: {agent_settings.allowed_worker_types}")
+
                     if agent_settings.voice_id: 
                         settings["voice_id"] = agent_settings.voice_id
                         logger.info(f"✅ VOICE_ID from database: {agent_settings.voice_id}")
@@ -448,11 +610,12 @@ async def entrypoint(ctx: JobContext):
         # Start with the STRONG System Instruction
         # Tool Usage Instructions
         tool_usage_instructions = (
-            "\n\nTOOL USAGE & FOLLOW-UP QUESTIONS:\n"
-            "1. For almost ALL requests (searching, email, CRM, weather), use `run_task_now`. This gives an immediate answer.\n"
-            "2. ONLY use `dispatch_worker_task` if the user explicitly asks for a long background job or if you know it will take minutes to complete.\n"
-            "3. BEFORE calling ANY tool, check if you have all required parameters (e.g., location for weather, email for sending, job title for search).\n"
-            "4. If a parameter is missing, ASK the user for it. Do NOT guess. Do NOT call the tool with placeholders."
+            "\n\nTOOL USAGE & PERMISSIONS:\n"
+            "1. You have access to specialized tools (Skills & Workers). However, some may be disabled based on business settings.\n"
+            "2. If a tool returns 'Error: Tool not enabled', explain politely to the user that this feature is currently disabled for your agent.\n"
+            "3. For almost ALL requests (searching, email, CRM, weather), use `run_task_now` for immediate results.\n"
+            "4. ONLY use `dispatch_worker_task` for long-running background jobs.\n"
+            "5. ALWAYS check for required parameters (location, email, dates) before calling a tool. If missing, ASK the user."
         )
 
 
@@ -671,7 +834,8 @@ CRITICAL LANGUAGE REQUIREMENT:
         # Check if it should be xAI
         # Must be in grok_voices AND not be the specific ElevenLabs "Leo" case
         # Also ensure XAI_API_KEY is present
-        if selected_voice_lower in grok_voices and not is_elevenlabs_leo and os.getenv("XAI_API_KEY"):
+        xai_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="xai", env_fallback="XAI_API_KEY")
+        if selected_voice_lower in grok_voices and not is_elevenlabs_leo and xai_key:
 
             logger.info(f"Detected Grok voice: {selected_voice} (using XAI)")
             logger.info(f"Initializing Native XAI (Grok) AgentSession with voice: {selected_voice_lower}")
@@ -786,32 +950,39 @@ CRITICAL LANGUAGE REQUIREMENT:
             creativity = settings.get("creativity_level")
             temperature = float(creativity) / 100.0 if creativity is not None else 0.7
             
-            openai_key = os.getenv("OPENAI_API_KEY")
-            gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
+            openai_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="openai", env_fallback="OPENAI_API_KEY")
+            gemini_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_API_KEY") or IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_GEMINI_API_KEY")
+            mistral_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="mistral", env_fallback="MISTRAL_API_KEY")
+            openrouter_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="openrouter", env_fallback="OPENROUTER_API_KEY")
             
             if gemini_key:
-                from livekit.plugins import google as google_plugin
-                logger.info("Connecting to Gemini (gemini-3-flash-preview)")
-                agent_llm = google_plugin.LLM(
-                    model="gemini-3-flash-preview",
-                    api_key=gemini_key,
-                    temperature=temperature
-                )
-            elif openai_key:
+                try:
+                    from livekit.plugins import google as google_plugin
+                    logger.info("Connecting to Gemini (gemini-3-flash-preview)")
+                    agent_llm = google_plugin.LLM(
+                        model="gemini-3-flash-preview",
+                        api_key=gemini_key,
+                        temperature=temperature
+                    )
+                except ImportError:
+                    logger.warning("livekit-plugins-google not installed, falling through to OpenAI")
+                    gemini_key = None  # Force fallthrough
+            if not gemini_key and openai_key:
                 from livekit.plugins import openai as openai_plugin
                 logger.info("Connecting to OpenAI (gpt-4o-mini) as fallback")
                 agent_llm = openai_plugin.LLM(
                     model="gpt-4o-mini",
                     api_key=openai_key,
                     temperature=temperature,
+                    _strict_tool_schema=False,
                 )
-            elif os.getenv("MISTRAL_API_KEY"):
+            elif mistral_key:
                 from livekit.plugins import openai as openai_plugin # Mistral uses openai plugin with custom base_url
                 logger.info("Connecting to Mistral API with model: mistral-large-latest")
                 agent_llm = openai_plugin.LLM(
                     model="mistral-large-latest",
                     base_url="https://api.mistral.ai/v1",
-                    api_key=os.getenv("MISTRAL_API_KEY")
+                    api_key=mistral_key
                 )
             else:
                  # OpenRouter fallback - Using DeepSeek-V3
@@ -820,12 +991,10 @@ CRITICAL LANGUAGE REQUIREMENT:
                  agent_llm = openai_plugin.LLM(
                     model="deepseek/deepseek-chat",
                     base_url="https://openrouter.ai/api/v1",
-                    api_key=os.getenv("OPENROUTER_API_KEY")
+                    api_key=openrouter_key
                 )
             
             # Wrap LLM in FallbackAdapter if using Gemini and OpenAI key is available
-            # Wrap LLM in FallbackAdapter if using Gemini and OpenAI key is available
-            openai_key = os.getenv("OPENAI_API_KEY")
             if gemini_key and openai_key:
                 logger.info("Wrapping Gemini LLM in FallbackAdapter with OpenAI fallback...")
                 from livekit.agents.llm import FallbackAdapter as LLMFallbackAdapter
@@ -848,13 +1017,11 @@ CRITICAL LANGUAGE REQUIREMENT:
             if is_openai_voice:
                 tts_provider = openai.TTS(voice=voice_id)
             else:
-                eleven_key = os.getenv("ELEVENLABS_API_KEY") or os.getenv("ELEVEN_API_KEY")
+                eleven_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="elevenlabs", env_fallback="ELEVENLABS_API_KEY") or IntegrationService.get_provider_key(workspace_id=workspace_id, provider="elevenlabs", env_fallback="ELEVEN_API_KEY")
                 if eleven_key:
                     # ELEVENLABS_VOICE_MAP is defined above now
                     mapped_id = ELEVENLABS_VOICE_MAP.get(voice_id, ELEVENLABS_VOICE_MAP.get(voice_id.title()))
                     
-                    # Logic: If not in map, check if it looks like a valid ID (long string). 
-                    # If short string (name) and not in map, fallback to default.
                     if mapped_id:
                         voice_id_to_use = mapped_id
                     elif len(voice_id) > 15: # Assumption: valid IDs are long
@@ -863,10 +1030,10 @@ CRITICAL LANGUAGE REQUIREMENT:
                         logger.warning(f"Voice '{voice_id}' not found in map and invalid as ID. Fallback to Rachel.")
                         voice_id_to_use = "21m00Tcm4TlvDq8ikWAM" # Rachel
 
-                    logger.info(f"Using ElevenLabs TTS for voice: {voice_id} (ID: {voice_id_to_use})")
+                    log_debug(f"Using ElevenLabs TTS ID: {voice_id_to_use}")
                     tts_provider = elevenlabs.TTS(voice_id=voice_id_to_use, api_key=eleven_key)
                 else:
-                     logger.warning(f"Voice {voice_id} not found in OpenAI and no ElevenLabs key. Defaulting to Alloy.")
+                     log_debug("Defaulting to OpenAI TTS (Alloy)")
                      tts_provider = openai.TTS(voice="alloy")
             
             # Wrap in FallbackAdapter if using ElevenLabs
@@ -877,15 +1044,26 @@ CRITICAL LANGUAGE REQUIREMENT:
 
             # Initialize VAD/STT
             vad_model = get_vad_model()
-            stt_instance = deepgram.STT(model="nova-2")
+            deepgram_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="deepgram", env_fallback="DEEPGRAM_API_KEY")
             
+            if deepgram_key:
+                try:
+                    stt_instance = deepgram.STT(model="nova-2", api_key=deepgram_key)
+                except Exception as e:
+                    logger.error(f"Failed to initialize Deepgram STT: {e}")
+                    stt_instance = openai.STT()
+            else:
+                logger.warning("Deepgram API key missing, falling back to OpenAI STT")
+                stt_instance = openai.STT()
+
             session = AgentSession(
                 vad=vad_model,
                 stt=stt_instance,
                 llm=agent_llm,
                 tts=tts_provider,
                 tools=all_tools,
-                turn_handling=TurnHandlingConfig(interruption={"mode": "vad"}),
+                # turn_handling=TurnHandlingConfig(interruption={"mode": "vad"}),
+
             )
             
             # Inject session into tool instances for proactive latency feedback
@@ -917,7 +1095,9 @@ CRITICAL LANGUAGE REQUIREMENT:
                 logger.warning(f"Could not bind user_speech_committed event: {e}")
 
             logger.info("Starting AgentSession...")
+            log_debug("Calling session.start()...")
             await session.start(voice_agent, room=ctx.room)
+            log_debug("Agent session started successfully.")
             agent_started = True
 
         if welcome_message and session:
@@ -1063,6 +1243,8 @@ if __name__ == "__main__":
         
     cli.run_app(WorkerOptions(
         entrypoint_fnc=entrypoint, 
-        prewarm_fnc=prewarm,
-        agent_name=configured_agent_name
+        prewarm_fnc=prewarm
     ))
+
+
+

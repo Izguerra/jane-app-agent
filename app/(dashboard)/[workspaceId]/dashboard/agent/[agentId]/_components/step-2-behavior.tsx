@@ -179,7 +179,7 @@ export function Step2BehaviorRules({ formData, setFormData }: Step2Props) {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                            const newRules = [...(formData.intentRules || []), { type: 'keyword', condition: '', action: '' }];
+                            const newRules = [...(formData.intentRules || []), { intent: '', action: '' }];
                             handleChange("intentRules", newRules);
                         }}
                     >
@@ -192,30 +192,14 @@ export function Step2BehaviorRules({ formData, setFormData }: Step2Props) {
                         <div key={idx} className="flex gap-2 items-start p-3 bg-gray-50 rounded-lg border">
                             <div className="grid gap-2 flex-1">
                                 <div className="flex gap-2">
-                                    <Select
-                                        value={rule.type}
-                                        onValueChange={(val) => {
-                                            const newRules = [...(formData.intentRules || [])];
-                                            newRules[idx].type = val;
-                                            handleChange("intentRules", newRules);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-[130px]">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="keyword">Keyword</SelectItem>
-                                            <SelectItem value="sentiment">Sentiment</SelectItem>
-                                        </SelectContent>
-                                    </Select>
                                     <Input
-                                        value={rule.condition}
+                                        value={rule.intent}
                                         onChange={(e) => {
                                             const newRules = [...(formData.intentRules || [])];
-                                            newRules[idx].condition = e.target.value;
+                                            newRules[idx].intent = e.target.value;
                                             handleChange("intentRules", newRules);
                                         }}
-                                        placeholder={rule.type === 'keyword' ? "e.g. 'refund', 'cancel'" : "e.g. 'negative', 'angry'"}
+                                        placeholder="e.g. 'refund', 'cancel'"
                                         className="flex-1"
                                     />
                                 </div>

@@ -8,7 +8,6 @@ import os
 class CRMService:
     def __init__(self, db: Session):
         self.db = db
-        self.mistral_key = os.getenv("MISTRAL_API_KEY")
 
     def get_dashboard_stats(self, workspace_id: str, agent_id: str = None):
         """Aggregate high-level metrics for the CRM dashboard."""
@@ -601,7 +600,7 @@ class CRMService:
         
         try:
             from backend.lib.ai_client import get_ai_client
-            client, model_name = get_ai_client(async_mode=False)
+            client, model_name = get_ai_client(workspace_id=customer.workspace_id, async_mode=False)
             
             response = client.chat.completions.create(
                 model=model_name,

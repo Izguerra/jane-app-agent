@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 import nest_asyncio
 import asyncio
 
+# Load environment variables early
+load_dotenv()
+
 try:
     # Only apply nest_asyncio if strictly needed and not conflicting with uvloop
     # uvicorn uses uvloop by default on Mac/Linux which nest_asyncio can't patch
@@ -183,6 +186,9 @@ app.include_router(workers.router, prefix="/agent")
 from backend.routers import mcp_integrations
 app.include_router(mcp_integrations.router)
 app.include_router(mcp_integrations.router, prefix="/agent")
+
+from backend.routers import telnyx as telnyx_router
+app.include_router(telnyx_router.router)
 
 # Worker Executor lifecycle
 from backend.workers import start_executor, stop_executor

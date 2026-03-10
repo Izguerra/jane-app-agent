@@ -108,11 +108,50 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
             logger.error(f"Error checking database for WhatsApp credentials: {e}")
         # Continue to fallback
     
-    # 2. Fallback to Platform SMS (Environment Variables)
+    # 2. Check Database for Assigned Number / Provider (New)
+    try:
+        from backend.database import SessionLocal
+        from backend.models_db import PhoneNumber
+        
+        db = SessionLocal()
+        try:
+            # Find the most recently active number for this workspace
+            phone_record = db.query(PhoneNumber).filter(
+                PhoneNumber.workspace_id == workspace_id,
+                PhoneNumber.is_active == True
+            ).order_by(PhoneNumber.created_at.desc()).first()
+            
+            if phone_record:
+                from_number = phone_record.phone_number
+                provider = phone_record.provider or "twilio"
+                
+                if provider == "telnyx":
+                    from backend.services.telnyx_service import TelnyxService
+                    telnyx_svc = TelnyxService()
+                    try:
+                        result = telnyx_svc.send_sms(
+                            from_number=from_number,
+                            to_number=to_number,
+                            text=message
+                        )
+                        logger.info(f"Telnyx SMS sent successfully: {result}")
+                        return True, None
+                    except Exception as te:
+                        logger.error(f"Telnyx SMS failed: {te}")
+                        return False, str(te)
+                
+                # If twilio, we fall through to existing Twilio logic but use the from_number found
+                logger.info(f"Using found Twilio number {from_number} for workspace {workspace_id}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Error checking DB for phone number: {e}. Falling back to default.")
+
+    # 3. Fallback to Platform SMS (Environment Variables)
     if not account_sid or not auth_token or not from_number:
         account_sid = os.getenv("TWILIO_ACCOUNT_SID")
         auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-        from_number = os.getenv("TWILIO_PHONE_NUMBER")
+        from_number = from_number or os.getenv("TWILIO_PHONE_NUMBER")
         # Keep is_whatsapp as True if force_whatsapp was passed, otherwise default to False
         if not is_whatsapp: 
             is_whatsapp = False 
