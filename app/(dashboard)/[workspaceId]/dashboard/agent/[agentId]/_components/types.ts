@@ -26,6 +26,8 @@ export interface AgentFormData {
     // NEW: Avatar Configuration
     tavusReplicaId?: string;
     tavusPersonaId?: string;
+    anamPersonaId?: string;
+    avatarProvider?: 'tavus' | 'anam';
     avatarVoiceId?: string;
     useTavusAvatar: boolean;
 

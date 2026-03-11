@@ -42,10 +42,19 @@ class ExternalTools:
                 is_future = bool(date and "today" not in date.lower() and "now" not in date.lower())
                 endpoint = "forecast" if is_future else "weather"
                 
-                url = f"http://api.openweathermap.org/data/2.5/{endpoint}?q={location}&appid={self.weather_api_key}&units={unit_sys}"
+                params = {
+                    "q": location,
+                    "appid": self.weather_api_key,
+                    "units": unit_sys
+                }
                 
-                async with session.get(url) as response:
+                url = f"http://api.openweathermap.org/data/2.5/{endpoint}"
+                print(f"DEBUG: Weather API Request: {url} with params { {k: '***' if k=='appid' else v for k,v in params.items()} }")
+                
+                async with session.get(url, params=params) as response:
                     if response.status != 200:
+                        error_text = await response.text()
+                        print(f"ERROR: Weather API failed for {location}: {response.status} - {error_text}")
                         return f"Could not get weather for {location}. Status: {response.status}"
                     
                     data = await response.json()

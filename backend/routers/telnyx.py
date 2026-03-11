@@ -20,7 +20,7 @@ def log_debug(msg):
     except Exception as e:
         print(f"FAILED TO LOG: {e}")
 
-router = APIRouter(prefix="/api/telnyx", tags=["telnyx"])
+router = APIRouter(prefix="/telnyx", tags=["telnyx"])
 
 @router.post("/webhook")
 async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):

@@ -13,7 +13,7 @@ from backend.services.outbound_data_service import outbound_data_service
 from pydantic import BaseModel
 from typing import Optional
 
-router = APIRouter(prefix="/api/outbound", tags=["outbound"])
+router = APIRouter(prefix="/outbound", tags=["outbound"])
 
 
 class OutboundCallRequest(BaseModel):

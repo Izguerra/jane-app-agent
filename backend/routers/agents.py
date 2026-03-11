@@ -71,16 +71,20 @@ class AgentCreate(BaseModel):
     remove_branding: Optional[bool] = False
     whitelisted_domains: Optional[str] = None
     is_active: Optional[bool] = True
-    tavus_replica_id: Optional[str] = None
-    tavusReplicaId: Optional[str] = None
+    # Humanoid / Video Persona Settings
     anam_persona_id: Optional[str] = None
     anamPersonaId: Optional[str] = None
+    tavus_replica_id: Optional[str] = None
+    tavusReplicaId: Optional[str] = None
+    tavus_persona_id: Optional[str] = None
+    tavusPersonaId: Optional[str] = None
     avatar_provider: Optional[str] = None
     avatarProvider: Optional[str] = None
     avatar_voice_id: Optional[str] = None
     avatarVoiceId: Optional[str] = None
-    use_tavus_avatar: Optional[bool] = False
-    useTavusAvatar: Optional[bool] = False
+    use_tavus_avatar: bool = False
+    useTavusAvatar: bool = False
+
     openClawInstanceId: Optional[str] = None
     open_claw_instance_id: Optional[str] = None
     agent_type: Optional[str] = None
@@ -381,6 +385,23 @@ async def get_agent(
     if agent.settings:
         settings_copy = dict(agent.settings)
         settings_copy.update(response_data)
+        
+        # Map snake_case to camelCase for frontend compatibility
+        mapping = {
+            'anam_persona_id': 'anamPersonaId',
+            'tavus_replica_id': 'tavusReplicaId',
+            'tavus_persona_id': 'tavusPersonaId',
+            'avatar_provider': 'avatarProvider',
+            'avatar_voice_id': 'avatarVoiceId',
+            'use_tavus_avatar': 'useTavusAvatar',
+            'open_claw_instance_id': 'openClawInstanceId'
+        }
+        for snake, camel in mapping.items():
+            if snake in settings_copy and settings_copy.get(camel) is None:
+                settings_copy[camel] = settings_copy[snake]
+            if camel in settings_copy and settings_copy.get(snake) is None:
+                settings_copy[snake] = settings_copy[camel]
+
         response_data = settings_copy
         
     return response_data
@@ -395,15 +416,8 @@ async def get_agents(
     workspace_id = get_workspace_context(db, current_user, workspace_id, request=request)
     
 
-        
-
     agents = db.query(Agent).options(joinedload(Agent.phone_numbers)).filter(Agent.workspace_id == workspace_id).all()
     
-    if not agents:
-        # Create defaults logic (omitted for brevity, same as before but simplified)
-        pass
-        
-    # Dynamic extraction setup
     from sqlalchemy import inspect
     mapper = inspect(Agent)
     

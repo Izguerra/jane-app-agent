@@ -155,6 +155,7 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                 anamPersonaId: avatar.id,
                 avatarProvider: 'anam',
                 tavusReplicaId: undefined,
+                useTavusAvatar: true,
                 avatarUrl: avatar.thumbnail_video_url || avatar.thumbnail_image_url || prev.avatarUrl,
             }));
         } else {
@@ -163,6 +164,7 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                 tavusReplicaId: avatar.id,
                 avatarProvider: 'tavus',
                 anamPersonaId: undefined,
+                useTavusAvatar: true,
                 avatarUrl: avatar.thumbnail_video_url || prev.avatarUrl,
             }));
         }

@@ -8,7 +8,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-router = APIRouter(prefix="/api/deals", tags=["deals"])
+router = APIRouter(prefix="/deals", tags=["deals"])
 
 
 class DealCreate(BaseModel):

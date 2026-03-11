@@ -15,7 +15,7 @@ from backend.models_db import Workspace, Team, Communication
 from backend.subscription_limits import get_plan_limits
 from datetime import datetime, timezone
 
-router = APIRouter(prefix="/api/voice", tags=["voice"])
+router = APIRouter(prefix="/voice", tags=["voice"])
 
 from typing import Optional, Dict, Any
 
@@ -49,7 +49,12 @@ async def _generate_token(
     livekit_url = os.getenv("LIVEKIT_URL")
 
     if not room_name:
-        room_name = f"room-{str(uuid.uuid4())[:8]}"
+        if agent_id:
+            # CRITICAL FIX: Include mode in room name to prevent stale metadata
+            # from a prior avatar session killing the voice agent (or vice versa)
+            room_name = f"agent-session-{agent_id[:8]}-{mode}"
+        else:
+            room_name = f"room-{str(uuid.uuid4())[:8]}-{mode}"
 
     if not api_key or not api_secret or not livekit_url:
         missing = []
@@ -94,10 +99,9 @@ async def _generate_token(
     
     print(f"DEBUG: [VOICE_TOKEN] Mode: {mode}, Target Agent: {target_agent_name}, Room: {room_name}")
     
-    room_config = api.RoomConfiguration(
-        agents=[api.RoomAgentDispatch(agent_name=target_agent_name)]
-    )
-    
+    # Since explicit dispatch is implemented below, we don't need agents in room_config
+    # Doing both causes duplicate agents (echo/two agents speaking)
+    room_config = api.RoomConfiguration()
     # --- Resolve Settings ---
     settings = {}
     
@@ -203,18 +207,32 @@ async def _generate_token(
         print(f"DEBUG: Failed to generate enriched prompt: {e}")
         pass
 
-    # Create Room
+    # Create Room and explicitly dispatch agent
     try:
-        print(f"DEBUG: [VOICE_TOKEN] Attempting to create room '{room_name}' with agents: {target_agent_name}")
+        print(f"DEBUG: [VOICE_TOKEN] Attempting to create room '{room_name}' and dispatch agent '{target_agent_name}'")
         lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
         room = await lkapi.room.create_room(api.CreateRoomRequest(
             name=room_name,
             empty_timeout=60,
-            max_participants=4, # Increase for User + Agent + Tavus + potential backups
-            agents=[api.RoomAgentDispatch(agent_name=target_agent_name)],
+            max_participants=4,
             metadata=json.dumps(settings)
         ))
         print(f"DEBUG: [VOICE_TOKEN] Room creation response: {room.name if room else 'None'}")
+        
+        # EXPLICIT DISPATCH: Most reliable method per LiveKit docs
+        # This directly tells LiveKit to send the agent to the room
+        try:
+            dispatch = await lkapi.agent_dispatch.create_dispatch(
+                api.CreateAgentDispatchRequest(
+                    room=room_name,
+                    agent_name=target_agent_name,
+                    metadata=json.dumps(settings)
+                )
+            )
+            print(f"DEBUG: [VOICE_TOKEN] Agent dispatched explicitly: {dispatch}")
+        except Exception as de:
+            print(f"DEBUG: [VOICE_TOKEN] Explicit dispatch warning (room_config will handle): {de}")
+        
         await lkapi.aclose()
     except Exception as e:
         print(f"DEBUG: [VOICE_TOKEN] Room creation warning: {e}")

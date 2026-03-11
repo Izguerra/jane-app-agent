@@ -58,6 +58,16 @@ except ImportError:
 
 load_dotenv()
 
+# --- DNS BYPASS FIX ---
+import socket
+_orig_getaddrinfo = socket.getaddrinfo
+def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if host == "jane-clinic-app-tupihomh.livekit.cloud":
+        # Updated IPs from nslookup: 161.115.178.157, 161.115.179.230
+        host = "161.115.178.157" # Hardcoded IP to bypass aiohttp MacOS DNS failure
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+socket.getaddrinfo = _patched_getaddrinfo
+# ----------------------
 # Map Gemini Key if present
 if os.getenv("GOOGLE_GEMINI_API_KEY") and not os.getenv("GOOGLE_API_KEY"):
     os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_GEMINI_API_KEY")
@@ -136,27 +146,33 @@ async def entrypoint(ctx: JobContext):
         
         logger.info(f"Entrypoint called for room {ctx.room.name}")
 
-        # Connect to room — needed for mode check and wait_for_participant below.
-        # AgentSession.start(room=ctx.room) will reuse this connection via RoomIO
-        # and automatically publish lk.agent.state attributes.
-        if ctx.room.connection_state == ConnectionState.CONN_DISCONNECTED:
+        # Connect to room — AgentSession.start(room=ctx.room) will reuse this connection
+        # via RoomIO and automatically publish lk.agent.state attributes.
+        if ctx.room.connection_state != ConnectionState.CONN_CONNECTED:
             log_debug("Connecting to room...")
             await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
             log_debug("Connected to room.")
+        else:
+            log_debug("Room already connected (pre-connected by SDK).")
 
-        # -----------------------------------------------------------------
-        # MODE CHECK: Prevents Voice Agent from speaking during Avatar calls
-        # -----------------------------------------------------------------
-        if ctx.room.metadata:
-            try:
-                room_meta = json.loads(ctx.room.metadata)
-                if room_meta.get("mode") == "avatar":
-                    logger.info("Room is in AVATAR mode. Waiting 5s for avatar agent before stepping down gracefully.")
-                    await asyncio.sleep(5)  # Give avatar agent time to connect first
-                    logger.info("Voice agent stepping down (avatar agent should be active now).")
-                    return
-            except Exception as me:
-                logger.warning(f"Failed to parse room metadata for mode check: {me}")
+        # Set participant attributes to identify as assistant
+        # This allows the frontend useVoiceAssistant hook to discover the agent
+        log_debug(f"Local participant: {ctx.room.local_participant}")
+        log_debug(f"Local participant identity: {ctx.room.local_participant.identity if ctx.room.local_participant else 'NONE'}")
+        try:
+            await ctx.room.local_participant.set_attributes({
+                "agent": "true",
+                "lk.agent.state": "initializing"
+            })
+            log_debug("Agent attributes set successfully.")
+        except Exception as attr_err:
+            log_debug(f"WARNING: Failed to set attributes: {attr_err}")
+        logger.info("Set 'agent' and 'lk.agent.state' attributes on participant")
+        log_debug("Agent attributes set. Proceeding to wait for participant...")
+
+        # NOTE: Mode check removed — room names are now unique per mode
+        # (e.g., agent-session-XXX-voice vs agent-session-XXX-avatar)
+        # so voice agent will never be dispatched to an avatar room.
         
         logger.info(f"Waiting for participant in {ctx.room.name}...")
         log_debug(f"DEBUG: Waiting for participant in {ctx.room.name} (timeout 5s)...")
@@ -951,7 +967,7 @@ CRITICAL LANGUAGE REQUIREMENT:
             temperature = float(creativity) / 100.0 if creativity is not None else 0.7
             
             openai_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="openai", env_fallback="OPENAI_API_KEY")
-            gemini_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_API_KEY") or IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_GEMINI_API_KEY")
+            gemini_key = None # IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_API_KEY") or IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_GEMINI_API_KEY")
             mistral_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="mistral", env_fallback="MISTRAL_API_KEY")
             openrouter_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="openrouter", env_fallback="OPENROUTER_API_KEY")
             
@@ -1077,14 +1093,22 @@ CRITICAL LANGUAGE REQUIREMENT:
             @session.on("user_started_speaking")
             def on_user_started_speaking():
                 logger.info("🎙️ DEBUG: USER STARTED SPEAKING (VAD triggered)")
+                asyncio.create_task(ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"}))
                 
             @session.on("user_stopped_speaking")
             def on_user_stopped_speaking():
                 logger.info("🎙️ DEBUG: USER STOPPED SPEAKING")
+                asyncio.create_task(ctx.room.local_participant.set_attributes({"lk.agent.state": "thinking"}))
                 
             @session.on("agent_started_speaking")
             def on_agent_started_speaking():
                 logger.info("🤖 DEBUG: AGENT STARTED SPEAKING")
+                asyncio.create_task(ctx.room.local_participant.set_attributes({"lk.agent.state": "speaking"}))
+                
+            @session.on("agent_stopped_speaking")
+            def on_agent_stopped_speaking():
+                logger.info("🤖 DEBUG: AGENT STOPPED SPEAKING")
+                asyncio.create_task(ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"}))
                 
             # Try/except block for transcription since event might vary by version
             try:
@@ -1095,20 +1119,24 @@ CRITICAL LANGUAGE REQUIREMENT:
                 logger.warning(f"Could not bind user_speech_committed event: {e}")
 
             logger.info("Starting AgentSession...")
-            log_debug("Calling session.start()...")
             await session.start(voice_agent, room=ctx.room)
-            log_debug("Agent session started successfully.")
+            logger.info("Agent session started successfully.")
+            asyncio.create_task(ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"}))
             agent_started = True
+
+            # Initial greeting handling
 
         if welcome_message and session:
              try:
-                session.say(welcome_message, allow_interruptions=True)
+                # Add tiny delay for room audio engine to stabilize
+                await asyncio.sleep(0.8)
+                session.say(welcome_message, allow_interruptions=False)
              except Exception as e:
                 logger.error(f"Failed to say welcome message: {e}")
         elif not call_context and session:
              try:
-                # FIXED: AgentSession does not have .responses. Using .say().
-                session.say("Hello! How can I help you today?", allow_interruptions=True)
+                await asyncio.sleep(0.8)
+                session.say("Hello! How can I help you today?", allow_interruptions=False)
              except Exception as e:
                 logger.error(f"Failed to say default welcome: {e}")
 
@@ -1243,8 +1271,10 @@ if __name__ == "__main__":
         
     cli.run_app(WorkerOptions(
         entrypoint_fnc=entrypoint, 
-        prewarm_fnc=prewarm
+        prewarm_fnc=prewarm,
+        agent_name=configured_agent_name
     ))
+
 
 
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { use, useState, useEffect } from "react";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 
@@ -21,14 +21,20 @@ import { AgentFormData } from "./_components/types";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-export default function AgentWizardPage() {
-    const params = useParams();
+interface PageProps {
+    params: Promise<{ workspaceId: string; agentId: string }>;
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default function AgentWizardPage(props: PageProps) {
+    const params = use(props.params);
+    const searchParams = use(props.searchParams);
+    
     const router = useRouter();
-    const searchParams = useSearchParams();
-    const workspaceId = params?.workspaceId as string;
-    const agentId = params?.agentId as string;
+    const workspaceId = params.workspaceId;
+    const agentId = params.agentId;
     const isNew = agentId === "new";
-    const agentType = searchParams?.get("type");
+    const agentType = typeof searchParams.type === 'string' ? searchParams.type : undefined;
 
     const [isMounted, setIsMounted] = useState(false);
     const [currentStep, setCurrentStep] = useState(isNew ? 0 : 1);
@@ -64,6 +70,11 @@ export default function AgentWizardPage() {
         // Step 2: Capabilities
         allowedWorkerTypes: [],
         enabledSkillIds: [],
+
+        // Step 1 additions: Avatar
+        anamPersonaId: "",
+        tavusReplicaId: "",
+        avatarProvider: undefined,
 
         // Step 3: Behavior & Rules
         soul: "",
@@ -180,12 +191,14 @@ export default function AgentWizardPage() {
                 isActive: agent.is_active,
                 // Map settings - check both root and settings object for compatibility
                 tavusReplicaId: agent.tavus_replica_id || agent.settings?.tavus_replica_id,
+                anamPersonaId: agent.anam_persona_id || agent.settings?.anam_persona_id,
+                avatarProvider: agent.avatar_provider || agent.settings?.avatar_provider || (agent.tavus_replica_id ? 'tavus' : (agent.anam_persona_id ? 'anam' : undefined)),
                 avatarVoiceId: agent.avatar_voice_id || agent.settings?.avatar_voice_id || "alloy",
                 useTavusAvatar: agent.use_tavus_avatar !== undefined
                     ? agent.use_tavus_avatar
                     : (agent.settings?.use_tavus_avatar !== undefined
                         ? agent.settings.use_tavus_avatar
-                        : !!(agent.tavus_replica_id || agent.settings?.tavus_replica_id)),
+                        : !!(agent.tavus_replica_id || agent.settings?.tavus_replica_id || agent.anam_persona_id || agent.settings?.anam_persona_id)),
                 openClawInstanceId: agent.open_claw_instance_id || agent.settings?.open_claw_instance_id,
                 // Agent Type & Personal Profile
                 agentType: agent.agent_type || agent.settings?.agent_type || "business",
@@ -341,9 +354,10 @@ export default function AgentWizardPage() {
                 personal_likes: formData.likes || undefined,
                 personal_dislikes: formData.dislikes || undefined,
                 tavus_replica_id: formData.tavusReplicaId,
+                anam_persona_id: formData.anamPersonaId,
+                avatar_provider: formData.avatarProvider,
                 avatar_voice_id: formData.avatarVoiceId,
                 use_tavus_avatar: formData.useTavusAvatar,
-                useTavusAvatar: formData.useTavusAvatar,
                 open_claw_instance_id: formData.openClawInstanceId,
 
                 // Extended Fields (Settings)

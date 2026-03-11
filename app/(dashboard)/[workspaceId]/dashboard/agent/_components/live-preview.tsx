@@ -62,6 +62,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     const [isConnecting, setIsConnecting] = useState(false);
     const [error, setError] = useState("");
     const [imgError, setImgError] = useState(false);
+    const [headerImgError, setHeaderImgError] = useState(false);
     const isReconnecting = useRef(false);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
     const intentionalDisconnect = useRef(false);
@@ -77,7 +78,14 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
 
     // Reconnection handler
     const handleDisconnected = useCallback((reason?: any) => {
-        console.log("DEBUG: LivePreview onDisconnected", { intentional: intentionalDisconnect.current, attempts: reconnectAttempts.current, reason });
+        console.log("DEBUG: LivePreview onDisconnected", { intentional: intentionalDisconnect.current, switching: isSwitchingMode.current, attempts: reconnectAttempts.current, reason });
+
+        // If we're switching modes (voice→avatar, avatar→voice, etc.), skip reconnect logic
+        if (isSwitchingMode.current) {
+            isSwitchingMode.current = false;
+            console.log("DEBUG: Mode switch disconnect — skipping reconnect");
+            return;
+        }
 
         if (intentionalDisconnect.current) {
             intentionalDisconnect.current = false;
@@ -116,6 +124,26 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         setUrl("");
         setMode('chat');
     }, []);
+
+    const handleModeSwitch = async (targetMode: 'chat' | 'voice' | 'avatar') => {
+        if (mode === targetMode) return;
+        
+        // If transitioning from an active session to another active session type
+        if ((mode === 'voice' || mode === 'avatar') && (targetMode === 'voice' || targetMode === 'avatar')) {
+            toast.info(`Shutting down ${mode} session before starting ${targetMode}...`, { duration: 2500 });
+            isSwitchingMode.current = true;
+            
+            // Clear current token to trigger LiveKitRoom unmount immediately
+            setConnectionStatus('transitioning');
+            setToken("");
+            setUrl("");
+            
+            // Allow time for the backend and LiveKit to fully tear down the old session
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        setMode(targetMode);
+    };
 
     const handleRetry = useCallback(() => {
         reconnectAttempts.current = 0;
@@ -239,6 +267,12 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         client_location: window.clientLocationData || "Unknown location"
     });
 
+    // Reset image error states when avatar data changes
+    useEffect(() => {
+        setImgError(false);
+        setHeaderImgError(false);
+    }, [formData.avatarUrl, formData.useTavusAvatar]);
+
     // Fetch precise location on mount
     useEffect(() => {
         if (typeof window !== "undefined" && navigator.geolocation) {
@@ -248,7 +282,10 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                     window.clientLocationData = `${position.coords.latitude},${position.coords.longitude}`;
                 },
                 (error) => {
-                    console.log("Geolocation denied or error:", error);
+                    // Only log if it's not a denial
+                    if (error.code !== error.PERMISSION_DENIED) {
+                        console.log("Geolocation error:", error);
+                    }
                 }
             );
         }
@@ -256,17 +293,33 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
 
     // Simple mode-switch handler: clear token when mode changes so a fresh connection is made.
     // This follows the proven working pattern from voice-widget.tsx (commits 589e02e, 2298776):
-    // mode switch → unmount LiveKitRoom → clear token → token fetch effect gets new token → remount LiveKitRoom
+    // mode switch → unmount LiveKitRoom → clear token → delay → token fetch effect gets new token → remount LiveKitRoom
     const prevMode = useRef(mode);
+    const isSwitchingMode = useRef(false);
     useEffect(() => {
         if (prevMode.current !== mode) {
             console.log(`DEBUG: Mode switched from ${prevMode.current} to ${mode}. Clearing token for fresh connection.`);
+            // Mark as intentional switch so handleDisconnected doesn't trigger reconnect
+            if ((prevMode.current === 'voice' || prevMode.current === 'avatar') && 
+                (mode === 'voice' || mode === 'avatar' || mode === 'chat')) {
+                isSwitchingMode.current = true;
+            }
             prevMode.current = mode;
+            
+            // STABILIZATION FIX: Set transitioning status and add delay before clearing token.
+            // This ensures the old LiveKit connection fully disconnects before
+            // the new token fetch trigger fires.
+            if (mode === 'voice' || mode === 'avatar') {
+                setConnectionStatus('transitioning');
+            } else {
+                setConnectionStatus('idle');
+            }
             setToken("");
             setUrl("");
             setError("");
         }
     }, [mode]);
+
 
     // Fetch Token on Voice Mode - Use pre-generated token if available
     useEffect(() => {
@@ -290,8 +343,9 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
 
             // Priority 2: Fallback to on-demand fetch if no pre-generated token
             // This is for cases where user hasn't saved yet but wants to preview
-            if (!agentId) {
+            if (!agentId || agentId === 'new') {
                 setError("Please save the agent first to enable voice/video preview");
+                setIsConnecting(false);
                 return;
             }
 
@@ -335,7 +389,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             })();
         }
 
-    }, [mode, agentId, token, voiceToken, workspaceId, formData.tavusReplicaId, formData.useTavusAvatar, unavailable]);
+    }, [mode, agentId, token, voiceToken, workspaceId, formData.tavusReplicaId, formData.anamPersonaId, formData.useTavusAvatar, unavailable]);
     // Added explicit dependency on replicaID to trigger new token fetch if avatar changes
     // Removed formData dependency - token should use saved data, not form state 
     // But token is state. If token exists, it won't fetch. So we need to clear token if formData changes?
@@ -432,29 +486,29 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             >
                 <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center overflow-hidden border border-white/20">
-                        {formData.useTavusAvatar && (formData.avatarUrl || formData.widgetIconUrl) && !imgError ? (
-                            (formData.widgetIconUrl || formData.avatarUrl) && (formData.widgetIconUrl || formData.avatarUrl).endsWith('.mp4') ? (
+                        {formData.useTavusAvatar && formData.avatarUrl && !headerImgError ? (
+                            formData.avatarUrl.includes('.mp4') ? (
                                 <video
-                                    src={formData.widgetIconUrl || formData.avatarUrl}
+                                    src={formData.avatarUrl}
                                     className="h-full w-full object-cover"
                                     autoPlay
                                     loop
                                     muted
                                     playsInline
-                                    onError={(e) => {
-                                        console.warn("Header video failed to load", e);
-                                        setImgError(true);
+                                    onError={() => {
+                                        console.warn("Header video failed to load: " + formData.avatarUrl);
+                                        setHeaderImgError(true);
                                     }}
                                 />
                             ) : (
                                 <img
-                                    src={formData.widgetIconUrl || formData.avatarUrl}
-                                    alt="Av"
-                                    className="h-full w-full object-contain"
-                                    onError={() => setImgError(true)}
+                                    src={formData.avatarUrl}
+                                    alt="Avatar"
+                                    className="h-full w-full object-cover"
+                                    onError={() => setHeaderImgError(true)}
                                 />
                             )
-                        ) : (!formData.useTavusAvatar && formData.widgetIconUrl && !imgError) ? (
+                        ) : (formData.widgetIconUrl && !imgError) ? (
                             <img
                                 src={formData.widgetIconUrl}
                                 alt="Widget Icon"
@@ -471,46 +525,113 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                     </div>
                 </div>
                 <div className="flex gap-1">
-                    {mode === 'chat' && !formData.useTavusAvatar && !unavailable && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
-                            onClick={() => setMode('voice')}
-                            title="Switch to Voice"
-                        >
-                            <Phone className="h-4 w-4" />
-                        </Button>
+                    {/* === CHAT MODE: Always show Switch buttons === */}
+                    {mode === 'chat' && !unavailable && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                                onClick={() => handleModeSwitch('voice')}
+                                title="Switch to Voice"
+                            >
+                                <Phone className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className={cn(
+                                    "h-8 w-8 text-white rounded-full transition-all",
+                                    !formData.useTavusAvatar ? "opacity-60 hover:bg-white/10" : "hover:bg-white/20"
+                                )}
+                                onClick={() => {
+                                    if (!formData.useTavusAvatar) {
+                                        toast.info("Please enable Visual Presence in Step 2 to use the avatar");
+                                        return;
+                                    }
+                                    if (!(formData.tavusReplicaId || formData.anamPersonaId)) {
+                                        toast.error("Please select an avatar first");
+                                        return;
+                                    }
+                                    handleModeSwitch('avatar');
+                                }}
+                                title={!formData.useTavusAvatar ? "Enable Visual Presence to use Avatar" : (!(formData.tavusReplicaId || formData.anamPersonaId) ? "Select an avatar to enable video" : "Switch to Avatar")}
+                            >
+                                <Video className="h-4 w-4" />
+                            </Button>
+                        </>
                     )}
-                    {mode === 'chat' && formData.useTavusAvatar && !unavailable && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className={cn(
-                                "h-8 w-8 text-white rounded-full transition-all",
-                                !formData.tavusReplicaId ? "opacity-40 cursor-not-allowed hover:bg-transparent" : "hover:bg-white/20"
+
+                    {/* === VOICE MODE: Show Chat + Avatar switch buttons === */}
+                    {mode === 'voice' && !unavailable && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                                onClick={handleEndCall}
+                                title="Switch to Chat"
+                            >
+                                <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            {(formData.tavusReplicaId || formData.anamPersonaId) && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                                    onClick={() => handleModeSwitch('avatar')}
+                                    title="Switch to Avatar"
+                                >
+                                    <Video className="h-4 w-4" />
+                                </Button>
                             )}
-                            onClick={() => {
-                                if (!formData.tavusReplicaId) {
-                                    toast.error("Please select an avatar first");
-                                    return;
-                                }
-                                setMode('avatar');
-                            }}
-                            title={!formData.tavusReplicaId ? "Select an avatar to enable video" : "Switch to Video"}
-                        >
-                            <Video className="h-4 w-4" />
-                        </Button>
+                        </>
                     )}
-                    {(mode === 'avatar' || (mode === 'chat' && isTheaterMode)) && !unavailable && (
+
+                    {/* === AVATAR MODE: Show Chat + Voice switch buttons + theater === */}
+                    {mode === 'avatar' && !unavailable && (
+                        <>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                                onClick={handleEndCall}
+                                title="Switch to Chat"
+                            >
+                                <MessageSquare className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                                onClick={() => handleModeSwitch('voice')}
+                                title="Switch to Voice"
+                            >
+                                <Phone className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
+                                onClick={() => setIsTheaterMode(!isTheaterMode)}
+                                title={isTheaterMode ? "Exit Theater Mode" : "Expand Window"}
+                            >
+                                {isTheaterMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Theater mode for chat when already expanded */}
+                    {mode === 'chat' && isTheaterMode && !unavailable && (
                         <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-white hover:bg-white/20 rounded-full"
-                            onClick={() => setIsTheaterMode(!isTheaterMode)}
-                            title={isTheaterMode ? "Exit Theater Mode" : "Expand Window"}
+                            onClick={() => setIsTheaterMode(false)}
+                            title="Exit Theater Mode"
                         >
-                            {isTheaterMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                            <Minimize2 className="h-4 w-4" />
                         </Button>
                     )}
                 </div>
@@ -538,7 +659,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                     {m.role === 'assistant' && (
                                         <div className="w-8 h-8 rounded-full bg-white border flex items-center justify-center shrink-0 overflow-hidden">
                                             {formData.useTavusAvatar && formData.avatarUrl && !imgError ? (
-                                                formData.avatarUrl && formData.avatarUrl.endsWith('.mp4') ? (
+                                                formData.avatarUrl && formData.avatarUrl.includes('.mp4') ? (
                                                     <video
                                                         src={formData.avatarUrl}
                                                         className="w-full h-full object-cover"
@@ -546,8 +667,8 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                                         loop
                                                         muted
                                                         playsInline
-                                                        onError={(e) => {
-                                                            console.warn("Message video failed to load", e);
+                                                        onError={() => {
+                                                            console.warn("Message video failed to load: " + formData.avatarUrl);
                                                             setImgError(true);
                                                         }}
                                                     />
@@ -649,7 +770,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                 <div className="flex-1 bg-white relative">
                     {(token && url) ? (
                         <LiveKitRoom
-                            key={`${token}-${mode}-${formData.tavusReplicaId}`}
+                            key={`${token}-${mode}-${formData.tavusReplicaId || formData.anamPersonaId}`}
                             token={token}
                             serverUrl={url}
                             connect={!!token}
@@ -1069,7 +1190,7 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
 
     return (
         <div className="w-full h-full relative bg-slate-50 dark:bg-zinc-900 flex items-center justify-center">
-            {!formData.tavusReplicaId ? (
+            {!(formData.tavusReplicaId || formData.anamPersonaId) ? (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
                     <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mb-4 text-amber-600">
                         <AlertTriangle className="h-8 w-8" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import useSWR from 'swr';
@@ -10,11 +10,16 @@ import { Users, Settings, Shield, Activity, Menu, Building2, Plug, Bot, BarChart
 import { Logo } from '@/components/logo';
 import { useRouter } from 'next/navigation';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+interface LayoutProps {
+    children: React.ReactNode;
+    params: Promise<{ workspaceId: string }>;
+}
+
+export default function DashboardLayout({ children, params: paramsPromise }: LayoutProps) {
     const pathname = usePathname();
-    const params = useParams();
+    const params = use(paramsPromise);
     const router = useRouter();
-    const workspaceId = params?.workspaceId as string;
+    const workspaceId = params.workspaceId;
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
 
