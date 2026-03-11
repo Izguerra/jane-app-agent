@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { ArrowRight, MessageSquare, BarChart3, Zap, Globe, Shield, Sparkles, Check, BrainCircuit, User, Calendar, History, FileText, Megaphone, Heart, Users, Code } from 'lucide-react';
+import { ArrowRight, MessageSquare, BarChart3, Zap, Globe, Shield, Sparkles, Check, BrainCircuit, User, Calendar, History, FileText, Megaphone, Heart, Users, Code, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { FAQItem } from '@/components/faq-item';
 import { ContactForm } from '@/components/contact-form';
@@ -184,8 +184,13 @@ export default function HomePage() {
             />
             <FeatureCard
               icon={<Users className="h-6 w-6" />}
-              title="Lead Management"
-              description="Capture, qualify, and track leads automatically, integrating directly with your CRM."
+              title="Built-in CRM & Campaigns"
+              description="Manage customers, track leads, and run automated voice/text drip campaigns directly from our integrated dashboard."
+            />
+            <FeatureCard
+              icon={<Calendar className="h-6 w-6" />}
+              title="Appointment Management"
+              description="Automated booking and rescheduling that syncs in real-time with Google Calendar for a friction-less experience."
             />
             <FeatureCard
               icon={<Code className="h-6 w-6" />}
@@ -199,9 +204,15 @@ export default function HomePage() {
               badge="Pro Plan"
             />
             <FeatureCard
+              icon={<ShieldCheck className="h-6 w-6" />}
+              title="Personal vs Business Agents"
+              description="Deploy specialized agents with custom guardrails. Protect business data while allowing personal agents more flexible tool-use."
+              badge="Secure Separation"
+            />
+            <FeatureCard
               icon={<BrainCircuit className="h-6 w-6" />}
-              title="Context-Aware memory"
-              description="Remembers past interactions, purchase history, and user preferences to deliver hyper-personalized support."
+              title="Context-Aware Memory"
+              description="Remembers past interactions, appointments, and purchase history to deliver hyper-personalized support across sessions."
             />
           </div>
         </div>
@@ -366,6 +377,10 @@ export default function HomePage() {
             <FAQItem
               question="How does the knowledge base work?"
               answer="Upload documents, FAQs, or service information. Our AI learns from your content to provide accurate, context-aware responses to customer questions."
+            />
+            <FAQItem
+              question="What's the difference between Personal and Business Agents?"
+              answer="Business agents are built for customer service with strict security guardrails and access to company-wide tools like CRM and Campaigns. Personal agents act as highly capable executive assistants, allowed to perform broader tasks like web research and form-filling, each with their own isolated data layer and custom tool permissions."
             />
             <FAQItem
               question="Can I cancel anytime?"
