@@ -28,7 +28,7 @@ export default function DealsPage() {
             'lead': { variant: 'secondary', label: 'Lead', color: 'bg-gray-100' },
             'qualified': { variant: 'default', label: 'Qualified', color: 'bg-blue-100' },
             'proposal': { variant: 'default', label: 'Proposal', color: 'bg-purple-100' },
-            'negotiation': { variant: 'default', label: 'Negotiation', color: 'bg-blue-100' },
+            'negotiation': { variant: 'default', label: 'Negotiation', color: 'bg-orange-100' },
             'closed_won': { variant: 'default', label: 'Won', color: 'bg-green-100' },
             'closed_lost': { variant: 'destructive', label: 'Lost', color: 'bg-red-100' }
         };

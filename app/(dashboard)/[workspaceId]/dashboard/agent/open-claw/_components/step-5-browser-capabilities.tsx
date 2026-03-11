@@ -45,7 +45,7 @@ const BROWSER_CAPABILITIES: Capability[] = [
         name: "Multi-Domain Navigation",
         description: "Ability to jump between different websites to complete a single complex task.",
         icon: <Zap className="h-5 w-5 text-white" />,
-        color: "bg-blue-600"
+        color: "bg-orange-600"
     }
 ];
 

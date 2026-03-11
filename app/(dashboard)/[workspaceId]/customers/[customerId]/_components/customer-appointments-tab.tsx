@@ -81,7 +81,7 @@ export function CustomerAppointmentsTab({ customerId, workspaceId }: CustomerApp
             header: 'Title',
             cell: (item) => (
                 <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-blue-500" />
+                    <Calendar className="h-4 w-4 text-orange-500" />
                     <span className="font-medium">{item.title}</span>
                 </div>
             ),

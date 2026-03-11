@@ -106,8 +106,8 @@ export function SubscriptionCard() {
             <CardContent className="space-y-4">
                 <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50/50">
                     <div className="flex items-center space-x-4">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                            <CreditCard className="h-6 w-6 text-blue-600" />
+                        <div className="p-2 bg-orange-100 rounded-full">
+                            <CreditCard className="h-6 w-6 text-orange-600" />
                         </div>
                         <div>
                             <p className="font-medium text-lg">{planName} Plan</p>

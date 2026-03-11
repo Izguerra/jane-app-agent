@@ -155,7 +155,7 @@ export default function ProfilePage() {
             )}
             <Button
               type="submit"
-              className="bg-blue-500 hover:bg-blue-600 text-white"
+              className="bg-orange-500 hover:bg-orange-600 text-white"
               disabled={isPending}
             >
               {isPending ? (
