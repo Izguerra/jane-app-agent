@@ -345,7 +345,7 @@ export default function HomePage() {
             />
             <FAQItem
               question="What integrations are supported?"
-              answer="SupaAgent integrates seamlessly with Salesforce, HubSpot, Zendesk, and Google Calendar. We also provide native support for professional phone systems via SIP trunks, Twilio, and custom API webhooks for bespoke enterprise integrations."
+              answer="SupaAgent integrates seamlessly with WhatsApp, Google Calendar, Twilio, Telnyx, and LiveKit. We also provide native support for professional phone systems via SIP trunks and custom API webhooks for bespoke enterprise integrations."
             />
             <FAQItem
               question="Can I use my own phone number?"
