@@ -7,7 +7,29 @@ import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
   title: 'SupaAgent - AI Customer Support Chatbots',
-  description: 'Create intelligent voice and text chatbots for your business. Automate customer support 24/7 with AI-powered agents.'
+  description: 'Create intelligent voice and text chatbots for your business. Automate customer support 24/7 with AI-powered agents.',
+  openGraph: {
+    title: 'SupaAgent - AI Customer Support Chatbots',
+    description: 'Create intelligent voice and text chatbots for your business. Automate customer support 24/7 with AI-powered agents.',
+    url: 'https://supaagent.com',
+    siteName: 'SupaAgent',
+    images: [
+      {
+        url: 'https://supaagent.com/logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'SupaAgent AI',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SupaAgent - AI Customer Support Chatbots',
+    description: 'Create intelligent voice and text chatbots for your business. Automate customer support 24/7 with AI-powered agents.',
+    images: ['https://supaagent.com/logo.png'],
+  },
 };
 
 export const viewport: Viewport = {
