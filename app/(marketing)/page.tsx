@@ -185,12 +185,12 @@ export default function HomePage() {
             <FeatureCard
               icon={<Users className="h-6 w-6" />}
               title="Built-in CRM & Campaigns"
-              description="Manage customers, track leads, and run automated voice/text drip campaigns directly from our integrated dashboard."
+              description="Manage customers, track leads, and run automated drip campaigns across all channels including all voice and text channels."
             />
             <FeatureCard
               icon={<Calendar className="h-6 w-6" />}
               title="Appointment Management"
-              description="Automated booking and rescheduling that syncs in real-time with Google Calendar for a friction-less experience."
+              description="Automated booking and rescheduling that syncs in real-time with Google Calendar and other calendars such as MS Exchange (Future integration)."
             />
             <FeatureCard
               icon={<Code className="h-6 w-6" />}
@@ -212,7 +212,7 @@ export default function HomePage() {
             <FeatureCard
               icon={<BrainCircuit className="h-6 w-6" />}
               title="Context-Aware Memory"
-              description="Remembers past interactions, appointments, and purchase history to deliver hyper-personalized support across sessions."
+              description="Unified cross-channel memory of conversations, interactions, CRM campaigns, and appointment history to deliver hyper-personalized assistance."
             />
           </div>
         </div>
