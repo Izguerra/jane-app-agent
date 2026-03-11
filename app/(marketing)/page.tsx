@@ -158,9 +158,9 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
             <FeatureCard
               icon={<Zap className="h-6 w-6" />}
-              title="OpenClaw Skills"
-              description="Powered by OpenClaw, our agents can orchestrate complex multi-step tasks, executing actions across your tools with precision."
-              badge="Trending"
+              title="Native Skill Engine"
+              description="Orchestrate complex multi-step tasks natively. From browser automation to deep tool-use, our built-in skills handle it all with precision."
+              badge="Advanced"
             />
             <FeatureCard
               icon={<Megaphone className="h-6 w-6" />}
@@ -257,7 +257,7 @@ export default function HomePage() {
                 <span className="text-orange-600 text-xs font-bold uppercase tracking-wider">Step 3</span>
                 <h3 className="text-gray-900 text-lg font-bold">Enable Skills</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Equip your agent with OpenClaw skills like calendar booking and CRM updates.
+                  Equip your agent with native skills like calendar booking, CRM updates, and browser automation.
                 </p>
               </div>
             </div>
