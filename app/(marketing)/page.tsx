@@ -159,8 +159,8 @@ export default function HomePage() {
             <FeatureCard
               icon={<Zap className="h-6 w-6" />}
               title="Native Skill Engine"
-              description="Orchestrate complex multi-step tasks natively. From browser automation to deep tool-use, our built-in skills handle it all with precision."
-              badge="Advanced"
+              description="Orchestrate complex multi-step tasks natively. We've implemented the same powerful skills found in OpenClaw, but with added enterprise-grade security and isolated execution."
+              badge="Secure & Advanced"
             />
             <FeatureCard
               icon={<Megaphone className="h-6 w-6" />}
@@ -345,11 +345,11 @@ export default function HomePage() {
             />
             <FAQItem
               question="What integrations are supported?"
-              answer="We integrate with Google Calendar, Twilio, Instagram DM, SMS, and web chat. API access is available for custom integrations on Professional and Enterprise plans."
+              answer="SupaAgent integrates seamlessly with Salesforce, HubSpot, Zendesk, and Google Calendar. We also provide native support for professional phone systems via SIP trunks, Twilio, and custom API webhooks for bespoke enterprise integrations."
             />
             <FAQItem
               question="Can I use my own phone number?"
-              answer="Yes! You can port your existing number or use one of ours. Each plan includes phone numbers, and you can add more as needed."
+              answer="Yes! Our new Telephony integration allows you to port your existing business numbers or instantly provision new local and toll-free ones. We also support direct integration with your existing phone systems or PBX via SIP."
             />
             <FAQItem
               question="What languages are supported?"
