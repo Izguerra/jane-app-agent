@@ -6,8 +6,8 @@ import { SWRConfig } from 'swr';
 import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
-  title: 'SupaAgent - AI Customer Support Chatbots',
-  description: 'Create intelligent voice and text chatbots for your business. Automate customer support 24/7 with AI-powered agents.',
+  title: 'SupaAgent - Agentic Workforce Orchestration Platform',
+  description: 'Orchestrate specialized AI agents across every channel. Secure Business agents for your customers and elite Personal agents for your team—all via a unified management system.',
   openGraph: {
     title: 'SupaAgent - AI Customer Support Chatbots',
     description: 'Create intelligent voice and text chatbots for your business. Automate customer support 24/7 with AI-powered agents.',
