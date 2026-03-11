@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: supaagent_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    env_file:
+      - .env
+    volumes:
+      - ./backend/data:/app/backend/data
+    depends_on:
+      - asterisk
+
+  asterisk:
+    image: andrius/asterisk:20
+    container_name: supaagent_asterisk
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "8088:8088"
+      - "10000-10020:10000-10020/udp"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./backend/asterisk_config:/etc/asterisk
+    restart: unless-stopped
