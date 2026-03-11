@@ -98,7 +98,7 @@ export function AddIntegrationDropdown({
                                         </span>
                                     )}
                                     {integration.requires_upgrade && (
-                                        <span className="flex items-center text-xs text-orange-600 ml-2">
+                                        <span className="flex items-center text-xs text-blue-600 ml-2">
                                             <Lock className="h-3 w-3 mr-1" />
                                             Upgrade
                                         </span>

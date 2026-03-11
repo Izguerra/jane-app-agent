@@ -15,10 +15,10 @@ export default function HomePage() {
             {/* Hero Content (Left) */}
             <div className="flex flex-col gap-8 flex-1 w-full max-w-[600px] text-center lg:text-left items-center lg:items-start z-10">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-600 text-xs font-bold w-fit">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-600 text-xs font-bold w-fit">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </span>
                 AI-Powered Customer Support
               </div>
@@ -27,7 +27,7 @@ export default function HomePage() {
               <div className="flex flex-col gap-4">
                 <h1 className="text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-gray-900">
                   Your AI Customer Support Agent,
-                  <span className="block bg-gradient-to-r from-orange-500 to-orange-600 bg-clip-text text-transparent mt-2">
+                  <span className="block bg-gradient-to-r from-blue-500 to-blue-600 bg-clip-text text-transparent mt-2">
                     Ready in Minutes
                   </span>
                 </h1>
@@ -41,7 +41,7 @@ export default function HomePage() {
                 <a href="#pricing">
                   <Button
                     size="lg"
-                    className="min-w-[160px] h-12 text-base font-bold rounded-xl bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-600/25 transition-all"
+                    className="min-w-[160px] h-12 text-base font-bold rounded-xl bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/25 transition-all"
                   >
                     <ArrowRight className="mr-2 h-5 w-5" />
                     Start Free Trial
@@ -69,7 +69,7 @@ export default function HomePage() {
             {/* Hero Visual (Right) - Chat Demo */}
             <div className="flex-1 w-full relative">
               {/* Decorative blurred blobs */}
-              <div className="absolute -top-10 -right-10 w-72 h-72 bg-orange-500/20 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
+              <div className="absolute -top-10 -right-10 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
               <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-purple-500/10 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
 
               {/* Main Chat Card */}
@@ -78,7 +78,7 @@ export default function HomePage() {
                 <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="size-10 rounded-full bg-gradient-to-tr from-orange-500 to-orange-400 flex items-center justify-center text-white">
+                      <div className="size-10 rounded-full bg-gradient-to-tr from-blue-500 to-blue-400 flex items-center justify-center text-white">
                         <MessageSquare className="h-5 w-5" />
                       </div>
                       <span className="absolute bottom-0 right-0 size-3 rounded-full bg-green-500 border-2 border-white"></span>
@@ -94,7 +94,7 @@ export default function HomePage() {
                 <div className="flex flex-col gap-4 min-h-[260px]">
                   {/* User Message */}
                   <div className="flex justify-end">
-                    <div className="bg-orange-600 text-white px-4 py-3 rounded-2xl rounded-tr-none max-w-[85%] shadow-md">
+                    <div className="bg-blue-600 text-white px-4 py-3 rounded-2xl rounded-tr-none max-w-[85%] shadow-md">
                       <p className="text-sm font-medium">Hi! I need to reschedule my appointment specifically to next Tuesday at 2 PM.</p>
                     </div>
                   </div>
@@ -111,16 +111,16 @@ export default function HomePage() {
 
                   {/* Typing Indicator / Voice Active */}
                   <div className="flex items-center gap-3 mt-auto pt-2">
-                    <div className="flex items-center justify-center size-8 rounded-full bg-gray-100 text-orange-600">
+                    <div className="flex items-center justify-center size-8 rounded-full bg-gray-100 text-blue-600">
                       <Sparkles className="h-4 w-4" />
                     </div>
                     {/* Waveform visual */}
                     <div className="flex items-center gap-1 h-8">
-                      <div className="w-1 bg-orange-600 rounded-full h-3 animate-pulse"></div>
-                      <div className="w-1 bg-orange-600 rounded-full h-5 animate-pulse" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-1 bg-orange-600 rounded-full h-3 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                      <div className="w-1 bg-orange-600 rounded-full h-6 animate-pulse" style={{ animationDelay: '0.3s' }}></div>
-                      <div className="w-1 bg-orange-600 rounded-full h-4 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                      <div className="w-1 bg-blue-600 rounded-full h-3 animate-pulse"></div>
+                      <div className="w-1 bg-blue-600 rounded-full h-5 animate-pulse" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-1 bg-blue-600 rounded-full h-3 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-1 bg-blue-600 rounded-full h-6 animate-pulse" style={{ animationDelay: '0.3s' }}></div>
+                      <div className="w-1 bg-blue-600 rounded-full h-4 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                     </div>
                     <span className="text-xs text-gray-500 font-medium">AI is typing...</span>
                   </div>
@@ -137,7 +137,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Section Header */}
           <div className="text-center mb-16">
-            <span className="bg-orange-100 text-orange-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+            <span className="bg-blue-100 text-blue-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
               Features & Benefits
             </span>
             <h2 className="text-3xl md:text-5xl font-black text-gray-900 mt-4 mb-4 leading-tight tracking-tight max-w-3xl mx-auto">
@@ -207,11 +207,11 @@ export default function HomePage() {
 
             {/* Step 1 */}
             <div className="group flex flex-col items-center text-center p-8 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all">
-              <div className="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center mb-6 ring-4 ring-white group-hover:ring-orange-50 transition-all">
-                <Sparkles className="h-10 w-10 text-orange-600" />
+              <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center mb-6 ring-4 ring-white group-hover:ring-blue-50 transition-all">
+                <Sparkles className="h-10 w-10 text-blue-600" />
               </div>
               <div className="flex flex-col gap-3">
-                <span className="text-orange-600 text-sm font-bold uppercase tracking-wider">Step 1</span>
+                <span className="text-blue-600 text-sm font-bold uppercase tracking-wider">Step 1</span>
                 <h3 className="text-gray-900 text-xl font-bold">Upload Knowledge Base</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
                   Upload documents, FAQs, and business information. Your AI agent learns from your content to provide accurate, context-aware responses.
@@ -221,11 +221,11 @@ export default function HomePage() {
 
             {/* Step 2 */}
             <div className="group flex flex-col items-center text-center p-8 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all">
-              <div className="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center mb-6 ring-4 ring-white group-hover:ring-orange-50 transition-all">
-                <Zap className="h-10 w-10 text-orange-600" />
+              <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center mb-6 ring-4 ring-white group-hover:ring-blue-50 transition-all">
+                <Zap className="h-10 w-10 text-blue-600" />
               </div>
               <div className="flex flex-col gap-3">
-                <span className="text-orange-600 text-sm font-bold uppercase tracking-wider">Step 2</span>
+                <span className="text-blue-600 text-sm font-bold uppercase tracking-wider">Step 2</span>
                 <h3 className="text-gray-900 text-xl font-bold">Configure Agent Settings</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
                   Set your agent's name, voice, language, and behavior. Customize greetings, instructions, and integrate with your calendar.
@@ -235,11 +235,11 @@ export default function HomePage() {
 
             {/* Step 3 */}
             <div className="group flex flex-col items-center text-center p-8 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all">
-              <div className="w-20 h-20 rounded-full bg-orange-100 flex items-center justify-center mb-6 ring-4 ring-white group-hover:ring-orange-50 transition-all">
-                <Globe className="h-10 w-10 text-orange-600" />
+              <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center mb-6 ring-4 ring-white group-hover:ring-blue-50 transition-all">
+                <Globe className="h-10 w-10 text-blue-600" />
               </div>
               <div className="flex flex-col gap-3">
-                <span className="text-orange-600 text-sm font-bold uppercase tracking-wider">Step 3</span>
+                <span className="text-blue-600 text-sm font-bold uppercase tracking-wider">Step 3</span>
                 <h3 className="text-gray-900 text-xl font-bold">Connect Channels & Deploy</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
                   Connect phone numbers via Twilio, enable web chat, or integrate Instagram DM. Your AI agent goes live instantly.
@@ -270,7 +270,7 @@ export default function HomePage() {
             </p>
             <p className="text-sm text-gray-500">
               Need help choosing?{' '}
-              <a href="mailto:support@supaagent.com" className="text-orange-600 hover:text-orange-700">
+              <a href="mailto:support@supaagent.com" className="text-blue-600 hover:text-blue-700">
                 Contact our team
               </a>
             </p>
@@ -388,27 +388,27 @@ export default function HomePage() {
                 <h3 className="text-gray-900 text-xl font-bold mb-6">Contact Information</h3>
                 <div className="flex flex-col gap-6">
                   <div className="flex items-start gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
                       <MessageSquare className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col">
                       <p className="text-gray-900 text-base font-bold">Email</p>
-                      <a className="text-gray-600 text-sm hover:text-orange-600 transition-colors" href="mailto:hello@supaagent.com">
+                      <a className="text-gray-600 text-sm hover:text-blue-600 transition-colors" href="mailto:hello@supaagent.com">
                         hello@supaagent.com
                       </a>
-                      <a className="text-gray-600 text-sm hover:text-orange-600 transition-colors" href="mailto:support@supaagent.com">
+                      <a className="text-gray-600 text-sm hover:text-blue-600 transition-colors" href="mailto:support@supaagent.com">
                         support@supaagent.com
                       </a>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
                       <Globe className="h-5 w-5" />
                     </div>
                     <div className="flex flex-col">
                       <p className="text-gray-900 text-base font-bold">Phone</p>
-                      <a className="text-gray-600 text-sm hover:text-orange-600 transition-colors" href="tel:+15550123456">
+                      <a className="text-gray-600 text-sm hover:text-blue-600 transition-colors" href="tel:+15550123456">
                         +1 (555) 012-3456
                       </a>
                       <p className="text-gray-500 text-xs mt-1">Mon-Fri, 9am - 6pm PST</p>
@@ -422,18 +422,18 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-orange-600 to-pink-600">
+      <section className="py-20 bg-gradient-to-r from-blue-600 to-pink-600">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
             Ready to Transform Your Customer Support?
           </h2>
-          <p className="text-xl text-orange-100 mb-8">
+          <p className="text-xl text-blue-100 mb-8">
             Start your free trial today. No credit card required.
           </p>
           <a href="#pricing">
             <Button
               size="lg"
-              className="text-lg px-8 py-6 rounded-full bg-white text-orange-600 hover:bg-gray-100"
+              className="text-lg px-8 py-6 rounded-full bg-white text-blue-600 hover:bg-gray-100"
             >
               Get Started Free
               <ArrowRight className="ml-2 h-5 w-5" />
@@ -447,8 +447,8 @@ export default function HomePage() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="p-6 rounded-xl border border-gray-200 hover:border-orange-300 hover:shadow-lg transition-all">
-      <div className="w-12 h-12 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-4">
+    <div className="p-6 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all">
+      <div className="w-12 h-12 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-4">
         {icon}
       </div>
       <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
@@ -460,7 +460,7 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode; titl
 function StatCard({ number, label }: { number: string; label: string }) {
   return (
     <div className="text-center p-8 bg-white rounded-xl shadow-sm">
-      <div className="text-4xl font-bold text-orange-600 mb-2">{number}</div>
+      <div className="text-4xl font-bold text-blue-600 mb-2">{number}</div>
       <div className="text-gray-600">{label}</div>
     </div>
   );

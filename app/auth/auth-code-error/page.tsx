@@ -11,7 +11,7 @@ export default function AuthCodeErrorPage() {
         <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
-                    <Logo className="h-20 w-20 text-orange-600" />
+                    <Logo className="h-20 w-20 text-blue-600" />
                 </div>
 
                 <div className="mt-8 bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
@@ -27,7 +27,7 @@ export default function AuthCodeErrorPage() {
 
                         <div className="mt-6 space-y-3">
                             <Link href="/forgot-password">
-                                <Button className="w-full bg-orange-600 hover:bg-orange-700 rounded-full">
+                                <Button className="w-full bg-blue-600 hover:bg-blue-700 rounded-full">
                                     Request new reset link
                                 </Button>
                             </Link>

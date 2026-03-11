@@ -186,7 +186,7 @@ function SubscriptionUpgradeDialog({ customer, open, onOpenChange, onSuccess }: 
                             </div>
                             <div className="border-t pt-2 mt-2 flex justify-between font-semibold">
                                 <span>{proration.amount >= 0 ? 'Amount Due Today:' : 'Credit Applied:'}</span>
-                                <span className={proration.amount >= 0 ? 'text-orange-600' : 'text-green-600'}>
+                                <span className={proration.amount >= 0 ? 'text-blue-600' : 'text-green-600'}>
                                     {proration.amount_formatted}
                                 </span>
                             </div>

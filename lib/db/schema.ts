@@ -408,7 +408,7 @@ export const workerTemplates = pgTable('worker_templates', {
   outcomePrice: integer('outcome_price').default(0),
   evaluationLogic: json('evaluation_logic').default({}),
   icon: varchar('icon', { length: 50 }).default('bot'),
-  color: varchar('color', { length: 20 }).default('orange'),
+  color: varchar('color', { length: 20 }).default('blue'),
   isActive: pgBoolean('is_active').default(true),
   isSystem: pgBoolean('is_system').default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),

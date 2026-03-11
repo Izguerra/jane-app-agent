@@ -22,7 +22,7 @@ export default function PricingPage() {
                     Need help choosing?{' '}
                     <a
                         href="mailto:support@supaagent.com"
-                        className="text-orange-600 hover:text-orange-700"
+                        className="text-blue-600 hover:text-blue-700"
                     >
                         Contact our team
                     </a>

@@ -102,7 +102,7 @@ export default function AdminLayout({
                                     key={item.name}
                                     href={item.href}
                                     className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${item.current
-                                        ? 'bg-orange-50 text-orange-600'
+                                        ? 'bg-blue-50 text-blue-600'
                                         : 'text-gray-700 hover:bg-gray-100'
                                         }`}
                                 >

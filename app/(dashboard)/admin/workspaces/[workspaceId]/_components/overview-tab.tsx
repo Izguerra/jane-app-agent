@@ -89,7 +89,7 @@ export function OverviewTab({
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>Account Information</CardTitle>
-                            <Button variant="link" className="text-orange-600" asChild>
+                            <Button variant="link" className="text-blue-600" asChild>
                                 {/* We can't use Link component here directly if we don't import it from next/link, passing via props or just importing */}
                                 <a href={`/admin/workspaces/${workspace.id}/edit`}>Edit Details</a>
                             </Button>
@@ -229,9 +229,9 @@ export function OverviewTab({
                             <CardTitle>Subscription</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <CreditCard className="h-5 w-5 text-orange-600" />
+                                    <CreditCard className="h-5 w-5 text-blue-600" />
                                     <span className="font-medium">{workspace.plan}</span>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
@@ -277,7 +277,7 @@ export function OverviewTab({
                                     <div className="text-sm text-muted-foreground text-center py-4">No billing history found</div>
                                 )}
                             </div>
-                            <Button variant="link" className="w-full mt-4 text-orange-600" asChild>
+                            <Button variant="link" className="w-full mt-4 text-blue-600" asChild>
                                 <a href={`/admin/workspaces/${workspace.id}/payments`}>
                                     View Billing →
                                 </a>

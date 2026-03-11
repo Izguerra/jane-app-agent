@@ -223,7 +223,7 @@ export function CommunicationsTab({ workspaceId }: { workspaceId: string }) {
                     value={outboundCount.toLocaleString()}
                     icon={Activity}
                     trend={{ value: 2, direction: 'down', label: 'Unique customers' }}
-                    iconClassName="text-orange-600 bg-orange-100"
+                    iconClassName="text-blue-600 bg-blue-100"
                 />
                 <StatsCard
                     title="Success Rate"

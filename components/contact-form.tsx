@@ -50,7 +50,7 @@ export function ContactForm() {
                     <label className="flex flex-col flex-1">
                         <p className="text-gray-900 text-sm font-medium leading-normal pb-2">Full Name</p>
                         <input
-                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 h-12 placeholder:text-gray-500 p-[15px] text-base font-normal leading-normal transition-all"
+                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 h-12 placeholder:text-gray-500 p-[15px] text-base font-normal leading-normal transition-all"
                             placeholder="Jane Doe"
                             type="text"
                             name="name"
@@ -61,7 +61,7 @@ export function ContactForm() {
                     <label className="flex flex-col flex-1">
                         <p className="text-gray-900 text-sm font-medium leading-normal pb-2">Business Email</p>
                         <input
-                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 h-12 placeholder:text-gray-500 p-[15px] text-base font-normal leading-normal transition-all"
+                            className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 h-12 placeholder:text-gray-500 p-[15px] text-base font-normal leading-normal transition-all"
                             placeholder="jane@company.com"
                             type="email"
                             name="email"
@@ -74,7 +74,7 @@ export function ContactForm() {
                 <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium leading-normal pb-2">Subject</p>
                     <select
-                        className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 h-12 placeholder:text-gray-500 pl-[15px] pr-10 text-base font-normal leading-normal appearance-none transition-all"
+                        className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 h-12 placeholder:text-gray-500 pl-[15px] pr-10 text-base font-normal leading-normal appearance-none transition-all"
                         name="subject"
                         defaultValue=""
                         required
@@ -91,7 +91,7 @@ export function ContactForm() {
                 <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium leading-normal pb-2">Message</p>
                     <textarea
-                        className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 min-h-36 placeholder:text-gray-500 p-[15px] text-base font-normal leading-normal transition-all"
+                        className="flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 border border-gray-300 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 min-h-36 placeholder:text-gray-500 p-[15px] text-base font-normal leading-normal transition-all"
                         placeholder="Tell us how we can help..."
                         name="message"
                         required
@@ -103,7 +103,7 @@ export function ContactForm() {
                     <Button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full md:w-auto min-w-[140px] h-12 px-6 bg-orange-600 hover:bg-orange-700 text-white text-base font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full md:w-auto min-w-[140px] h-12 px-6 bg-blue-600 hover:bg-blue-700 text-white text-base font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSubmitting ? 'Sending...' : 'Send Message'}
                     </Button>

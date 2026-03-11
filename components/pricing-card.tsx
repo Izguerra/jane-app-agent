@@ -22,13 +22,13 @@ export function PricingCard({
     return (
         <div
             className={`relative pt-6 pb-8 px-6 rounded-2xl ${popular
-                ? 'bg-gradient-to-b from-orange-50 to-white border-2 border-orange-500 shadow-xl'
+                ? 'bg-gradient-to-b from-blue-50 to-white border-2 border-blue-500 shadow-xl'
                 : 'bg-white border border-gray-200 shadow-sm'
                 }`}
         >
             {popular && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <span className="bg-orange-500 text-white px-4 py-1 rounded-full text-sm font-medium">
+                    <span className="bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-medium">
                         Most Popular
                     </span>
                 </div>
@@ -66,7 +66,7 @@ export function PricingCard({
                 {features.map((feature, index) => (
                     <li key={index} className="flex items-start">
                         <Check
-                            className={`h-5 w-5 ${popular ? 'text-orange-600' : 'text-orange-500'
+                            className={`h-5 w-5 ${popular ? 'text-blue-600' : 'text-blue-500'
                                 } mr-3 mt-0.5 flex-shrink-0`}
                         />
                         <span className="text-gray-700">{feature}</span>
@@ -78,7 +78,7 @@ export function PricingCard({
                 <a
                     href="mailto:sales@supaagent.com"
                     className={`block w-full text-center py-3 px-4 rounded-full font-medium transition-colors ${popular
-                        ? 'bg-orange-600 text-white hover:bg-orange-700'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-gray-900 text-white hover:bg-gray-800'
                         }`}
                 >
@@ -88,7 +88,7 @@ export function PricingCard({
                 <Button
                     asChild
                     className={`w-full py-3 px-4 rounded-full font-medium transition-colors ${popular
-                        ? 'bg-orange-600 text-white hover:bg-orange-700'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-gray-900 text-white hover:bg-gray-800'
                         }`}
                 >

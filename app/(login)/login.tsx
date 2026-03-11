@@ -26,7 +26,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
     <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <Logo className="h-20 w-20 text-orange-600" />
+          <Logo className="h-20 w-20 text-blue-600" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           {isAdmin
@@ -60,7 +60,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                         defaultValue={state.firstName || ''}
                         required
                         maxLength={50}
-                        className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                        className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                         placeholder="John"
                       />
                     </div>
@@ -81,7 +81,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                         defaultValue={state.lastName || ''}
                         required
                         maxLength={50}
-                        className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                        className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                         placeholder="Doe"
                       />
                     </div>
@@ -103,7 +103,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                       autoComplete="username"
                       defaultValue={state.username || ''}
                       maxLength={50}
-                      className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                      className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                       placeholder="johndoe123"
                     />
                   </div>
@@ -126,7 +126,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                 defaultValue={state.email}
                 required
                 maxLength={50}
-                className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Enter your email"
               />
             </div>
@@ -151,7 +151,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                 required
                 minLength={8}
                 maxLength={100}
-                className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-full relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Enter your password"
               />
             </div>
@@ -161,7 +161,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
             <div className="text-right">
               <Link
                 href="/forgot-password"
-                className="text-sm font-medium text-orange-600 hover:text-orange-500"
+                className="text-sm font-medium text-blue-600 hover:text-blue-500"
               >
                 Forgot password?
               </Link>
@@ -207,15 +207,15 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                 name="terms"
                 type="checkbox"
                 required
-                className="mt-1 h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded cursor-pointer"
+                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
               />
               <label htmlFor="terms" className="text-sm text-gray-700">
                 I agree to the{' '}
-                <Link href="/terms" className="font-medium text-orange-600 hover:text-orange-500" target="_blank">
+                <Link href="/terms" className="font-medium text-blue-600 hover:text-blue-500" target="_blank">
                   Terms and Conditions
                 </Link>{' '}
                 and{' '}
-                <Link href="/privacy" className="font-medium text-orange-600 hover:text-orange-500" target="_blank">
+                <Link href="/privacy" className="font-medium text-blue-600 hover:text-blue-500" target="_blank">
                   Privacy Policy
                 </Link>
                 .
@@ -230,7 +230,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
           <div>
             <Button
               type="submit"
-              className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+              className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               disabled={pending}
             >
               {pending ? (
@@ -303,7 +303,7 @@ export function Login({ mode = 'signin', isAdmin = false }: { mode?: 'signin' | 
                       ...(inviteId ? { inviteId } : {}),
                     }).toString()}`
                 }
-                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-full shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-full shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 {mode === 'signin'
                   ? 'Create an account'

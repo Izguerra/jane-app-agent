@@ -180,7 +180,7 @@ export default function WorkspaceDetailsPage() {
             'bg-purple-500',
             'bg-pink-500',
             'bg-green-500',
-            'bg-orange-500',
+            'bg-blue-500',
         ];
         const index = name.charCodeAt(0) % colors.length;
         return colors[index];
@@ -270,20 +270,20 @@ export default function WorkspaceDetailsPage() {
 
             {/* Suspension Warning */}
             {workspace.status === 'suspended' && (
-                <Card className="border-orange-200 bg-orange-50">
+                <Card className="border-blue-200 bg-blue-50">
                     <CardContent className="p-4">
                         <div className="flex items-start gap-3">
-                            <AlertTriangle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                            <AlertTriangle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
-                                <h3 className="font-semibold text-orange-900">Workspace Suspended</h3>
-                                <p className="text-sm text-orange-800 mt-1">
+                                <h3 className="font-semibold text-blue-900">Workspace Suspended</h3>
+                                <p className="text-sm text-blue-800 mt-1">
                                     This workspace has been suspended. Billing is paused, all integrations are disconnected, and all agents are deactivated.
                                 </p>
                             </div>
                             <Button
                                 onClick={(e) => handleReactivateWorkspace(e)}
                                 disabled={isReactivating}
-                                className="bg-orange-600 hover:bg-orange-700"
+                                className="bg-blue-600 hover:bg-blue-700"
                             >
                                 {isReactivating ? 'Reactivating...' : 'Reactivate'}
                             </Button>
@@ -298,15 +298,15 @@ export default function WorkspaceDetailsPage() {
                     <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5 text-orange-600" />
+                                <AlertTriangle className="h-5 w-5 text-blue-600" />
                                 Suspend Workspace
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <p>Are you sure you want to suspend <strong>"{workspace?.name}"</strong>?</p>
-                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
-                                <p className="text-sm font-medium text-orange-900">This will:</p>
-                                <ul className="text-sm text-orange-800 space-y-1 ml-4 list-disc">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                                <p className="text-sm font-medium text-blue-900">This will:</p>
+                                <ul className="text-sm text-blue-800 space-y-1 ml-4 list-disc">
                                     <li>Pause Stripe billing</li>
                                     <li>Disconnect all integrations</li>
                                     <li>Deactivate all agents</li>

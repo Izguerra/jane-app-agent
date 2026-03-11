@@ -74,7 +74,7 @@ export default function ForgotPasswordPage() {
         <div className="min-h-[100dvh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gray-50">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="flex justify-center">
-                    <Logo className="h-20 w-20 text-orange-600" />
+                    <Logo className="h-20 w-20 text-blue-600" />
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
                     {step === 'email' ? 'Reset your password' : 'Enter Verification Code'}
@@ -114,7 +114,7 @@ export default function ForgotPasswordPage() {
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         required
-                                        className="pl-10 appearance-none rounded-full block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                                        className="pl-10 appearance-none rounded-full block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                                         placeholder="Enter your email"
                                     />
                                 </div>
@@ -124,7 +124,7 @@ export default function ForgotPasswordPage() {
 
                             <Button
                                 type="submit"
-                                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                 disabled={isLoading}
                             >
                                 {isLoading ? (
@@ -154,7 +154,7 @@ export default function ForgotPasswordPage() {
                                         value={otp}
                                         onChange={(e) => setOtp(e.target.value)}
                                         required
-                                        className="pl-10 appearance-none rounded-full block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm tracking-widest text-lg"
+                                        className="pl-10 appearance-none rounded-full block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm tracking-widest text-lg"
                                         placeholder="123456"
                                     />
                                 </div>
@@ -164,7 +164,7 @@ export default function ForgotPasswordPage() {
 
                             <Button
                                 type="submit"
-                                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-full shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                                 disabled={isLoading}
                             >
                                 {isLoading ? (
@@ -181,7 +181,7 @@ export default function ForgotPasswordPage() {
                                 <button
                                     type="button"
                                     onClick={() => setStep('email')}
-                                    className="text-sm font-medium text-orange-600 hover:text-orange-500"
+                                    className="text-sm font-medium text-blue-600 hover:text-blue-500"
                                 >
                                     Use a different email
                                 </button>
@@ -204,7 +204,7 @@ export default function ForgotPasswordPage() {
                         <div className="mt-6 text-center">
                             <Link
                                 href="/sign-in"
-                                className="inline-flex items-center text-sm font-medium text-orange-600 hover:text-orange-500"
+                                className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-500"
                             >
                                 <ArrowLeft className="mr-2 h-4 w-4" />
                                 Back to sign in

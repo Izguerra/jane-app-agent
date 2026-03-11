@@ -79,7 +79,7 @@ export function FeatureGate({
             <div className="flex items-center justify-center min-h-[60vh] p-8">
                 <Card className="max-w-lg w-full text-center">
                     <CardHeader className="pb-4">
-                        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-red-100 to-orange-100 dark:from-red-900/30 dark:to-orange-900/30 rounded-full flex items-center justify-center mb-4">
+                        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-red-100 to-blue-100 dark:from-red-900/30 dark:to-blue-900/30 rounded-full flex items-center justify-center mb-4">
                             <Clock className="h-8 w-8 text-red-600 dark:text-red-400" />
                         </div>
                         <CardTitle className="text-2xl">

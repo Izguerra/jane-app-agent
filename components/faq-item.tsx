@@ -14,7 +14,7 @@ export function FAQItem({ question, answer, defaultOpen = false }: FAQItemProps)
 
     return (
         <div
-            className={`group flex flex-col rounded-xl border border-gray-200 bg-white transition-all duration-200 ${isOpen ? 'bg-orange-50/50 border-orange-200' : ''
+            className={`group flex flex-col rounded-xl border border-gray-200 bg-white transition-all duration-200 ${isOpen ? 'bg-blue-50/50 border-blue-200' : ''
                 }`}
         >
             <button

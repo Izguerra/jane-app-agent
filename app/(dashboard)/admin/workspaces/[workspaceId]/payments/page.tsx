@@ -325,8 +325,8 @@ export default function PaymentHistoryPage() {
                                 <tr key={invoice.id} className="border-b hover:bg-muted/50">
                                     <td className="p-4">
                                         <div className="flex items-center gap-2">
-                                            <div className="h-8 w-8 rounded bg-orange-100 flex items-center justify-center">
-                                                <span className="text-xs font-bold text-orange-600">
+                                            <div className="h-8 w-8 rounded bg-blue-100 flex items-center justify-center">
+                                                <span className="text-xs font-bold text-blue-600">
                                                     {(() => {
                                                         const parts = invoice.invoice_number.split('-');
                                                         if (parts.length >= 3) return parts[2].substring(0, 2);
@@ -335,7 +335,7 @@ export default function PaymentHistoryPage() {
                                                     })()}
                                                 </span>
                                             </div>
-                                            <span className="font-medium text-orange-600">{invoice.invoice_number}</span>
+                                            <span className="font-medium text-blue-600">{invoice.invoice_number}</span>
                                         </div>
                                     </td>
                                     <td className="p-4">
@@ -360,7 +360,7 @@ export default function PaymentHistoryPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="text-orange-600"
+                                                    className="text-blue-600"
                                                     onClick={() => handleRetryPayment(invoice.id)}
                                                 >
                                                     Retry
@@ -382,7 +382,7 @@ export default function PaymentHistoryPage() {
                             <Button variant="outline" size="sm" disabled>
                                 Previous
                             </Button>
-                            <Button variant="outline" size="sm" className="bg-orange-600 text-white">
+                            <Button variant="outline" size="sm" className="bg-blue-600 text-white">
                                 1
                             </Button>
                             <Button variant="outline" size="sm">

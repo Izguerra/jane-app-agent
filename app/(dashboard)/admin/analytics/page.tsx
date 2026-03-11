@@ -202,8 +202,8 @@ export default function AnalyticsPage() {
                         <div className="space-y-1">
                             <div className="flex items-center justify-between">
                                 <p className="text-sm font-medium text-muted-foreground">Avg. Session Duration</p>
-                                <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center">
-                                    <Clock className="h-5 w-5 text-orange-600" />
+                                <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                                    <Clock className="h-5 w-5 text-blue-600" />
                                 </div>
                             </div>
                             <div>
@@ -269,7 +269,7 @@ export default function AnalyticsPage() {
                                 <p className="text-sm text-muted-foreground text-center py-4">No recent activations</p>
                             )}
                         </div>
-                        <button className="w-full mt-4 text-sm text-orange-600 hover:text-orange-700 font-medium">
+                        <button className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700 font-medium">
                             View All Activity
                         </button>
                     </CardContent>
@@ -322,7 +322,7 @@ export default function AnalyticsPage() {
                                         <td className="py-4">
                                             <div className="flex items-center gap-2">
                                                 <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-orange-500" style={{ width: '65%' }}></div>
+                                                    <div className="h-full bg-blue-500" style={{ width: '65%' }}></div>
                                                 </div>
                                                 <span className="text-sm">450/1000</span>
                                             </div>

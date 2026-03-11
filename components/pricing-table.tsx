@@ -182,13 +182,13 @@ function PricingCard({
     return (
         <div
             className={`flex flex-col relative pt-6 pb-8 px-6 rounded-2xl ${popular
-                ? 'bg-gradient-to-b from-orange-50 to-white border-2 border-orange-500 shadow-xl'
+                ? 'bg-gradient-to-b from-blue-50 to-white border-2 border-blue-500 shadow-xl'
                 : 'bg-white border border-gray-200 shadow-sm'
                 }`}
         >
             {popular && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                    <span className="bg-orange-500 text-white px-4 py-1 rounded-full text-sm font-medium whitespace-nowrap shadow-sm">
+                    <span className="bg-blue-500 text-white px-4 py-1 rounded-full text-sm font-medium whitespace-nowrap shadow-sm">
                         Most Popular
                     </span>
                 </div>
@@ -226,7 +226,7 @@ function PricingCard({
                 {features.map((feature, index) => (
                     <li key={index} className="flex items-start text-sm">
                         <Check
-                            className={`h-4 w-4 ${popular ? 'text-orange-600' : 'text-orange-500'
+                            className={`h-4 w-4 ${popular ? 'text-blue-600' : 'text-blue-500'
                                 } mr-2.5 mt-0.5 flex-shrink-0`}
                         />
                         <span className="text-gray-700">{feature}</span>
@@ -239,7 +239,7 @@ function PricingCard({
                     <a
                         href="mailto:sales@supaagent.com"
                         className={`block w-full text-center py-2.5 px-4 rounded-full font-medium transition-colors text-sm ${popular
-                            ? 'bg-orange-600 text-white hover:bg-orange-700'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
                             : 'bg-gray-900 text-white hover:bg-gray-800'
                             }`}
                     >
@@ -251,7 +251,7 @@ function PricingCard({
                             asChild
                             disabled={isDisabled}
                             className={`w-full py-2.5 px-4 rounded-full font-medium transition-colors text-sm ${popular
-                                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
                                 : 'bg-gray-900 text-white hover:bg-gray-800'
                                 }`}
                         >
@@ -264,7 +264,7 @@ function PricingCard({
                             onClick={onSelect}
                             disabled={isCurrent || isDisabled}
                             className={`w-full py-2.5 px-4 rounded-full font-medium transition-colors text-sm ${popular
-                                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
                                 : 'bg-gray-900 text-white hover:bg-gray-800'
                                 }`}
                         >
