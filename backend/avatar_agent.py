@@ -3,6 +3,17 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+# --- DNS BYPASS FIX ---
+import socket
+_orig_getaddrinfo = socket.getaddrinfo
+def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if host == "jane-clinic-app-tupihomh.livekit.cloud":
+        # Updated IPs from nslookup: 161.115.178.157, 161.115.179.230
+        host = "161.115.178.157" # Hardcoded IP to bypass aiohttp MacOS DNS failure
+    return _orig_getaddrinfo(host, port, family, type, proto, flags)
+socket.getaddrinfo = _patched_getaddrinfo
+# ----------------------
+
 # Ensure project root is in sys.path to allow 'backend' imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
@@ -62,7 +73,6 @@ async def entrypoint(ctx: JobContext):
 
     try:
         from livekit.agents.voice import AgentSession, Agent
-        from livekit.agents.voice.turn import TurnHandlingConfig
         from livekit.agents import llm
         from livekit.plugins import deepgram, openai, elevenlabs, tavus, silero
         from livekit.agents import tts
@@ -97,8 +107,11 @@ async def entrypoint(ctx: JobContext):
         
         # Set participant attributes to identify as assistant
         # This allows the frontend useVoiceAssistant hook to discover the agent
-        asyncio.create_task(ctx.room.local_participant.set_attributes({"agent": "true"}))
-        logger.info("Set 'agent' attribute on participant")
+        asyncio.create_task(ctx.room.local_participant.set_attributes({
+            "agent": "true",
+            "lk.agent.state": "initializing"
+        }))
+        logger.info("Set 'agent' and 'lk.agent.state' attributes on participant")
         with open("backend/debug_avatar.log", "a") as f: 
             f.write(f"Connected to room {ctx.room.name}\n")
             f.flush()
@@ -519,8 +532,7 @@ async def entrypoint(ctx: JobContext):
             stt=stt,
             llm=llm_instance,
             tts=tts,
-            tools=all_tools,
-            turn_handling=TurnHandlingConfig(interruption={"mode": "vad"})
+            tools=all_tools
         )
 
         # Vision: Background Task to Capture Frames
@@ -557,8 +569,10 @@ async def entrypoint(ctx: JobContext):
             try:
                 from livekit.plugins import anam
                 logger.info(f"Initializing Anam.ai avatar with persona={anam_persona_id}")
+                agent_name_for_anam = settings.get("name", "JaneApp Agent")
+                persona_cfg = anam.PersonaConfig(name=agent_name_for_anam, avatarId=anam_persona_id)
                 avatar = anam.AvatarSession(
-                    persona_id=anam_persona_id,
+                    persona_config=persona_cfg,
                 )
                 logger.info("Starting Anam.ai Avatar...")
                 await avatar.start(session, room=ctx.room)
@@ -637,16 +651,15 @@ async def entrypoint(ctx: JobContext):
 
         # 7. Start the Voice/Agent Session
         await session.start(agent_logic, room=ctx.room)
+        asyncio.create_task(ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"}))
 
         # 8. Send Greeting
         welcome_msg = settings.get("welcome_message") or "Hello! I am your AI assistant. How can I help you today?"
         logger.info(f"Avatar Session Started. Sending welcome message: {welcome_msg}")
         try:
-            # session.responses.add(text=welcome_msg, allow_interruptions=True)
-            # Actually, use session.say for immediate output if responses.add is for pipeline
-            # Wait, SDK 1.3+ uses session.responses.add(text=...)
-            # FIXED: AgentSession does not have .responses. Using .say().
-            session.say(welcome_msg, allow_interruptions=True)
+            # Add delay for avatar to be ready
+            await asyncio.sleep(1.2)
+            session.say(welcome_msg, allow_interruptions=False)
         except Exception as e:
             logger.error(f"Failed to send welcome message: {e}")
         # Add event listeners for transcription

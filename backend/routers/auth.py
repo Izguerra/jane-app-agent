@@ -20,7 +20,7 @@ import requests
 
 logger = logging.getLogger("auth-router")
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 # --- GOOGLE CONFIG ---

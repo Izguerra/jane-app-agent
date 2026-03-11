@@ -62,8 +62,20 @@ export default function PrivacyPage() {
                             The security of your data is important to us, but remember that no method of transmission over the Internet, or method of electronic storage is 100% secure.
                         </p>
 
+                        <h2 id="data-deletion" className="text-2xl font-bold text-[#111418] dark:text-white mt-8 mb-4 font-['Space_Grotesk']">
+                            6. Data Deletion
+                        </h2>
+                        <p className="text-[#617589] dark:text-[#9ca3af] leading-relaxed mb-4">
+                            You have the right to request the deletion of your personal data held by SupaAgent. To request data deletion, please follow these steps:
+                        </p>
+                        <ul className="list-disc pl-6 mb-6 text-[#617589] dark:text-[#9ca3af] space-y-2">
+                            <li>Send an email to <a href="mailto:info@supaagent.com" className="text-[#137fec]">info@supaagent.com</a> with the subject line "Data Deletion Request".</li>
+                            <li>Include your registered email address and, if applicable, the specific account details you wish to be removed.</li>
+                            <li>We will process your request and confirm deletion within 30 days.</li>
+                        </ul>
+
                         <h2 className="text-2xl font-bold text-[#111418] dark:text-white mt-8 mb-4 font-['Space_Grotesk']">
-                            6. Contact Us
+                            7. Contact Us
                         </h2>
                         <p className="text-[#617589] dark:text-[#9ca3af] leading-relaxed mb-6">
                             If you have any questions about this Privacy Policy, please contact us at{' '}

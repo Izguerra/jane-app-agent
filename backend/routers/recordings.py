@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger("recordings")
 logging.basicConfig(level=logging.INFO)
 
-router = APIRouter(prefix="/api/recordings", tags=["recordings"])
+router = APIRouter(prefix="/recordings", tags=["recordings"])
 
 @router.get("/{filename}")
 async def get_recording(filename: str):
