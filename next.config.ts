@@ -3,22 +3,23 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
     reactStrictMode: false,
     async rewrites() {
+        const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
         return [
             {
                 source: '/api/:path*',
-                destination: 'http://127.0.0.1:8000/:path*', // Proxy API requests
+                destination: `${BACKEND_URL}/:path*`, // Proxy API requests
             },
             {
                 source: '/webhooks/:path*',
-                destination: 'http://127.0.0.1:8000/webhooks/:path*', // Proxy Webhooks
+                destination: `${BACKEND_URL}/webhooks/:path*`, // Proxy Webhooks
             },
             {
                 source: '/docs',
-                destination: 'http://127.0.0.1:8000/docs',
+                destination: `${BACKEND_URL}/docs`,
             },
             {
                 source: '/openapi.json',
-                destination: 'http://127.0.0.1:8000/openapi.json',
+                destination: `${BACKEND_URL}/openapi.json`,
             },
         ];
     },
