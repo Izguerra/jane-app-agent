@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { FAQItem } from '@/components/faq-item';
 import { ContactForm } from '@/components/contact-form';
 import { NewsletterForm } from '@/components/marketing/newsletter-form';
-import { PricingTable } from '@/components/pricing-table';
+
 
 export default function HomePage() {
   return (
@@ -39,13 +39,13 @@ export default function HomePage() {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                <Link href="#pricing">
+                <Link href="#contact">
                   <Button
                     size="lg"
                     className="min-w-[160px] h-12 text-base font-bold rounded-xl bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-600/25 transition-all"
                   >
                     <ArrowRight className="mr-2 h-5 w-5" />
-                    Get Started
+                    Get in Touch
                   </Button>
                 </Link>
                 <Link href="#features">
@@ -157,6 +157,17 @@ export default function HomePage() {
           {/* Feature Grid */}
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
             <FeatureCard
+              icon={<Zap className="h-6 w-6" />}
+              title="OpenClaw Skills"
+              description="Powered by OpenClaw, our agents can orchestrate complex multi-step tasks, executing actions across your tools with precision."
+              badge="Trending"
+            />
+            <FeatureCard
+              icon={<Megaphone className="h-6 w-6" />}
+              title="Native Telephony"
+              description="Professional outbound and inbound calling via Telnyx and LiveKit SIP. Your agent is a phone-call away."
+            />
+            <FeatureCard
               icon={<MessageSquare className="h-6 w-6" />}
               title="Unified Voice & Chat"
               description="Experience seamless omnichannel support that allows your customers to switch between voice and text instantly without losing context."
@@ -167,19 +178,9 @@ export default function HomePage() {
               description="Track sentiment, resolution times, and customer satisfaction in real-time dashboards with actionable insights."
             />
             <FeatureCard
-              icon={<Zap className="h-6 w-6" />}
-              title="24/7 Availability"
-              description="Always on, reducing wait times to zero. Your AI agent responds in milliseconds, providing instant support."
-            />
-            <FeatureCard
               icon={<Globe className="h-6 w-6" />}
               title="Multilingual Support"
               description="Speak over 50 languages fluently. Our AI adapts to your customer's preferred language automatically."
-            />
-            <FeatureCard
-              icon={<Heart className="h-6 w-6" />}
-              title="Sentiment Analysis"
-              description="Analyze customer emotions in real-time to detect satisfaction levels and trigger appropriate responses."
             />
             <FeatureCard
               icon={<Users className="h-6 w-6" />}
@@ -192,49 +193,15 @@ export default function HomePage() {
               description="Embed your chatbot or voice assistant directly into your website with a simple one-line snippet."
             />
             <FeatureCard
-              icon={<Sparkles className="h-6 w-6" />}
-              title="Context-Aware AI"
-              description="Remembers past interactions, purchase history, and user preferences to deliver hyper-personalized support."
-            />
-            <FeatureCard
-              icon={<Zap className="h-6 w-6" />}
-              title="Plug & Play Integrations"
-              description="Connects instantly with Salesforce, HubSpot, and Zendesk. No complex coding required."
-            />
-
-
-            <FeatureCard
-              icon={<Megaphone className="h-6 w-6" />}
-              title="Campaign Management"
-              description="Launch targeted outbound campaigns to engage customers and drive conversions proactively."
-              badge="Pro Plan"
-            />
-            <FeatureCard
-              icon={<Calendar className="h-6 w-6" />}
-              title="Appointment Management"
-              description="Seamlessly book, reschedule, and manage appointments directly through your AI agent."
-            />
-            <FeatureCard
-              icon={<History className="h-6 w-6" />}
-              title="Communication Log"
-              description="Access a complete history of all AI interactions to monitor quality and gather insights."
-            />
-            <FeatureCard
-              icon={<FileText className="h-6 w-6" />}
-              title="Transcriptions"
-              description="Get accurate speech-to-text transcriptions of every voice call for easy review and compliance."
-            />
-            <FeatureCard
               icon={<User className="h-6 w-6" />}
-              title="AI Avatar"
+              title="AI Video Avatars"
               description="Ultra-realistic visual agents that bring a human face to your digital interactions."
               badge="Pro Plan"
             />
             <FeatureCard
               icon={<BrainCircuit className="h-6 w-6" />}
-              title="Long Term Memory"
-              description="Advanced context retention ensures your agent remembers details across multiple conversations."
-              badge="Pro Plan"
+              title="Context-Aware memory"
+              description="Remembers past interactions, purchase history, and user preferences to deliver hyper-personalized support."
             />
           </div>
         </div>
@@ -248,7 +215,7 @@ export default function HomePage() {
               How It Works
             </h2>
             <p className="text-gray-600 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              From data to agent in minutes. Transform complex AI processes into a simple 5-step workflow that scales with your business.
+              From data to agent in minutes. Transform complex AI processes into a simple 5-step workflow.
             </p>
           </div>
 
@@ -256,30 +223,27 @@ export default function HomePage() {
             {/* Step 1 */}
             <div className="group flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all">
               <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4 ring-4 ring-white group-hover:ring-orange-50 transition-all">
-                <Sparkles className="h-8 w-8 text-orange-600" />
+                <BrainCircuit className="h-8 w-8 text-orange-600" />
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-orange-600 text-xs font-bold uppercase tracking-wider">Step 1</span>
-                <h3 className="text-gray-900 text-lg font-bold">Configure</h3>
+                <h3 className="text-gray-900 text-lg font-bold">Configure Soul</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Name your agent, define its role, and upload your knowledge base.
+                  Name your agent, define its personality, and upload your knowledge base.
                 </p>
               </div>
             </div>
 
             {/* Step 2 */}
             <div className="group flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all relative overflow-hidden">
-              <div className="absolute top-3 right-3 bg-gradient-to-r from-orange-500 to-pink-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Pro Feature
-              </div>
               <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4 ring-4 ring-white group-hover:ring-orange-50 transition-all">
                 <User className="h-8 w-8 text-orange-600" />
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-orange-600 text-xs font-bold uppercase tracking-wider">Step 2</span>
-                <h3 className="text-gray-900 text-lg font-bold">Visual Identity</h3>
+                <h3 className="text-gray-900 text-lg font-bold">Identity Mode</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Choose a video avatar that matches your brand's personality.
+                  Choose between Voice, Text, or high-fidelity Video Avatar modes.
                 </p>
               </div>
             </div>
@@ -291,9 +255,9 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-orange-600 text-xs font-bold uppercase tracking-wider">Step 3</span>
-                <h3 className="text-gray-900 text-lg font-bold">Capabilities</h3>
+                <h3 className="text-gray-900 text-lg font-bold">Enable Skills</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Select tools like calendar booking and outbound calling.
+                  Equip your agent with OpenClaw skills like calendar booking and CRM updates.
                 </p>
               </div>
             </div>
@@ -301,13 +265,13 @@ export default function HomePage() {
             {/* Step 4 */}
             <div className="group flex flex-col items-center text-center p-6 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-lg transition-all">
               <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4 ring-4 ring-white group-hover:ring-orange-50 transition-all">
-                <BrainCircuit className="h-8 w-8 text-orange-600" />
+                <Code className="h-8 w-8 text-orange-600" />
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-orange-600 text-xs font-bold uppercase tracking-wider">Step 4</span>
-                <h3 className="text-gray-900 text-lg font-bold">Behavior</h3>
+                <h3 className="text-gray-900 text-lg font-bold">Connect Tech</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Define conversation rules, tone, and specific instructions.
+                  Connect to your professional phone line or embed on your website.
                 </p>
               </div>
             </div>
@@ -319,9 +283,9 @@ export default function HomePage() {
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-orange-600 text-xs font-bold uppercase tracking-wider">Step 5</span>
-                <h3 className="text-gray-900 text-lg font-bold">Deploy</h3>
+                <h3 className="text-gray-900 text-lg font-bold">Deploy Agent</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  Launch on your website, phone line, or social channels.
+                  Go live globally. Your agent handles inquiries 24/7 across all channels.
                 </p>
               </div>
             </div>
@@ -329,23 +293,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className="bg-orange-100 text-orange-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-              Pricing Plans
-            </span>
-            <h2 className="text-3xl md:text-5xl font-black text-gray-900 mt-4 mb-4 leading-tight tracking-tight">
-              Simple, Transparent Pricing
-            </h2>
-            <p className="text-gray-500 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              Start with our 14-day free trial. No credit card required to explore.
-            </p>
-          </div>
-          <PricingTable />
-        </div>
-      </section>
 
       {/* Newsletter Section */}
       <section className="py-20 bg-white">
