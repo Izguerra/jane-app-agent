@@ -337,7 +337,7 @@ export default function HomePage() {
             />
             <FAQItem
               question="Is my data secure?"
-              answer="Absolutely. We use enterprise-grade encryption for all data and never use your private data to train our public models."
+              answer="Data security is our top priority. We use enterprise-grade encryption for all data and strictly isolate each workspace to ensure agents can only access authorized files and information. Our platform includes robust system-level guardrails, and you have the power to define your own custom guardrails for every agent. Furthermore, we never use your private data to train our public models."
             />
             <FAQItem
               question="How long does setup take?"
