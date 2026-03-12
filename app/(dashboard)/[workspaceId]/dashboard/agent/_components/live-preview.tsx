@@ -130,16 +130,25 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         
         // If transitioning from an active session to another active session type
         if ((mode === 'voice' || mode === 'avatar') && (targetMode === 'voice' || targetMode === 'avatar')) {
-            toast.info(`Shutting down ${mode} session before starting ${targetMode}...`, { duration: 2500 });
-            isSwitchingMode.current = true;
-            
-            // Clear current token to trigger LiveKitRoom unmount immediately
-            setConnectionStatus('transitioning');
-            setToken("");
-            setUrl("");
-            
-            // Allow time for the backend and LiveKit to fully tear down the old session
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            toast.promise(
+                new Promise(async (resolve) => {
+                    isSwitchingMode.current = true;
+                    // Clear current token to trigger LiveKitRoom unmount immediately
+                    setConnectionStatus('transitioning');
+                    setToken("");
+                    setUrl("");
+                    // Allow time for the backend and LiveKit to fully tear down the old session
+                    await new Promise(r => setTimeout(r, 2000));
+                    resolve(true);
+                }),
+                {
+                    loading: `Shutting down ${mode} session...`,
+                    success: `Starting ${targetMode} mode`,
+                    error: 'Transition failed',
+                }
+            );
+        } else if (targetMode === 'voice' || targetMode === 'avatar') {
+            toast.info(`Initializing ${targetMode} agent...`);
         }
         
         setMode(targetMode);
@@ -487,7 +496,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                 <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center overflow-hidden border border-white/20">
                         {formData.useTavusAvatar && formData.avatarUrl && !headerImgError ? (
-                            formData.avatarUrl.includes('.mp4') ? (
+                            (formData.avatarUrl.toLowerCase().includes('.mp4') || formData.avatarUrl.toLowerCase().includes('video') || formData.avatarUrl.toLowerCase().includes('idling')) ? (
                                 <video
                                     src={formData.avatarUrl}
                                     className="h-full w-full object-cover"

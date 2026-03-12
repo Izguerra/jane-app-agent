@@ -31,3 +31,31 @@ services:
     volumes:
       - ./backend/asterisk_config:/etc/asterisk
     restart: unless-stopped
+
+  voice_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: supaagent_voice_worker
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - AGENT_NAME=supaagent-voice-agent-v2
+    command: python /app/backend/voice_agent.py dev
+    depends_on:
+      - backend
+
+  avatar_worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: supaagent_avatar_worker
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - AGENT_NAME=supaagent-avatar-agent-v2
+    command: python /app/backend/avatar_agent.py dev
+    depends_on:
+      - backend
