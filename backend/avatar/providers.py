@@ -1,0 +1,45 @@
+import os
+import json
+import logging
+from livekit.plugins import tavus, anam
+
+logger = logging.getLogger("avatar-agent")
+
+async def initialize_avatar(avatar_provider: str, settings: dict, session, room, ctx):
+    tavus_replica_id = settings.get("tavus_replica_id")
+    tavus_persona_id = settings.get("tavus_persona_id")
+    anam_persona_id = settings.get("anam_persona_id")
+    
+    avatar = None
+    if avatar_provider == "anam" and anam_persona_id:
+        try:
+            logger.info(f"Initializing Anam.ai avatar with persona={anam_persona_id}")
+            persona_cfg = anam.PersonaConfig(name=settings.get("name", "JaneApp Agent"), avatarId=anam_persona_id)
+            avatar = anam.AvatarSession(persona_config=persona_cfg)
+            await avatar.start(session, room=room)
+            logger.info("Anam.ai Avatar Started!")
+        except Exception as e:
+            logger.error(f"ANAM ERROR: {e}")
+            
+    elif tavus_replica_id:
+        try:
+            # WSS FIX
+            url = os.environ.get("LIVEKIT_URL", "")
+            if url.startswith("https://"):
+                os.environ["LIVEKIT_URL"] = url.replace("https://", "wss://")
+            
+            logger.info(f"Initializing Tavus session with replica={tavus_replica_id}")
+            avatar = tavus.AvatarSession(replica_id=tavus_replica_id, persona_id=tavus_persona_id)
+            await avatar.start(session, room=room)
+            logger.info("Tavus Avatar Started!")
+            
+            # Metadata update for Tavus conversation ID
+            cid = getattr(avatar, 'conversation_id', 'Unknown')
+            if cid and cid != 'Unknown':
+                current_meta = json.loads(room.metadata) if room.metadata else {}
+                current_meta["tavus_conversation_id"] = cid
+                await room.update_metadata(json.dumps(current_meta))
+        except Exception as e:
+            logger.error(f"TAVUS ERROR: {e}")
+            
+    return avatar

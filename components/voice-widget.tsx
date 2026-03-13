@@ -59,6 +59,29 @@ export function VoiceWidget() {
         if (!isOpen) setIsFullScreen(false);
     }, [isOpen]);
 
+    const handleModeSwitch = async (targetMode: WidgetMode) => {
+        if (mode === targetMode) return;
+
+        if ((mode === 'voice' || mode === 'avatar') && (targetMode === 'voice' || targetMode === 'avatar')) {
+            await toast.promise(
+                new Promise(async (resolve) => {
+                    setMode('chat'); // Temporarily drop to chat to force unmount
+                    await new Promise(r => setTimeout(r, 2500));
+                    setMode(targetMode);
+                    resolve(true);
+                }),
+                {
+                    loading: `Switching to ${targetMode}...`,
+                    success: `${targetMode.charAt(0).toUpperCase() + targetMode.slice(1)} mode ready`,
+                    error: 'Transition failed',
+                }
+            );
+            return;
+        }
+        
+        setMode(targetMode);
+    };
+
     return (
         <div className={cn(
             "fixed z-50 flex flex-col items-end gap-4 transition-all duration-300",
@@ -93,7 +116,7 @@ export function VoiceWidget() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8 rounded-full text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                                                onClick={() => setMode('voice')}
+                                                onClick={() => handleModeSwitch('voice')}
                                                 title="Start Voice Call"
                                             >
                                                 <Phone className="h-4 w-4" />
@@ -104,7 +127,7 @@ export function VoiceWidget() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8 rounded-full text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-                                                onClick={() => setMode('avatar')}
+                                                onClick={() => handleModeSwitch('avatar')}
                                                 title="Start Video Call"
                                             >
                                                 <Video className="h-4 w-4" />

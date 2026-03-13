@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
@@ -20,8 +20,7 @@ class CommunicationLogResponse(BaseModel):
     # participant_identity removed as it's not in the new Communication model/schema yet
     # participant_identity: Optional[str] = None 
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
         
     @classmethod
     def from_orm(cls, obj):

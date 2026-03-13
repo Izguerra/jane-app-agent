@@ -561,7 +561,7 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                             </div>
 
                             <div className="space-y-4">
-                                {formData.faqItems.map((item, index) => (
+                                {(formData.faqItems || []).map((item, index) => (
                                     <div key={index} className="flex gap-4 items-start p-4 border rounded-lg bg-gray-50">
                                         <div className="flex-1 space-y-3">
                                             <div>
@@ -633,7 +633,7 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                             <div className="mt-4 w-full text-left">
                                 <p className="text-xs font-semibold mb-1">Selected Files:</p>
                                 <ul className="text-xs text-gray-600 list-disc pl-4">
-                                    {formData.kbFiles.map((f, i) => (
+                                    {(formData.kbFiles || []).map((f, i) => (
                                         <li key={i}>{f.name}</li>
                                     ))}
                                 </ul>
@@ -643,7 +643,7 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                             <div className="mt-4 w-full text-left">
                                 <p className="text-xs font-semibold mb-1">Existing Files:</p>
                                 <div className="space-y-1">
-                                    {formData.existingKbUrls.map((url, i) => (
+                                    {(formData.existingKbUrls || []).map((url, i) => (
                                         <div key={i} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs border">
                                             <span className="truncate flex-1" title={url}>{url.split('/').pop()}</span>
                                             <Button

@@ -14,8 +14,13 @@ export async function GET(req: NextRequest) {
         const res = await fetch(
             `${BACKEND_URL}/workers/stats?workspace_id=${workspace_id}`,
             {
-                headers: { "Content-Type": "application/json" },
-                cache: "no-store"
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Cookie": req.headers.get("cookie") || ""
+                },
+                cache: "no-store",
+                // @ts-ignore
+                credentials: "include"
             }
         );
 

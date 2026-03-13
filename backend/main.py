@@ -19,8 +19,10 @@ except Exception:
 from backend.routers import (
     chat,
     knowledge,
-    knowledge_base,
     workspace,
+)
+from backend.routers.knowledge import base as knowledge_base
+from backend.routers import (
     agents,
     phone,
     analytics,
@@ -42,7 +44,7 @@ from backend.routers import (
     settings,
     workspaces,
     admin_analytics,
-    admin_settings,
+    admin as admin_settings,
     appointments,
     deals,
     outbound,

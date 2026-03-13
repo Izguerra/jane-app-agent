@@ -229,7 +229,7 @@ async def _call_gemini(api_key: str, system_prompt: str, user_message: str) -> s
     
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        "gemini-3-flash-preview",
+        "gemini-1.5-flash",
         system_instruction=system_prompt,
         generation_config=genai.GenerationConfig(
             max_output_tokens=150,

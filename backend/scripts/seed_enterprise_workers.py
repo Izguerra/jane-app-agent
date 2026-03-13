@@ -245,6 +245,52 @@ WORKERS = [
        },
        "icon": "message-square",
        "color": "green"
+    },
+    {
+       "slug": "flight-tracker",
+       "name": "Flight Tracker",
+       "category": "productivity",
+       "description": "Check real-time flight status, schedules, and airline information.",
+       "input_schema": {
+           "type": "object",
+           "properties": {
+               "flight_number": {"type": "string", "description": "Flight number (e.g. AC197)"},
+               "origin": {"type": "string"},
+               "destination": {"type": "string"}
+           }
+       },
+       "icon": "plane",
+       "color": "sky"
+    },
+    {
+       "slug": "weather-worker",
+       "name": "Weather Assistant",
+       "category": "productivity",
+       "description": "Get current weather and forecasts for any location.",
+       "input_schema": {
+           "type": "object",
+           "properties": {
+               "location": {"type": "string"}
+           },
+           "required": ["location"]
+       },
+       "icon": "cloud",
+       "color": "sky"
+    },
+    {
+       "slug": "map-worker",
+       "name": "Map & Navigation Agent",
+       "category": "productivity",
+       "description": "Get locations, distances, and navigation info.",
+       "input_schema": {
+           "type": "object",
+           "properties": {
+               "origin": {"type": "string"},
+               "destination": {"type": "string"}
+           }
+       },
+       "icon": "map",
+       "color": "emerald"
     }
 ]
 

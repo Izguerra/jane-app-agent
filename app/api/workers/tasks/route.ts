@@ -23,8 +23,13 @@ export async function GET(req: NextRequest) {
         const res = await fetch(
             url,
             {
-                headers: { "Content-Type": "application/json" },
-                cache: "no-store"
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Cookie": req.headers.get("cookie") || ""
+                },
+                cache: "no-store",
+                // @ts-ignore
+                credentials: "include"
             }
         );
 
@@ -55,8 +60,13 @@ export async function POST(req: NextRequest) {
             `${BACKEND_URL}/workers/tasks?workspace_id=${workspace_id}`,
             {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body)
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Cookie": req.headers.get("cookie") || ""
+                },
+                body: JSON.stringify(body),
+                // @ts-ignore
+                credentials: "include"
             }
         );
 

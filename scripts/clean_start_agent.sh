@@ -7,9 +7,8 @@ NC='\033[0m' # No Color
 
 echo -e "${RED}🔪 Hunting down zombie voice agents...${NC}"
 
-# Find all PIDs matching "backend.voice_agent"
-# We use pgrep -f to match the full command line
-PIDS=$(pgrep -f "backend.voice_agent")
+# Find all PIDs matching "backend.voice_agent" - refined to avoid killing IDE extensions
+PIDS=$(ps aux | grep -v grep | grep -E "python.*backend\.voice_agent" | grep -v "\.antigravity" | awk '{print $2}')
 
 if [ -z "$PIDS" ]; then
     echo "No running voice agents found."

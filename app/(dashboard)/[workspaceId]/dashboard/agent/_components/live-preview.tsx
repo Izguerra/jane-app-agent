@@ -130,23 +130,29 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         
         // If transitioning from an active session to another active session type
         if ((mode === 'voice' || mode === 'avatar') && (targetMode === 'voice' || targetMode === 'avatar')) {
-            toast.promise(
+            await toast.promise(
                 new Promise(async (resolve) => {
                     isSwitchingMode.current = true;
-                    // Clear current token to trigger LiveKitRoom unmount immediately
+                    setMode('chat'); // Drop to chat mode immediately to unmount Voice/Avatar components
+                    
+                    // Clear current token to trigger LiveKitRoom unmount within those components if they stick around
                     setConnectionStatus('transitioning');
                     setToken("");
                     setUrl("");
+                    
                     // Allow time for the backend and LiveKit to fully tear down the old session
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, 2500));
+                    
+                    setMode(targetMode); // Finally switch to the new session mode
                     resolve(true);
                 }),
                 {
-                    loading: `Shutting down ${mode} session...`,
+                    loading: `Shutting down current session...`,
                     success: `Starting ${targetMode} mode`,
                     error: 'Transition failed',
                 }
             );
+            return;
         } else if (targetMode === 'voice' || targetMode === 'avatar') {
             toast.info(`Initializing ${targetMode} agent...`);
         }
@@ -504,8 +510,25 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                     loop
                                     muted
                                     playsInline
-                                    onError={() => {
+                                    onError={async () => {
                                         console.warn("Header video failed to load: " + formData.avatarUrl);
+                                        // Attempt to refresh if it looks like an Anam URL (often has anam in name or cloudflarestorage)
+                                        if (formData.avatarUrl?.includes('anam') || formData.avatarUrl?.includes('cloudflarestorage')) {
+                                            console.log("Attempting to refresh expired Anam URL...");
+                                            try {
+                                                const idToUse = agentId || (formData as any).id;
+                                                const res = idToUse ? await fetch(`/api/agents/${idToUse}`) : null;
+                                                if (res && res.ok) {
+                                                    const refreshedData = await res.json();
+                                                    if (refreshedData.avatarUrl !== formData.avatarUrl && setFormData) {
+                                                        setFormData(prev => ({ ...prev, avatarUrl: refreshedData.avatarUrl }));
+                                                        return;
+                                                    }
+                                                }
+                                            } catch (e) {
+                                                console.error("Failed to refresh avatar URL", e);
+                                            }
+                                        }
                                         setHeaderImgError(true);
                                     }}
                                 />

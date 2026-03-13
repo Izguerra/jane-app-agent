@@ -10,8 +10,8 @@ if [ ! -z "$PID_8000" ]; then
     kill -9 $PID_8000
 fi
 
-# Kill Voice Agent
-PIDS_AGENT=$(pgrep -f "backend.voice_agent")
+# Kill Voice Agent - refined to avoid killing IDE extensions (like Pyre)
+PIDS_AGENT=$(ps aux | grep -v grep | grep -E "python.*backend\.voice_agent" | grep -v "\.antigravity" | awk '{print $2}')
 if [ ! -z "$PIDS_AGENT" ]; then
     echo "Killing Voice Agent processes: $PIDS_AGENT"
     echo "$PIDS_AGENT" | xargs kill -9

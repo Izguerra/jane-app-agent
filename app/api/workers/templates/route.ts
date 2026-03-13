@@ -1,12 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
         const res = await fetch(`${BACKEND_URL}/workers/templates`, {
-            headers: { "Content-Type": "application/json" },
-            cache: "no-store"
+            headers: { 
+                "Content-Type": "application/json",
+                "Cookie": req.headers.get("cookie") || ""
+            },
+            cache: "no-store",
+            // @ts-ignore - Some fetch environments need this for cookies
+            credentials: "include"
         });
 
         if (!res.ok) {

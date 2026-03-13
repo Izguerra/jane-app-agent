@@ -126,8 +126,13 @@ def get_db():
 # Create tables if they don't exist
 def init_db():
     from backend.models_db import (
-        Agent, Workspace, Communication, Customer, ConversationMessage,
-        Appointment, Deal, AppointmentReminder, WorkerInstance
+        User, Team, TeamMember, ActivityLog, PlatformIntegration,
+        AdminSetting, APIKey, ActiveSession, Workspace, Agent,
+        Communication, Integration, Document, Customer, ConversationMessage,
+        PhoneNumber, WhatsAppTemplate, Appointment, Deal, AppointmentReminder,
+        KnowledgeBaseSource, Campaign, CampaignStep, CampaignEnrollment,
+        WorkerTemplate, WorkerTask, WorkerSchedule, WorkerInstance,
+        Skill, AgentSkill, AgentPersonality, WorkspaceLLMConfig, MCPServer
     )
     Base.metadata.create_all(bind=engine)
     print("Database tables created successfully")
