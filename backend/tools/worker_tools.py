@@ -341,6 +341,10 @@ class WorkerTools:
         try:
             service = WorkerService(db)
             
+            # Inject workspace_id into parameters so worker can resolve API keys
+            if "workspace_id" not in parameters:
+                parameters["workspace_id"] = self.workspace_id
+
             # Create Task Record
             task = service.create_task(
                 workspace_id=self.workspace_id,

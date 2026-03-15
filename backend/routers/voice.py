@@ -334,6 +334,80 @@ async def get_token_post(
     )
 
 
+class CleanupRoomRequest(BaseModel):
+    agent_id: str
+
+@router.post("/cleanup-room")
+async def cleanup_room(
+    request: CleanupRoomRequest,
+    current_user: AuthUser = Depends(get_current_user)
+):
+    """
+    Explicitly delete old LiveKit rooms for this agent before creating new ones.
+    This is the core of the 'Clean Break' approach — ensures no stale rooms
+    or ghost agents interfere when switching between voice and avatar modes.
+    """
+    api_key = os.getenv("LIVEKIT_API_KEY")
+    api_secret = os.getenv("LIVEKIT_API_SECRET")
+    livekit_url = os.getenv("LIVEKIT_URL")
+
+    if not api_key or not api_secret or not livekit_url:
+        raise HTTPException(status_code=503, detail="LiveKit not configured")
+
+    agent_prefix = request.agent_id[:8] if request.agent_id else "unknown"
+    deleted_rooms = []
+
+    try:
+        lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
+        for suffix in ["-voice", "-avatar"]:
+            room_name = f"agent-session-{agent_prefix}{suffix}"
+            try:
+                await lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))
+                deleted_rooms.append(room_name)
+                print(f"DEBUG: [CLEANUP] Deleted room: {room_name}")
+            except Exception as e:
+                # Room may not exist — this is fine
+                print(f"DEBUG: [CLEANUP] Room {room_name} not found or already deleted: {e}")
+        await lkapi.aclose()
+    except Exception as e:
+        print(f"ERROR: [CLEANUP] Failed to cleanup rooms: {e}")
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
+    return {"status": "ok", "deleted": deleted_rooms}
+
+
+@router.get("/room-status")
+async def room_status(
+    agent_id: str,
+    mode: str = "voice",
+    current_user: AuthUser = Depends(get_current_user)
+):
+    """
+    Check whether a LiveKit room exists for the given agent and mode.
+    Used by the frontend to poll and confirm that a room has been torn down
+    before switching to a new mode.
+    """
+    api_key = os.getenv("LIVEKIT_API_KEY")
+    api_secret = os.getenv("LIVEKIT_API_SECRET")
+    livekit_url = os.getenv("LIVEKIT_URL")
+
+    if not api_key or not api_secret or not livekit_url:
+        raise HTTPException(status_code=503, detail="LiveKit not configured")
+
+    agent_prefix = agent_id[:8] if agent_id else "unknown"
+    room_name = f"agent-session-{agent_prefix}-{mode}"
+
+    try:
+        lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
+        rooms = await lkapi.room.list_rooms(api.ListRoomsRequest(names=[room_name]))
+        exists = len(rooms.rooms) > 0
+        await lkapi.aclose()
+    except Exception as e:
+        print(f"DEBUG: [ROOM-STATUS] Error checking room: {e}")
+        exists = False
+
+    return {"exists": exists, "room_name": room_name}
+
 @router.post("/outbound-twiml")
 async def outbound_twiml(room: str, metadata: str = None):
     """

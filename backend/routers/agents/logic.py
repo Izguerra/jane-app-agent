@@ -10,7 +10,7 @@ from backend.auth import get_current_user, AuthUser, get_workspace_context
 from backend.models_db import Agent
 from .models import AgentCreate # For type hinting if needed
 
-router = APIRouter(tags=["agents-logic"])
+router = APIRouter(prefix="/agents", tags=["agents-logic"])
 
 settings_listeners = set()
 

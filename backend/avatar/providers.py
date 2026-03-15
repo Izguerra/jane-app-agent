@@ -6,9 +6,9 @@ from livekit.plugins import tavus, anam
 logger = logging.getLogger("avatar-agent")
 
 async def initialize_avatar(avatar_provider: str, settings: dict, session, room, ctx):
-    tavus_replica_id = settings.get("tavus_replica_id")
-    tavus_persona_id = settings.get("tavus_persona_id")
-    anam_persona_id = settings.get("anam_persona_id")
+    tavus_replica_id = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
+    tavus_persona_id = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
+    anam_persona_id = settings.get("anam_persona_id") or settings.get("anamPersonaId")
     
     avatar = None
     if avatar_provider == "anam" and anam_persona_id:

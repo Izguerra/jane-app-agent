@@ -8,12 +8,10 @@ from backend.services.integration_service import IntegrationService
 class ExternalTools:
     def __init__(self, workspace_id: str = None):
         self.workspace_id = workspace_id
-        
-    def __init__(self, workspace_id: str = None):
-        self.workspace_id = workspace_id
         self.weather_api_key = None
         self.aviation_api_key = None
         self.google_maps_api_key = None
+        self.timeout = aiohttp.ClientTimeout(total=10) # 10s default timeout
 
     async def get_current_weather(self, location: str, date: str = None, units: str = "metric", **kwargs):
         """
@@ -37,7 +35,7 @@ class ExternalTools:
         unit_symbol = "°C" if unit_sys == "metric" else "°F"
 
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self.timeout) as session:
                 # Determine Endpoint: Forecast (Future) vs Weather (Current)
                 is_future = bool(date and "today" not in date.lower() and "now" not in date.lower())
                 endpoint = "forecast" if is_future else "weather"
@@ -129,7 +127,7 @@ class ExternalTools:
             else:
                  return "Please provide either a Flight Number OR an Origin and Destination."
             
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self.timeout) as session:
                 url = f"http://api.aviationstack.com/v1/flights?{query_params}"
                 async with session.get(url) as response:
                     if response.status != 200:
@@ -211,7 +209,7 @@ class ExternalTools:
             return "Google Maps API key is not configured."
             
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=self.timeout) as session:
                 if mode not in ["driving", "walking", "bicycling", "transit"]:
                     mode = "driving"
                     

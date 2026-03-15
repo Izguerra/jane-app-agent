@@ -12,6 +12,10 @@ class WorkerMixin:
         try:
             service = WorkerService(db)
             params = json.loads(input_data)
+            
+            if "workspace_id" not in params:
+                params["workspace_id"] = self.workspace_id
+                
             task = service.create_task(workspace_id=self.workspace_id, worker_type=worker_type, input_data=params, dispatched_by_agent_id=self.agent_id)
             
             # Simplified handler resolution for refactor

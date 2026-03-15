@@ -2,7 +2,8 @@ import logging
 import json
 import asyncio
 import os
-from livekit.rtc import ConnectionState, AutoSubscribe
+from livekit.rtc import ConnectionState
+from livekit.agents import AutoSubscribe
 from backend.database import SessionLocal
 from backend.models_db import Communication, Workspace, Agent as AgentModel, PhoneNumber
 

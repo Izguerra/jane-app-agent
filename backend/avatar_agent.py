@@ -102,4 +102,4 @@ async def entrypoint(ctx: JobContext):
     await finalize_communication_log(log_id, transcript, avatar)
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "avatar-agent")))
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-avatar-agent-v2")))

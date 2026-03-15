@@ -1,24 +1,35 @@
 import os
-import asyncio
-from livekit.plugins import google as google_plugin
+import requests
+from dotenv import load_dotenv
 
-async def test_gemini():
-    gemini_key = os.getenv("GOOGLE_GEMINI_API_KEY")
-    if not gemini_key:
-        print("No GOOGLE_GEMINI_API_KEY")
-        return
-        
-    print("Testing gemini-3-flash-preview initialization...")
+load_dotenv("/Users/randyesguerra/Documents/Documents-Randy/Projects/JaneAppAgent/.env")
+api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
+
+if not api_key:
+    print("API Key not found!")
+    exit(1)
+
+models_to_test = [
+    "gemini-3.0-flash",
+    "gemini-3.0-flash-exp",
+    "gemini-3.0-pro",
+    "gemini-3.0-pro-exp",
+    "gemini-3-flash",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-exp",
+    "gemini-1.5-flash"
+]
+
+for model in models_to_test:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    payload = {
+        "contents": [{"parts": [{"text": "Hello"}]}]
+    }
+    response = requests.post(url, json=payload)
+    status = response.status_code
     try:
-        llm_instance = google_plugin.LLM(
-            model="gemini-3-flash-preview",
-            api_key=gemini_key,
-            temperature=0.7
-        )
-        print("Initialization successful.")
-        print("Test complete.")
-    except Exception as e:
-        print(f"Error: {e}")
-
-if __name__ == "__main__":
-    asyncio.run(test_gemini())
+        msg = response.json().get('error', {}).get('message', 'OK')
+    except:
+        msg = response.text[:40]
+    print(f"Model: {model} -> Status: {status} -> {msg}")

@@ -118,47 +118,88 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         setConnectionStatus('connected');
     }, []);
 
-    const handleEndCall = useCallback(() => {
+    const handleEndCall = useCallback(async () => {
         intentionalDisconnect.current = true;
         setToken("");
         setUrl("");
         setMode('chat');
-    }, []);
+        // Clean up server-side rooms
+        if (agentId && agentId !== 'new') {
+            try {
+                await fetch("/api/voice/cleanup-room", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+            } catch (e) {
+                console.warn("Room cleanup on end call failed (non-critical):", e);
+            }
+        }
+    }, [agentId]);
 
     const handleModeSwitch = async (targetMode: 'chat' | 'voice' | 'avatar') => {
         if (mode === targetMode) return;
         
-        // If transitioning from an active session to another active session type
-        if ((mode === 'voice' || mode === 'avatar') && (targetMode === 'voice' || targetMode === 'avatar')) {
+        // CLEAN BREAK: Always go through chat first with server-side room cleanup
+        if (mode === 'voice' || mode === 'avatar') {
             await toast.promise(
                 new Promise(async (resolve) => {
+                    // 1. Mark as intentional disconnect to prevent reconnect logic
                     isSwitchingMode.current = true;
-                    setMode('chat'); // Drop to chat mode immediately to unmount Voice/Avatar components
-                    
-                    // Clear current token to trigger LiveKitRoom unmount within those components if they stick around
+                    intentionalDisconnect.current = true;
                     setConnectionStatus('transitioning');
+                    
+                    // 2. Drop to chat mode immediately to unmount LiveKitRoom
                     setToken("");
                     setUrl("");
+                    setMode('chat');
                     
-                    // Allow time for the backend and LiveKit to fully tear down the old session
-                    await new Promise(r => setTimeout(r, 2500));
+                    // 3. Server-side cleanup: explicitly delete old rooms
+                    if (agentId && agentId !== 'new') {
+                        try {
+                            await fetch("/api/voice/cleanup-room", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ agent_id: agentId })
+                            });
+                        } catch (e) {
+                            console.warn("Room cleanup request failed (non-critical):", e);
+                        }
+                    }
                     
-                    setMode(targetMode); // Finally switch to the new session mode
+                    // 4. Brief propagation delay for LiveKit to fully tear down
+                    await new Promise(r => setTimeout(r, 1000));
+                    
+                    // 5. Reset connection state
+                    reconnectAttempts.current = 0;
+                    setConnectionStatus('idle');
+                    isSwitchingMode.current = false;
+                    intentionalDisconnect.current = false;
+                    
                     resolve(true);
                 }),
                 {
-                    loading: `Shutting down current session...`,
-                    success: `Starting ${targetMode} mode`,
+                    loading: `Shutting down ${mode} session...`,
+                    success: targetMode === 'chat' ? 'Session ended' : `Starting ${targetMode} mode`,
                     error: 'Transition failed',
                 }
             );
+            
+            // 6. If target is not chat, switch to new mode (triggers token fetch)
+            if (targetMode !== 'chat') {
+                setMode(targetMode);
+            }
             return;
-        } else if (targetMode === 'voice' || targetMode === 'avatar') {
+        }
+        
+        // Simple switch from chat → voice/avatar
+        if (targetMode === 'voice' || targetMode === 'avatar') {
             toast.info(`Initializing ${targetMode} agent...`);
         }
         
         setMode(targetMode);
     };
+
 
     const handleRetry = useCallback(() => {
         reconnectAttempts.current = 0;
@@ -336,27 +377,17 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     }, [mode]);
 
 
-    // Fetch Token on Voice Mode - Use pre-generated token if available
+    // Fetch Token on Voice Mode
     useEffect(() => {
         if (unavailable) return;
 
         if ((mode === 'voice' || mode === 'avatar') && !token) {
-            // Priority 1: Use pre-generated token from parent (after save)
-            // parent now generates tokens with correct mode if useTavusAvatar is set
-            if (voiceToken) {
-                // Determine if parent's token matches our current mode intent
-                // We don't have the mode in the tokenData object itself usually, 
-                // but we can assume if useTavusAvatar is true, we want avatar mode.
-                const parentMode = formData.useTavusAvatar ? 'avatar' : 'voice';
-                if (mode === parentMode) {
-                    setToken(voiceToken.token);
-                    setUrl(voiceToken.url);
-                    console.log(`DEBUG: Using pre-generated ${mode} token from save`);
-                    return;
-                }
-            }
+            // Note: We deliberately DO NOT reuse any pre-generated tokens from the parent.
+            // Why? Reusing a token bypasses the backend POST /api/voice/token endpoint. 
+            // The backend endpoint is responsible for explicitly dispatching the AI agent.
+            // If we reuse a token, the user enters the room but the agent is never dispatched.
+            // This guarantees a fresh dispatch on every call initialization.
 
-            // Priority 2: Fallback to on-demand fetch if no pre-generated token
             // This is for cases where user hasn't saved yet but wants to preview
             if (!agentId || agentId === 'new') {
                 setError("Please save the agent first to enable voice/video preview");
