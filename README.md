@@ -12,6 +12,12 @@ SupaAgent is a high-performance, real-time AI customer support platform that ena
 - **Auto-Closure Logic:** Automated background scheduler that cleans up idle sessions after 2 minutes of inactivity.
 - **Voice & Video Avatar:** High-fidelity spoken interaction powered by LiveKit and Tavus replicas.
 
+## 🆕 Recent Updates
+- **Agent Stability:** Resolved 1-participant and 3rd-participant bugs by isolating connection scopes.
+- **Tool Context:** Complete refactor of backend tool mixins (Web Search, CRM, Calendar, Mailbox, and Workers) to ensure native `workspace_id` propagation for secure, multi-tenant API key resolution.
+- **LLM Configuration:** Ensured compatibility and stability with Google's latest `gemini-3-flash-preview` model via the LiveKit Google plugin.
+- **Worker Timeouts:** Added global 10-second `aiohttp` timeouts for resilient third-party API executions (e.g., Weather queries).
+
 ## 🛠 Tech Stack
 
 - **Frontend:** Next.js, React, Tailwind CSS, shadcn/ui.
