@@ -19,7 +19,10 @@ async def initialize_avatar(avatar_provider: str, settings: dict, session, room,
             await avatar.start(session, room=room)
             logger.info("Anam.ai Avatar Started!")
         except Exception as e:
+            import traceback
             logger.error(f"ANAM ERROR: {e}")
+            logger.error(f"ANAM TRACEBACK:\n{traceback.format_exc()}")
+            # Don't silently swallow — the session will still work as voice-only
             
     elif tavus_replica_id:
         try:
@@ -40,6 +43,8 @@ async def initialize_avatar(avatar_provider: str, settings: dict, session, room,
                 current_meta["tavus_conversation_id"] = cid
                 await room.update_metadata(json.dumps(current_meta))
         except Exception as e:
+            import traceback
             logger.error(f"TAVUS ERROR: {e}")
+            logger.error(f"TAVUS TRACEBACK:\n{traceback.format_exc()}")
             
     return avatar

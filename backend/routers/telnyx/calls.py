@@ -85,7 +85,7 @@ async def texml_outbound(request: Request, db: Session = Depends(get_db)):
         comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first() or db.query(Communication).filter(Communication.user_identifier == to_number, Communication.direction == "outbound", Communication.status == "ongoing").order_by(Communication.started_at.desc()).first()
         if not comm: return Response(content='<Response><Say>No session.</Say></Response>', media_type="application/xml")
         
-        room_name = f"outbound_{comm.id}"
+        room_name = f"outbound-{str(comm.id).replace('_', '-')}"
         from backend.routers.voice import outbound_twiml
         import urllib.parse
         meta = urllib.parse.quote(json.dumps({"communication_id": comm.id, "workspace_id": comm.workspace_id, "call_intent": comm.call_intent, "customer_id": comm.customer_id, "agent_id": comm.agent_id}))

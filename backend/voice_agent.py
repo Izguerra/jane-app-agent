@@ -14,7 +14,12 @@ import socket
 _orig_getaddrinfo = socket.getaddrinfo
 def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     if host == "jane-clinic-app-tupihomh.livekit.cloud":
-        host = "161.115.178.157"
+        # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
+        # Returned as list of tuples (family, type, proto, canonname, sockaddr)
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.178.157', port)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.179.230', port))
+        ]
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 socket.getaddrinfo = _patched_getaddrinfo
 
@@ -72,7 +77,10 @@ async def entrypoint(ctx: JobContext):
         if agent_rec:
             agent_id = agent_rec.id
             if agent_rec.settings: settings.update(agent_rec.settings)
-            workspace_info = {"name": agent_rec.workspace.name, "phone": agent_rec.workspace.phone, "services": settings.get("services"), "role": settings.get("role")}
+            # Query Workspace directly — Agent model has no 'workspace' relationship
+            ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+            if ws:
+                workspace_info = {"name": ws.name, "phone": ws.phone, "services": settings.get("services"), "role": settings.get("role")}
             
         if not log_id:
             log_entry = Communication(
@@ -95,6 +103,21 @@ async def entrypoint(ctx: JobContext):
         settings, personality_prompt, skills, workspace_info, 
         start_time.strftime("%A, %B %d, %Y at %I:%M %p"), settings.get("client_location")
     )
+
+    # Inject cross-channel context memory (Layer 2)
+    try:
+        from backend.services.agent_context_service import AgentContextService
+        # Use participant identity or phone number for customer resolution
+        caller_id = participant.identity or settings.get("caller_phone") or settings.get("user_identifier")
+        if caller_id:
+            context_prompt = AgentContextService.build_context_prompt(
+                workspace_id=workspace_id, identifier=caller_id, channel="voice", limit=10, hours=72
+            )
+            if context_prompt:
+                prompt += f"\n\n{context_prompt}"
+                logger.info(f"Injected cross-channel context for caller: {caller_id}")
+    except Exception as e:
+        logger.warning(f"Context injection failed (non-fatal): {e}")
 
     # 4. Pipeline Setup
     voice_id = settings.get("voice_id", "alloy")

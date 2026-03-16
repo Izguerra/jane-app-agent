@@ -16,7 +16,12 @@ import socket
 _orig_getaddrinfo = socket.getaddrinfo
 def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     if host == "jane-clinic-app-tupihomh.livekit.cloud":
-        host = "161.115.178.157"
+        # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
+        # Returned as list of tuples (family, type, proto, canonname, sockaddr)
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.178.157', port)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.179.230', port))
+        ]
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 socket.getaddrinfo = _patched_getaddrinfo
 
@@ -30,6 +35,7 @@ from backend.avatar.config import resolve_settings, get_llm, get_tts
 from backend.avatar.prompts import get_avatar_prompt
 from backend.avatar.providers import initialize_avatar
 from backend.avatar.tracking import start_communication_log, finalize_communication_log
+from backend.services.voice_handlers import VoiceHandlers
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("avatar-agent")
@@ -74,15 +80,35 @@ async def entrypoint(ctx: JobContext):
     # Prompt
     full_prompt = get_avatar_prompt(settings)
     
+    # Inject cross-channel context memory (Layer 2)
+    try:
+        from backend.services.agent_context_service import AgentContextService
+        caller_id = participant.identity or settings.get("user_identifier")
+        if caller_id:
+            context_prompt = AgentContextService.build_context_prompt(
+                workspace_id=workspace_id, identifier=caller_id, channel="avatar", limit=10, hours=72
+            )
+            if context_prompt:
+                full_prompt += f"\n\n{context_prompt}"
+                logger.info(f"Injected cross-channel context for avatar caller: {caller_id}")
+    except Exception as e:
+        logger.warning(f"Context injection failed (non-fatal): {e}")
+    
     from livekit.agents.voice import AgentSession, Agent as livekit_Agent
     session = AgentSession(vad=vad, stt=stt, llm=llm_instance, tts=tts_instance, tools=all_tools)
     agent_logic = livekit_Agent(instructions=full_prompt)
+    
+    # Register voice event handlers (matches voice_agent.py for consistent state tracking)
+    VoiceHandlers.register_session_events(session, ctx)
     
     # Avatar initialization
     avatar = await initialize_avatar(settings.get("avatar_provider", "tavus"), settings, session, ctx.room, ctx)
     
     await session.start(agent_logic, room=ctx.room)
     await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+    
+    # Brief delay for audio pipeline stabilization before greeting
+    await asyncio.sleep(0.8)
     session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
 
     @session.on("user_speech_committed")

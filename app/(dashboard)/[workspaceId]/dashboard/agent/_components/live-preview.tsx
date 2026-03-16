@@ -406,6 +406,23 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             setError("");
             (async () => {
                 try {
+                    // STABILITY FIX: Clean up any stale rooms from previous sessions
+                    // This prevents duplicate agent dispatch (one auto-dispatched + one explicit)
+                    // which causes the "3 participants → 2 participants" drop pattern
+                    if (agentId && agentId !== 'new') {
+                        try {
+                            await fetch("/api/voice/cleanup-room", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ agent_id: agentId })
+                            });
+                            // Brief delay for LiveKit to process the room deletion
+                            await new Promise(r => setTimeout(r, 500));
+                        } catch (cleanupErr) {
+                            console.warn("Pre-connection room cleanup failed (non-critical):", cleanupErr);
+                        }
+                    }
+
                     // Only send agent_id and workspace_id - let backend use saved DB data
                     const resp = await fetch("/api/voice/token", {
                         method: "POST",
@@ -902,6 +919,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                             )}
                             <RoomAudioRenderer />
                             {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
+                            <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -1332,4 +1350,16 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
             </div>
         </div>
     );
+}
+
+function ParticipantLogger() {
+    const remoteParticipants = useParticipants();
+    const { localParticipant } = useLocalParticipant();
+    
+    useEffect(() => {
+        const total = remoteParticipants.length + (localParticipant ? 1 : 0);
+        console.log(`🚀 [PARTICIPANT COUNT] Total participants in room: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
+    }, [remoteParticipants.length, localParticipant]);
+    
+    return null;
 }

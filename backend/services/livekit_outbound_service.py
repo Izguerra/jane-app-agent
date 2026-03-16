@@ -49,7 +49,7 @@ class LiveKitOutboundService:
         
         # Create communication record
         communication_id = generate_comm_id()
-        room_name = f"outbound_{communication_id}"
+        room_name = f"outbound-{str(communication_id).replace('_', '-')}"
         
         # Ensure phone number is in E.164 format
         if not to_phone.startswith('+'):

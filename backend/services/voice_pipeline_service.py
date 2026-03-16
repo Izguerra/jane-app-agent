@@ -20,7 +20,7 @@ class VoicePipelineService:
         if gemini_key:
             try:
                 from livekit.plugins import google as google_plugin
-                return google_plugin.LLM(model="gemini-3-flash-preview", api_key=gemini_key, temperature=temperature)
+                return google_plugin.LLM(model="gemini-2.0-flash", api_key=gemini_key, temperature=temperature)
             except: pass
 
         if openai_key:

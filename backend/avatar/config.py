@@ -30,18 +30,21 @@ def get_llm():
     openai_key = os.getenv("OPENAI_API_KEY")
     gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
     
+    # Use the same direct LLM approach as the working voice agent.
+    # The FallbackAdapter with attempt_timeout=2.5 was causing
+    # "all LLMs are unavailable" errors that silenced the avatar after greeting.
     if gemini_key:
-        from livekit.plugins import google as google_plugin
-        llm_instance = google_plugin.LLM(model="gemini-3-flash-preview", api_key=gemini_key, temperature=0.7)
-    else:
-        llm_instance = openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
-        
-    if gemini_key and openai_key:
-        from livekit.agents.llm import FallbackAdapter
-        fallback_llm = openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
-        llm_instance = FallbackAdapter(llm=[llm_instance, fallback_llm], attempt_timeout=2.5)
-        
-    return llm_instance
+        try:
+            from livekit.plugins import google as google_plugin
+            return google_plugin.LLM(model="gemini-2.0-flash", api_key=gemini_key, temperature=0.7)
+        except Exception:
+            pass
+    
+    if openai_key:
+        return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
+    
+    # Last resort
+    return openai.LLM(model="gpt-4o-mini", temperature=0.7)
 
 def get_tts(voice_id):
     clean_voice_id = voice_id.split('(')[0].strip()

@@ -214,7 +214,7 @@ async def _generate_token(
         room = await lkapi.room.create_room(api.CreateRoomRequest(
             name=room_name,
             empty_timeout=60,
-            max_participants=4,
+            max_participants=3 if mode == "avatar" else 2,
             metadata=json.dumps(settings)
         ))
         print(f"DEBUG: [VOICE_TOKEN] Room creation response: {room.name if room else 'None'}")

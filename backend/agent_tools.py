@@ -8,6 +8,7 @@ from .tools.agent_mixins.calendar_mixin import CalendarMixin
 from .tools.agent_mixins.crm_mixin import CRMMixin
 from .tools.agent_mixins.worker_mixin import WorkerMixin
 from .tools.agent_mixins.communication_mixin import CommunicationMixin
+from .tools.external_tools import ExternalTools
 
 _WORKER_REGISTRY_CACHE = {}
 
@@ -34,13 +35,14 @@ def get_worker_handler(w_type: str):
         except: pass
     return _WORKER_REGISTRY_CACHE.get(slug)
 
-class AgentTools(SearchMixin, CalendarMixin, CRMMixin, WorkerMixin, CommunicationMixin):
+class AgentTools(SearchMixin, CalendarMixin, CRMMixin, WorkerMixin, CommunicationMixin, ExternalTools):
     def __init__(self, workspace_id: str, customer_id: str = None, communication_id: str = None, agent_id: str = None, worker_tools=None):
         self.workspace_id = workspace_id
         self.customer_id = customer_id
         self.communication_id = communication_id
         self.agent_id = agent_id
         self.worker_tools = worker_tools
+        ExternalTools.__init__(self, workspace_id=workspace_id)
         self.session = None
 
     async def _play_filler(self, message: str = "One moment please..."):

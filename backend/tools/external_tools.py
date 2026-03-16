@@ -2,6 +2,7 @@ import os
 import aiohttp
 import json
 from datetime import datetime
+from livekit.agents import llm
 
 from backend.services.integration_service import IntegrationService
 
@@ -13,6 +14,7 @@ class ExternalTools:
         self.google_maps_api_key = None
         self.timeout = aiohttp.ClientTimeout(total=10) # 10s default timeout
 
+    @llm.function_tool(description="Get current weather for a city or location.")
     async def get_current_weather(self, location: str, date: str = None, units: str = "metric", **kwargs):
         """
         Get weather for a location. 
@@ -98,6 +100,7 @@ class ExternalTools:
         except Exception as e:
             return f"Error fetching weather: {str(e)}"
 
+    @llm.function_tool(description="Get real-time status and schedule information for a specific flight.")
     async def get_flight_status(self, flight_number: str = None, origin: str = None, destination: str = None, airline: str = None, date: str = None, approx_time: str = None):
         """
         Get status for a specific flight using AviationStack. 
@@ -194,6 +197,7 @@ class ExternalTools:
         except Exception as e:
             return f"Error fetching flight status: {str(e)}"
 
+    @llm.function_tool(description="Get directions, distance, and travel time between two locations.")
     async def get_directions(self, origin: str, destination: str, mode: str = "driving"):
         """Get directions and traffic info using Google Maps."""
         if not self.google_maps_api_key:

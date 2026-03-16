@@ -8,13 +8,71 @@ class AgentOrchestrator:
                    agent_id: str = None, agent_config: dict = None, communication_id: str = None, 
                    db: Optional[Session] = None) -> str:
         
-        # Simplified for refactor
-        # In reality, this would replicate the complex data fetching and tool assembly from agent.py
         settings = agent_config or {}
-        agent = AgentFactory.create_agent(settings, workspace_id, team_id, db=db)
+
+        # Assemble Tools
+        from backend.agent_tools import AgentTools
+        from backend.tools.worker_tools import WorkerTools
+
+        worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
+        agent_tools = AgentTools(
+            workspace_id=workspace_id, 
+            agent_id=agent_id, 
+            communication_id=communication_id, 
+            worker_tools=worker_tools
+        )
+        
+        # Extract tool methods — only include methods decorated with @llm.function_tool
+        import inspect
+        tools = []
+        for name, method in inspect.getmembers(agent_tools, predicate=inspect.ismethod):
+            if hasattr(method, "__llm_function__") and not name.startswith("_"):
+                tools.append(method)
+
+        agent = AgentFactory.create_agent(settings, workspace_id, team_id, tools=tools, db=db)
+        
+        # Build enriched conversation context with cross-channel memory
+        from agno.models.message import Message
+        from backend.services.agent_context_service import AgentContextService
+        
+        messages = []
+        
+        # Enrich with cross-channel context if we have a communication_id
+        try:
+            if communication_id:
+                # Get the user_identifier from the communication record
+                from backend.database import SessionLocal
+                from backend.models_db import Communication
+                ctx_db = SessionLocal()
+                try:
+                    comm = ctx_db.query(Communication).filter(Communication.id == communication_id).first()
+                    if comm and comm.user_identifier:
+                        enriched_history = AgentContextService.enrich_history(
+                            workspace_id=workspace_id,
+                            identifier=comm.user_identifier,
+                            current_history=history,
+                            communication_id=communication_id,
+                            channel=comm.channel
+                        )
+                        history = enriched_history
+                finally:
+                    ctx_db.close()
+        except Exception as e:
+            import logging
+            logging.getLogger("orchestrator").warning(f"Context enrichment failed (non-fatal): {e}")
+
+        # Convert history dicts to Agno Message objects
+        for msg in history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if content:
+                messages.append(Message(role=role, content=content))
+        
+        # Add the current user message
+        messages.append(Message(role="user", content=message))
         
         if stream:
-            return agent.arun(message, stream=True)
+            return agent.arun(messages, stream=True)
         else:
-            res = await agent.arun(message)
+            res = await agent.arun(messages)
             return res.content
