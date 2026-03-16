@@ -61,10 +61,10 @@ class AgentOrchestrator:
             import logging
             logging.getLogger("orchestrator").warning(f"Context enrichment failed (non-fatal): {e}")
 
-        # Convert history dicts to Agno Message objects
+        # Convert history items to Agno Message objects
         for msg in history:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
+            role = msg.role if hasattr(msg, "role") else msg.get("role", "user") if isinstance(msg, dict) else "user"
+            content = msg.content if hasattr(msg, "content") else msg.get("content", "") if isinstance(msg, dict) else ""
             if content:
                 messages.append(Message(role=role, content=content))
         
