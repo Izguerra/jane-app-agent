@@ -25,9 +25,18 @@ class AgentOrchestrator:
         # Extract tool methods — only include methods decorated with @llm.function_tool
         import inspect
         tools = []
-        for name, method in inspect.getmembers(agent_tools, predicate=inspect.ismethod):
-            if hasattr(method, "__llm_function__") and not name.startswith("_"):
-                tools.append(method)
+        for name, member in inspect.getmembers(agent_tools):
+            # Check if it's a LiveKit FunctionTool wrapper
+            if type(member).__name__ == "FunctionTool":
+                # Extract the pure python function for Agno
+                actual_method = getattr(member, "__wrapped__", getattr(member, "_func", None))
+                if actual_method and not name.startswith("_"):
+                    import types
+                    bound_method = types.MethodType(actual_method, agent_tools)
+                    tools.append(bound_method)
+            # Fallback for manually decorated or raw methods
+            elif inspect.ismethod(member) and hasattr(member, "__llm_function__") and not name.startswith("_"):
+                tools.append(member)
 
         agent = AgentFactory.create_agent(settings, workspace_id, team_id, tools=tools, db=db)
         

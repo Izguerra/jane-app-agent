@@ -15,12 +15,12 @@ class ExternalTools:
         self.timeout = aiohttp.ClientTimeout(total=10) # 10s default timeout
 
     @llm.function_tool(description="Get current weather for a city or location.")
-    async def get_current_weather(self, location: str, date: str = None, units: str = "metric", **kwargs):
+    async def get_current_weather(self, location: str, date: str = None, units: str = "metric"):
         """
         Get weather for a location. 
         Supports future dates (approximate).
         """
-        details = kwargs.get("details", [])
+        details = []
         if not self.weather_api_key:
             self.weather_api_key = await IntegrationService.async_get_provider_key(
                 workspace_id=self.workspace_id, 
