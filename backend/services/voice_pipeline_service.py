@@ -20,7 +20,7 @@ class VoicePipelineService:
         if gemini_key:
             try:
                 from livekit.plugins import google as google_plugin
-                return google_plugin.LLM(model="gemini-2.0-flash", api_key=gemini_key, temperature=temperature)
+                return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=temperature)
             except: pass
 
         if openai_key:
@@ -69,16 +69,20 @@ class VoicePipelineService:
         xai_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="xai", env_fallback="XAI_API_KEY")
         if not xai_key: return None
 
-        from livekit.plugins.xai.realtime import RealtimeModel
-        from livekit.agents.multimodal import MultimodalAgent
-        import livekit.agents.vad as vad
+        try:
+            from livekit.plugins.xai.realtime import RealtimeModel
+            from livekit.agents.multimodal import MultimodalAgent
+            import livekit.agents.vad as vad
 
-        voice_map = {"Ara": "Ara", "Eve": "Eve", "Leo": "Leo", "Sal": "Sal", "Rex": "Rex"}
-        final_voice = voice_map.get(voice_id.title(), "Ara")
+            voice_map = {"Ara": "Ara", "Eve": "Eve", "Leo": "Leo", "Sal": "Sal", "Rex": "Rex"}
+            final_voice = voice_map.get(voice_id.title(), "Ara")
 
-        model = RealtimeModel(
-            instructions=prompt,
-            voice=final_voice,
-            turn_detection=vad.EOU(threshold=0.6, silence_threshold_ms=200)
-        )
-        return MultimodalAgent(model=model, fnc_ctx=tools)
+            model = RealtimeModel(
+                instructions=prompt,
+                voice=final_voice,
+                turn_detection=vad.EOU(threshold=0.6, silence_threshold_ms=200)
+            )
+            return MultimodalAgent(model=model, fnc_ctx=tools)
+        except ImportError:
+            logger.warning("MultimodalAgent or XAI Realtime API is not available in the current SDK version. Falling back to standard pipeline.")
+            return None

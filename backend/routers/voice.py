@@ -95,7 +95,7 @@ async def _generate_token(
     
     # Determine Agent Dispatch Target based on Mode
     # Bypass broken main_agent.py and route natively to the specific workers
-    target_agent_name = "supaagent-avatar-agent-v2" if mode == "avatar" else "supaagent-voice-agent-v2"
+    target_agent_name = "supaagent-avatar-v2.1" if mode == "avatar" else "supaagent-voice-v2.1"
     
     print(f"DEBUG: [VOICE_TOKEN] Mode: {mode}, Target Agent: {target_agent_name}, Room: {room_name}")
     
