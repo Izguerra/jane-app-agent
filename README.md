@@ -25,8 +25,18 @@ SupaAgent is a high-performance, real-time AI customer support platform that ena
 - **Telephony:** Telnyx (PSTN), Asterisk (SIP Proxy/Bridge).
 - **AI/LLM:** Google Gemini 3.0 Flash.
 - **Real-time:** LiveKit (Voice/Video), Twilio (WhatsApp/SIP).
-- **Database:** Postgres (Drizzle on Frontend / SQLAlchemy on Backend).
+- **Database:** **PostgreSQL ONLY** (Drizzle on Frontend / SQLAlchemy on Backend) — see critical note below.
 - **Payments:** Stripe integration.
+
+> ⚠️ **CRITICAL: PostgreSQL is the ONLY supported database**
+>
+> This application **requires PostgreSQL**. SQLite is NOT supported and MUST NOT be used — not even as a fallback, not for development, not for testing agent connections.
+>
+> **If PostgreSQL is down or failing, fix PostgreSQL first.** Do not attempt to switch to SQLite or any other database.
+>
+> The backend's `database/__init__.py` will **raise a hard error** if a SQLite URL is detected or if no PostgreSQL URL is configured. The `.env` file must contain `DATABASE_URL` or `POSTGRES_URL` pointing to a valid PostgreSQL instance.
+>
+> LiveKit agents run in spawned subprocesses (`multiprocessing.spawn` on macOS). All `.env` loading uses absolute paths derived from `__file__` to ensure the database URL is always resolved correctly in these subprocesses.
 
 ## 🚀 Getting Started
 
