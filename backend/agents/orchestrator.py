@@ -13,7 +13,19 @@ class AgentOrchestrator:
         # Assemble Tools
         from backend.agent_tools import AgentTools
         from backend.tools.worker_tools import WorkerTools
+        from backend.services.skill_service import SkillService
+        from backend.services.mcp_loader_service import MCPLoaderService
+        from backend.database import SessionLocal
 
+        # 1. Fetch enabled skills for the agent
+        ctx_db = db or SessionLocal()
+        try:
+            skills = SkillService.get_skills_for_agent(ctx_db, agent_id)
+            enabled_skill_slugs = [s.slug for s in skills]
+        finally:
+            if not db: ctx_db.close()
+
+        # 2. Setup standard tools
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
         agent_tools = AgentTools(
             workspace_id=workspace_id, 
@@ -22,19 +34,31 @@ class AgentOrchestrator:
             worker_tools=worker_tools
         )
         
-        # Extract tool methods — only include methods decorated with @llm.function_tool
+        # 3. Load Authorized MCP Tools
+        mcp_tools, _ = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_skill_slugs)
+        
+        # Assemble all potential tool members
+        all_potential_tools = []
         import inspect
+        all_potential_tools.extend([m for _, m in inspect.getmembers(agent_tools)])
+        all_potential_tools.extend(mcp_tools)
+
+        # 4. Extract and process tools for Agno
         tools = []
-        for name, member in inspect.getmembers(agent_tools):
+        for member in all_potential_tools:
+            name = getattr(member, "name", getattr(member, "__name__", "unknown_tool"))
             # Check if it's a LiveKit FunctionTool wrapper
             if type(member).__name__ == "FunctionTool":
                 # Extract the pure python function for Agno
                 actual_method = getattr(member, "__wrapped__", getattr(member, "_func", None))
                 if actual_method and not name.startswith("_"):
                     import types
-                    bound_method = types.MethodType(actual_method, agent_tools)
-                    tools.append(bound_method)
-            # Fallback for manually decorated or raw methods
+                    # Agno needs methods to be bound to their instances if they use self
+                    if hasattr(member, "_func") and inspect.ismethod(member._func):
+                        tools.append(member._func)
+                    else:
+                        tools.append(actual_method)
+            # Fallback for manually decorated or raw methods from AgentTools
             elif inspect.ismethod(member) and hasattr(member, "__llm_function__") and not name.startswith("_"):
                 tools.append(member)
 

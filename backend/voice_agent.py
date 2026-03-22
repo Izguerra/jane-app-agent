@@ -23,9 +23,10 @@ def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 socket.getaddrinfo = _patched_getaddrinfo
 
-# Path Setup
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-load_dotenv()
+# Path Setup — explicit paths for LiveKit subprocess safety (multiprocessing.spawn)
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _project_root)
+load_dotenv(dotenv_path=os.path.join(_project_root, ".env"))
 
 from backend.database import SessionLocal, generate_comm_id
 from backend.models_db import Communication, Agent as AgentModel, Customer, Workspace
@@ -37,6 +38,7 @@ from backend.services.voice_handlers import VoiceHandlers
 from backend.agent_tools import AgentTools
 from backend.services.skill_service import SkillService
 from backend.services.personality_service import PersonalityService
+from backend.services.mcp_loader_service import MCPLoaderService
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("voice-agent")
@@ -52,6 +54,10 @@ def prewarm(proc: JobProcess):
     proc.userdata["vad"] = get_vad_model()
 
 async def entrypoint(ctx: JobContext):
+    # Setup process manager signals if it exists in the global scope
+    if 'pm' in globals():
+        globals()['pm'].setup_signals(asyncio.get_event_loop())
+        
     try:
         logger.info(f"Entrypoint started for room {ctx.room.name}")
         start_time = datetime.now(timezone.utc)
@@ -120,9 +126,22 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning(f"Context injection failed (non-fatal): {e}")
 
-        # 4. Pipeline Setup
+        # 4. Filtered Tools & Pipeline Setup
         voice_id = settings.get("voice_id", "alloy")
-        all_tools = llm.find_function_tools(AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id))
+        
+        # Standard tools first
+        from backend.tools.worker_tools import WorkerTools
+        worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
+        agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
+        all_tools = llm.find_function_tools(agent_tools)
+
+        # Inject MCP Tools (Granular Permission Check)
+        enabled_slugs = [s.slug for s in skills]
+        mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
+        if mcp_tools:
+            all_tools.extend(mcp_tools)
+        
+        logger.info(f"Loading {len(all_tools)} tools for Voice Agent (Filtered by skills)")
         
         logger.info("Initializing AgentSession pipeline")
         agent = await VoicePipelineService.get_multimodal_agent(workspace_id, voice_id, prompt, all_tools)
@@ -138,6 +157,9 @@ async def entrypoint(ctx: JobContext):
                 tts=VoicePipelineService.get_tts(workspace_id, voice_id, settings),
                 tools=all_tools
             )
+            # Inject session back into agent_tools for filler logic
+            agent_tools.session = session
+            
             VoiceHandlers.register_session_events(session, ctx)
             await session.start(VoiceAgent(instructions=prompt), room=ctx.room)
             await asyncio.sleep(0.8)
@@ -147,6 +169,8 @@ async def entrypoint(ctx: JobContext):
         shutdown_event = asyncio.Event()
         ctx.room.on("disconnected", lambda _: shutdown_event.set())
         await shutdown_event.wait()
+        
+        await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
         await VoiceHandlers.capture_and_save_transcript(locals().get('session'), log_id, workspace_id, start_time)
         
     except Exception as e:
@@ -155,5 +179,14 @@ async def entrypoint(ctx: JobContext):
         traceback.print_exc()
         raise
 
+from backend.utils.process_manager import ProcessManager
+
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-voice-agent-v2")))
+    pm = ProcessManager(name="voice-agent", pid_file=os.path.join(_project_root, "voice_agent.pid"))
+    pm.check_lock()
+    pm.write_lock()
+    
+    try:
+        cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-voice-v2.1")))
+    finally:
+        pm.cleanup()

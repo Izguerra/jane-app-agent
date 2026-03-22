@@ -9,7 +9,9 @@ from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions,
 from livekit import rtc
 from livekit.plugins import deepgram
 
-load_dotenv()
+# Explicit .env path for LiveKit subprocess safety (multiprocessing.spawn on macOS)
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(dotenv_path=os.path.join(_project_root, ".env"))
 
 # --- DNS BYPASS FIX ---
 import socket
@@ -36,6 +38,10 @@ from backend.avatar.prompts import get_avatar_prompt
 from backend.avatar.providers import initialize_avatar
 from backend.avatar.tracking import start_communication_log, finalize_communication_log
 from backend.services.voice_handlers import VoiceHandlers
+from backend.database import SessionLocal
+from backend.agent_tools import AgentTools
+from backend.services.mcp_loader_service import MCPLoaderService
+from backend.services.skill_service import SkillService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("avatar-agent")
@@ -45,6 +51,10 @@ def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
 async def entrypoint(ctx: JobContext):
+    # Setup process manager signals if it exists in global scope
+    if 'pm' in globals():
+        globals()['pm'].setup_signals(asyncio.get_event_loop())
+
     try:
         logger.info(f"Avatar Agent Entrypoint: Room {ctx.room.name}")
         
@@ -73,14 +83,24 @@ async def entrypoint(ctx: JobContext):
         
         logger.info(f"Avatar pipeline: LLM={type(llm_instance).__name__}, TTS={type(tts_instance).__name__}")
         
-        # Tools
-        from backend.agent_tools import AgentTools
+        # Tools & Skills
         from backend.tools.worker_tools import WorkerTools
+        
+        db = SessionLocal()
+        skills = SkillService().get_skills_for_agent(db, agent_id)
+        db.close()
+        enabled_slugs = [s.slug for s in skills]
+        
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
-        agent_tools = AgentTools(workspace_id=workspace_id, agent_id=agent_id, worker_tools=worker_tools)
+        agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
         all_tools = llm.find_function_tools(agent_tools)
         
-        logger.info(f"Loaded {len(all_tools)} tools for avatar agent")
+        # Inject MCP Tools (Granular Permission Check)
+        mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
+        if mcp_tools:
+            all_tools.extend(mcp_tools)
+        
+        logger.info(f"Loaded {len(all_tools)} tools for avatar agent (Filtered by skills)")
         
         # Prompt
         full_prompt = get_avatar_prompt(settings)
@@ -101,20 +121,27 @@ async def entrypoint(ctx: JobContext):
         
         from livekit.agents.voice import AgentSession, Agent as livekit_Agent
         session = AgentSession(vad=vad, stt=stt, llm=llm_instance, tts=tts_instance, tools=all_tools)
+        # Inject session back into agent_tools for filler logic
+        agent_tools.session = session
+
         agent_logic = livekit_Agent(instructions=full_prompt)
         
         # Register voice event handlers (matches voice_agent.py for consistent state tracking)
         VoiceHandlers.register_session_events(session, ctx)
         
-        # Avatar initialization
+        # 3. Start Agent Session first so tracks are published
+        logger.info("Starting AgentSession pipeline...")
+        await session.start(agent_logic, room=ctx.room)
+        
+        # Verify tracks for diagnostic purposes
+        for lp in ctx.room.local_participant.track_publications.values():
+            logger.info(f"Local track published: {lp.track.kind if lp.track else 'unknown'} (sid={lp.sid})")
+
+        # 4. Initialize Avatar (hooks into existing published tracks)
         avatar = await initialize_avatar(settings.get("avatar_provider", "tavus"), settings, session, ctx.room, ctx)
         
-        logger.info("Starting avatar AgentSession")
-        await session.start(agent_logic, room=ctx.room)
-        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
-        
-        # Brief delay for audio pipeline stabilization before greeting
-        await asyncio.sleep(0.8)
+        # 5. Brief delay for audio pipeline stabilization and Anam sync
+        await asyncio.sleep(1.2)
         session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
         logger.info("Avatar agent fully started and greeted")
 
@@ -132,6 +159,9 @@ async def entrypoint(ctx: JobContext):
             shutdown_event.set()
 
         await shutdown_event.wait()
+        
+        from backend.services.mcp_loader_service import MCPLoaderService
+        await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
         await finalize_communication_log(log_id, transcript, avatar)
         
     except Exception as e:
@@ -140,6 +170,15 @@ async def entrypoint(ctx: JobContext):
         traceback.print_exc()
         raise
 
+from backend.utils.process_manager import ProcessManager
+
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-avatar-agent-v2")))
+    pm = ProcessManager(name="avatar-agent", pid_file=os.path.join(_project_root, "avatar_agent.pid"))
+    pm.check_lock()
+    pm.write_lock()
+    
+    try:
+        cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-avatar-v2.1")))
+    finally:
+        pm.cleanup()
 

@@ -9,7 +9,8 @@
     "db:seed": "npx tsx lib/db/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "restart": "python3 scripts/restart_dev.py"
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.16",
