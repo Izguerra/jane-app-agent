@@ -45,7 +45,7 @@ def get_llm(workspace_id: str = None):
     if gemini_key:
         try:
             from livekit.plugins import google as google_plugin
-            return google_plugin.LLM(model="gemini-2.0-flash", api_key=gemini_key, temperature=0.7)
+            return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=0.7)
         except Exception as e:
             logger.warning(f"Gemini LLM init failed: {e}")
     
