@@ -89,6 +89,8 @@ async def entrypoint(ctx: JobContext):
             if agent_rec:
                 agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)
+                # Inject allowed_worker_types directly from the model into settings
+                settings["allowed_worker_types"] = agent_rec.allowed_worker_types
                 # Query Workspace directly — Agent model has no 'workspace' relationship
                 ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
                 if ws:

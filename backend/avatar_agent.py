@@ -84,6 +84,8 @@ async def entrypoint(ctx: JobContext):
                 if agent_rec.settings: 
                     # Merge agent settings into current settings
                     settings.update(agent_rec.settings)
+                # Inject allowed_worker_types directly from the model into settings
+                settings["allowed_worker_types"] = agent_rec.allowed_worker_types
         finally:
             db.close()
         
@@ -154,7 +156,9 @@ async def entrypoint(ctx: JobContext):
             logger.info(f"Local track published: {lp.track.kind if lp.track else 'unknown'} (sid={lp.sid})")
 
         # 4. Initialize Avatar (hooks into existing published tracks)
-        avatar = await initialize_avatar(settings.get("avatar_provider", "tavus"), settings, session, ctx.room, ctx)
+        resolved_provider = settings.get("avatar_provider", "tavus")
+        logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
+        avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
         
         # 5. Brief delay for audio pipeline stabilization and Anam sync
         await asyncio.sleep(1.2)
