@@ -203,11 +203,12 @@ def get_workspace_context(
             return cached_workspace_id
     
     # ALWAYS check if a workspace already exists for this team first
-    existing_workspaces = db.query(Workspace).filter(Workspace.team_id == id_to_check).all()
+    # Sort by created_at ASC to ensure the oldest (original) workspace is picked as primary.
+    existing_workspaces = db.query(Workspace).filter(Workspace.team_id == id_to_check).order_by(Workspace.created_at.asc()).all()
     
     if existing_workspaces:
-        # If multiple workspaces exist, just return the first one (usually the primary)
-        # to avoid expensive 60+ count queries for teams with many workspaces.
+        # If multiple workspaces exist, return the oldest one.
+        # This is fast and restores consistency with existing agents.
         resolved_workspace_id = existing_workspaces[0].id
         
         # Cache the result

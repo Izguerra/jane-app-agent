@@ -1,4 +1,4 @@
-import { desc, and, eq, isNull, count } from 'drizzle-orm';
+import { desc, and, eq, isNull, count, asc } from 'drizzle-orm';
 import { db } from './drizzle';
 import { activityLogs, teamMembers, teams, users, workspaces, agents, customers, communications } from './schema';
 import { cookies } from 'next/headers';
@@ -164,11 +164,11 @@ export async function getWorkspaceForUser() {
       return null;
     }
 
-    // Get ALL workspaces for this team
     const allWorkspaces = await db
       .select()
       .from(workspaces)
-      .where(eq(workspaces.teamId, userTeam[0].teamId));
+      .where(eq(workspaces.teamId, userTeam[0].teamId))
+      .orderBy(asc(workspaces.createdAt));
 
     if (allWorkspaces.length === 0) {
       return null;
