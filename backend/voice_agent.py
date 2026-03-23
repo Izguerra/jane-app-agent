@@ -80,7 +80,12 @@ async def entrypoint(ctx: JobContext):
         workspace_info = {"name": "The Business", "phone": "N/A", "services": "General", "role": "Assistant"}
 
         try:
-            agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+            # Correct logic: Use agent_id if provided by resolver, otherwise fallback to first in workspace
+            if agent_id:
+                agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
+            else:
+                agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+            
             if agent_rec:
                 agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)

@@ -64,12 +64,28 @@ async def entrypoint(ctx: JobContext):
         await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
         participant = await ctx.wait_for_participant()
         
-        # Resolve Settings
+        # Resolve Settings & Agent Identity
         room_meta = json.loads(ctx.room.metadata) if ctx.room.metadata else {}
         part_meta = json.loads(participant.metadata) if participant.metadata else {}
         settings = resolve_settings(room_meta, part_meta)
         workspace_id = settings.get("workspace_id")
         agent_id = settings.get("agent_id")
+
+        db = SessionLocal()
+        try:
+            # Robust agent resolution: respect passed agent_id, or fallback to first in workspace
+            if agent_id:
+                agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
+            else:
+                agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+            
+            if agent_rec:
+                agent_id = agent_rec.id
+                if agent_rec.settings: 
+                    # Merge agent settings into current settings
+                    settings.update(agent_rec.settings)
+        finally:
+            db.close()
         
         # Tracking
         log_id = start_communication_log(workspace_id, agent_id, settings, participant.identity)
