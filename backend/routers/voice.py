@@ -103,9 +103,10 @@ async def _generate_token(
     # Doing both causes duplicate agents (echo/two agents speaking)
     room_config = api.RoomConfiguration()
     # --- Resolve Settings ---
-    settings = {}
+    # 1. Start with DB settings from the Workspace
+    settings = get_settings(workspace.id).copy()
     
-    # 1. Start with DB settings (if agent_id exists)
+    # 2. Add DB settings from the specific Agent
     if agent_id:
         from backend.models_db import Agent
         agent = db.query(Agent).filter(Agent.id == agent_id, Agent.workspace_id == workspace.id).first()
@@ -115,10 +116,6 @@ async def _generate_token(
                 val = getattr(agent, field)
                 if val is not None: settings[field] = val
             if agent.settings: settings.update(agent.settings)
-        else:
-             settings = get_settings(workspace.id).copy()
-    else:
-        settings = get_settings(workspace.id).copy()
         
     # 2. Override with agent_config from request (Unsaved Wizard Data)
     if agent_config:

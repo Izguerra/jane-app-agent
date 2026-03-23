@@ -51,8 +51,8 @@ def main():
     start_service("source .venv/bin/activate && uvicorn backend.main:app --port 8000", "backend_restart.log", "Backend")
     
     # Agents
-    start_service("source .venv/bin/activate && python backend/voice_agent.py dev", "voice_agent_restart.log", "Voice Agent")
-    start_service("source .venv/bin/activate && python backend/avatar_agent.py dev", "avatar_agent_restart.log", "Avatar Agent")
+    start_service("source .venv/bin/activate && PYTHONUNBUFFERED=1 python backend/voice_agent.py dev", "voice_agent_restart.log", "Voice Agent")
+    start_service("source .venv/bin/activate && PYTHONUNBUFFERED=1 python backend/avatar_agent.py dev", "avatar_agent_restart.log", "Avatar Agent")
     
     # Frontend
     start_service("npm run dev", "frontend_restart.log", "Frontend")
