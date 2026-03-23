@@ -179,41 +179,11 @@ export async function getWorkspaceForUser() {
       return allWorkspaces[0];
     }
 
-    // Multiple workspaces: select the one with the most data
-    // This matches the backend workspace resolution logic
-    const workspaceScores = await Promise.all(
-      allWorkspaces.map(async (workspace) => {
-        // Count agents, customers, and communications for this workspace
-        const agentCountResult = await db
-          .select({ count: count() })
-          .from(agents)
-          .where(eq(agents.workspaceId, workspace.id));
+    // Multiple workspaces: just pick the first one to avoid expensive 60+ count queries.
+    // This is much faster and prevents ECONNRESET on slow connections.
+    const primaryWorkspace = allWorkspaces[0];
 
-        const customerCountResult = await db
-          .select({ count: count() })
-          .from(customers)
-          .where(eq(customers.workspaceId, workspace.id));
-
-        const commCountResult = await db
-          .select({ count: count() })
-          .from(communications)
-          .where(eq(communications.workspaceId, workspace.id));
-
-        const score =
-          (agentCountResult[0]?.count || 0) +
-          (customerCountResult[0]?.count || 0) +
-          (commCountResult[0]?.count || 0);
-
-        return { workspace, score };
-      })
-    );
-
-    // Sort by score descending and return the workspace with most data
-    workspaceScores.sort((a, b) => Number(b.score) - Number(a.score));
-    const primaryWorkspace = workspaceScores[0].workspace;
-
-    console.log(`[getWorkspaceForUser] Found ${allWorkspaces.length} workspaces for team ${userTeam[0].teamId}`);
-    console.log(`[getWorkspaceForUser] Selected primary workspace ${primaryWorkspace.id} with score ${workspaceScores[0].score}`);
+    console.log(`[getWorkspaceForUser] Found ${allWorkspaces.length} workspaces for team ${userTeam[0].teamId}. Selected first: ${primaryWorkspace.id}`);
 
     return primaryWorkspace;
   } catch (error) {
