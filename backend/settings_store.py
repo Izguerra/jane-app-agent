@@ -134,7 +134,9 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
             "soul": settings.soul
         }
     except Exception as e:
+        import traceback
         print(f"Error fetching settings: {e}")
+        traceback.print_exc()
         return DEFAULT_SETTINGS
     finally:
         db.close()

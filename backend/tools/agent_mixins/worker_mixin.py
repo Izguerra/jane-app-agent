@@ -29,6 +29,8 @@ class WorkerMixin:
             
             service.complete_task(task.id, result)
             return str(result)
+        except Exception as e:
+            return f"Error executing task '{worker_type}': {str(e)}"
         finally: db.close()
 
     @llm.function_tool(description="Check the status of a previously dispatched worker task.")
@@ -39,4 +41,6 @@ class WorkerMixin:
             task = service.get_task(task_id)
             if not task: return "Task not found."
             return f"Status: {task.status.upper()}. Result: {task.output_data}"
+        except Exception as e:
+            return f"Error checking task status: {str(e)}"
         finally: db.close()

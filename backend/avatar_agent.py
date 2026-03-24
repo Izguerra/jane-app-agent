@@ -105,7 +105,7 @@ async def entrypoint(ctx: JobContext):
         transcript = []
 
         # Pipeline Components — pass workspace_id for DB key retrieval
-        stt = deepgram.STT(model="nova-2")
+        stt = VoicePipelineService.get_stt(workspace_id)
         llm_instance = get_llm(workspace_id=workspace_id)
         tts_instance = get_tts(settings.get("voice_id", "Josh"), workspace_id=workspace_id)
         vad = ctx.proc.userdata["vad"]
@@ -159,21 +159,7 @@ async def entrypoint(ctx: JobContext):
         # Register voice event handlers (matches voice_agent.py for consistent state tracking)
         VoiceHandlers.register_session_events(session, ctx)
         
-        # 3. Start Agent Session - Background task to allow Avatar init to proceed
-        logger.info("Starting AgentSession pipeline (Background task)...")
-        session_task = asyncio.create_task(session.start(agent_logic, room=ctx.room))
-        
-        # 4. Initialize Avatar (hooks into existing published tracks)
-        resolved_provider = settings.get("avatar_provider", "anam")
-        logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
-        avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
-        
-        # 5. Brief delay for stabilization, then send greeting
-        await asyncio.sleep(1.2)
-        session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
-        logger.info("Avatar agent fully started and greeted")
-
-        # 6. Register speech event handlers BEFORE waiting for shutdown
+        # 3. Register speech event handlers BEFORE starting
         @session.on("user_speech_committed")
         def on_user_speech(msg: llm.ChatMessage):
             transcript.append(f"USER: {msg.content}")
@@ -181,6 +167,20 @@ async def entrypoint(ctx: JobContext):
         @session.on("agent_speech_committed")
         def on_agent_speech(msg: llm.ChatMessage):
             transcript.append(f"AGENT: {msg.content}")
+
+        # 4. Start Agent Session - Background task to allow Avatar init to proceed
+        logger.info("Starting AgentSession pipeline (Background task)...")
+        session_task = asyncio.create_task(session.start(agent_logic, room=ctx.room))
+        
+        # 5. Initialize Avatar (hooks into existing published tracks)
+        resolved_provider = settings.get("avatar_provider", "anam")
+        logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
+        avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
+        
+        # 6. Brief delay for stabilization, then send greeting
+        await asyncio.sleep(1.2)
+        session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
+        logger.info("Avatar agent fully started and greeted")
 
         # 7. Wait for room disconnect (blocking)
         shutdown_event = asyncio.Event()

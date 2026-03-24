@@ -15,7 +15,7 @@ def resolve_settings(metadata, participant_metadata):
     settings["tavus_replica_id"] = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
     settings["tavus_persona_id"] = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
     settings["anam_persona_id"] = settings.get("anam_persona_id") or settings.get("anamPersonaId")
-    settings["avatar_provider"] = settings.get("avatar_provider") or settings.get("avatarProvider") or "tavus"
+    settings["avatar_provider"] = settings.get("avatar_provider") or settings.get("avatarProvider") or "anam"
     
     settings["voice_id"] = (
         settings.get("avatarVoiceId") or 
@@ -42,15 +42,15 @@ def get_llm(workspace_id: str = None):
     if not openai_key:
         openai_key = os.getenv("OPENAI_API_KEY")
     
+    if openai_key:
+        return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
+
     if gemini_key:
         try:
             from livekit.plugins import google as google_plugin
             return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=0.7)
         except Exception as e:
             logger.warning(f"Gemini LLM init failed: {e}")
-    
-    if openai_key:
-        return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
     
     logger.error("No LLM API key found for avatar agent!")
     return openai.LLM(model="gpt-4o-mini", temperature=0.7)

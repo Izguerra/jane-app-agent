@@ -17,6 +17,8 @@ class CalendarMixin:
             events = service.list_events(self.workspace_id, start_dt, end_dt)
             # ... Verification logic ...
             return str(events)
+        except Exception as e:
+            return f"Error listing appointments: {str(e)}"
         finally: db.close()
 
     @llm.function_tool(description="Get available time slots for a specific date.")
@@ -28,6 +30,8 @@ class CalendarMixin:
             service = CalendarService(db)
             slots = service.get_availability(self.workspace_id, datetime.strptime(date, "%Y-%m-%d") if date else datetime.now())
             return "\n".join(slots) if slots else "No availability."
+        except Exception as e:
+            return f"Error getting availability: {str(e)}"
         finally: db.close()
 
     @llm.function_tool(description="Create a new calendar appointment.")
@@ -39,6 +43,8 @@ class CalendarMixin:
             service = CalendarService(db)
             event = service.create_event(self.workspace_id, title, datetime.fromisoformat(start_time), duration_minutes, attendee_name, attendee_email, attendee_phone)
             return f"Appointment created: {event.get('id')}"
+        except Exception as e:
+            return f"Error creating appointment: {str(e)}"
         finally: db.close()
 
     @llm.function_tool(description="Cancel an appointment.")
@@ -50,4 +56,6 @@ class CalendarMixin:
             service = CalendarService(db)
             success = service.delete_event(self.workspace_id, appointment_id)
             return "Cancelled successfully." if success else "Failed to cancel."
+        except Exception as e:
+            return f"Error cancelling appointment: {str(e)}"
         finally: db.close()

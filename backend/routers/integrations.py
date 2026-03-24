@@ -33,11 +33,13 @@ async def get_integrations(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
         return []
         
-    integrations = db.query(Integration).filter(Integration.workspace_id == workspace.id).all()
+    integrations = db.query(Integration).filter(Integration.workspace_id == workspace_id).all()
     
     return [
         IntegrationResponse(
@@ -53,13 +55,15 @@ async def get_tavus_replicas(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
         raise HTTPException(status_code=404, detail="Workspace not found")
         
     # Check if Tavus is enabled
     integration = db.query(Integration).filter(
-        Integration.workspace_id == workspace.id,
+        Integration.workspace_id == workspace_id,
         Integration.provider == "tavus",
         Integration.is_active == True
     ).first()
@@ -68,7 +72,7 @@ async def get_tavus_replicas(
         return []
         
     try:
-        service = TavusService(workspace_id=workspace.id)
+        service = TavusService(workspace_id=workspace_id)
         # Pass a flag to verify if integration record is actually active before returning?
         # The query above already filters by active.
         
@@ -85,12 +89,14 @@ async def get_tavus_personas(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
         raise HTTPException(status_code=404, detail="Workspace not found")
         
     integration = db.query(Integration).filter(
-        Integration.workspace_id == workspace.id,
+        Integration.workspace_id == workspace_id,
         Integration.provider == "tavus",
         Integration.is_active == True
     ).first()
@@ -99,7 +105,7 @@ async def get_tavus_personas(
         return []
         
     try:
-        service = TavusService(workspace_id=workspace.id)
+        service = TavusService(workspace_id=workspace_id)
         personas = service.list_personas()
         return personas
     except Exception as e:
@@ -113,12 +119,14 @@ async def get_anam_personas(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
     integration = db.query(Integration).filter(
-        Integration.workspace_id == workspace.id,
+        Integration.workspace_id == workspace_id,
         Integration.provider == "anam",
         Integration.is_active == True
     ).first()
@@ -127,7 +135,7 @@ async def get_anam_personas(
         return []
 
     try:
-        service = AnamService(workspace_id=workspace.id)
+        service = AnamService(workspace_id=workspace_id)
         personas = service.list_personas()
         return personas
     except Exception as e:
@@ -139,12 +147,14 @@ async def get_anam_avatars(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
     integration = db.query(Integration).filter(
-        Integration.workspace_id == workspace.id,
+        Integration.workspace_id == workspace_id,
         Integration.provider == "anam",
         Integration.is_active == True
     ).first()
@@ -153,7 +163,7 @@ async def get_anam_avatars(
         return []
 
     try:
-        service = AnamService(workspace_id=workspace.id)
+        service = AnamService(workspace_id=workspace_id)
         avatars = service.list_avatars()
         return avatars
     except Exception as e:
@@ -168,13 +178,15 @@ async def configure_integration(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
          raise HTTPException(status_code=404, detail="Workspace not found")
 
     # Check if exists
     integration = db.query(Integration).filter(
-        Integration.workspace_id == workspace.id,
+        Integration.workspace_id == workspace_id,
         Integration.provider == provider
     ).first()
     
@@ -321,7 +333,7 @@ async def configure_integration(
         from backend.database import generate_integration_id
         integration = Integration(
             id=generate_integration_id(),
-            workspace_id=workspace.id,
+            workspace_id=workspace_id,
             provider=provider,
             credentials=crypto_service.encrypt(json.dumps(config.credentials)) if config.credentials else None,
             settings=json.dumps(config.settings),
@@ -335,7 +347,7 @@ async def configure_integration(
     if provider in avatar_providers:
         other_provider = (avatar_providers - {provider}).pop()
         other_integration = db.query(Integration).filter(
-            Integration.workspace_id == workspace.id,
+            Integration.workspace_id == workspace_id,
             Integration.provider == other_provider,
             Integration.is_active == True
         ).first()
@@ -411,12 +423,14 @@ async def remove_integration(
     current_user: AuthUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    workspace = db.query(Workspace).filter(Workspace.team_id == current_user.team_id).first()
-    if not workspace:
+    from backend.auth import get_workspace_context
+    try:
+        workspace_id = get_workspace_context(db, current_user)
+    except HTTPException:
          raise HTTPException(status_code=404, detail="Workspace not found")
          
     integration = db.query(Integration).filter(
-        Integration.workspace_id == workspace.id,
+        Integration.workspace_id == workspace_id,
         Integration.provider == provider
     ).first()
     
