@@ -41,14 +41,14 @@ echo "Backend PID: $BACKEND_PID"
 
 # Start Voice Agent
 echo "Starting Voice Agent..."
-export AGENT_NAME="supaagent-voice-agent-v2"
+export AGENT_NAME="supaagent-voice-v2.1"
 nohup ./.venv/bin/python3 -m backend.voice_agent dev >> voice_agent.log 2>&1 &
 VOICE_PID=$!
 echo "Voice Agent PID: $VOICE_PID"
 
 # Start Avatar Agent
 echo "Starting Avatar Agent..."
-export AGENT_NAME="supaagent-avatar-agent-v2"
+export AGENT_NAME="supaagent-avatar-v2.1"
 nohup ./.venv/bin/python3 -m backend.avatar_agent dev >> avatar_agent.log 2>&1 &
 AVATAR_PID=$!
 echo "Avatar Agent PID: $AVATAR_PID"

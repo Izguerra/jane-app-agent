@@ -1,5 +1,5 @@
 from .database.models.utils import JSONB, ARRAY
-from .database.models.auth import User, Team, TeamMember, APIKey, ActiveSession
+from .database.models.auth import User, Team, TeamMember, APIKey, ActiveSession, ActivityLog, AdminSetting
 from .database.models.workspace import Workspace, PlatformIntegration, MCPServer, Integration, WorkspaceLLMConfig
 from .database.models.agent import Agent, Skill, AgentSkill, AgentPersonality
 from .database.models.crm import Customer, Deal, Communication, ConversationMessage
@@ -9,7 +9,7 @@ from .database.models.knowledge import KnowledgeBaseSource, Document
 
 # Ensure all models are available when importing from models_db
 __all__ = [
-    "User", "Team", "TeamMember", "APIKey", "ActiveSession",
+    "User", "Team", "TeamMember", "APIKey", "ActiveSession", "ActivityLog", "AdminSetting",
     "Workspace", "PlatformIntegration", "MCPServer", "Integration", "WorkspaceLLMConfig",
     "Agent", "Skill", "AgentSkill", "AgentPersonality",
     "Customer", "Deal", "Communication", "ConversationMessage",

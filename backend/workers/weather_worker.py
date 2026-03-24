@@ -45,7 +45,9 @@ class WeatherWorker(BaseEnterpriseWorker):
         # Log step
         service.update_task_status(task_id, status="running", current_step=f"Fetching weather for {location}...")
         
-        tools = ExternalTools()
+        # Use the workspace_id if available in input_data or elsewhere
+        workspace_id = input_data.get("workspace_id")
+        tools = ExternalTools(workspace_id=workspace_id)
         
         import asyncio
         import nest_asyncio

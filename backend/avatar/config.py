@@ -15,7 +15,7 @@ def resolve_settings(metadata, participant_metadata):
     settings["tavus_replica_id"] = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
     settings["tavus_persona_id"] = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
     settings["anam_persona_id"] = settings.get("anam_persona_id") or settings.get("anamPersonaId")
-    settings["avatar_provider"] = settings.get("avatar_provider") or settings.get("avatarProvider") or "tavus"
+    settings["avatar_provider"] = settings.get("avatar_provider") or settings.get("avatarProvider") or "anam"
     
     settings["voice_id"] = (
         settings.get("avatarVoiceId") or 
@@ -26,31 +26,50 @@ def resolve_settings(metadata, participant_metadata):
     )
     return settings
 
-def get_llm():
-    openai_key = os.getenv("OPENAI_API_KEY")
-    gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
+def get_llm(workspace_id: str = None):
+    from backend.services.integration_service import IntegrationService
     
-    if gemini_key:
-        from livekit.plugins import google as google_plugin
-        llm_instance = google_plugin.LLM(model="gemini-3-flash-preview", api_key=gemini_key, temperature=0.7)
-    else:
-        llm_instance = openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
-        
-    if gemini_key and openai_key:
-        from livekit.agents.llm import FallbackAdapter
-        fallback_llm = openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
-        llm_instance = FallbackAdapter(llm=[llm_instance, fallback_llm], attempt_timeout=2.5)
-        
-    return llm_instance
+    gemini_key = None
+    openai_key = None
+    
+    if workspace_id:
+        gemini_key = IntegrationService.get_provider_key(workspace_id, "gemini", "GOOGLE_API_KEY")
+        openai_key = IntegrationService.get_provider_key(workspace_id, "openai", "OPENAI_API_KEY")
+    
+    # Fallback to env vars
+    if not gemini_key:
+        gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
+    if not openai_key:
+        openai_key = os.getenv("OPENAI_API_KEY")
+    
+    if openai_key:
+        return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=0.7)
 
-def get_tts(voice_id):
+    if gemini_key:
+        try:
+            from livekit.plugins import google as google_plugin
+            return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=0.7)
+        except Exception as e:
+            logger.warning(f"Gemini LLM init failed: {e}")
+    
+    logger.error("No LLM API key found for avatar agent!")
+    return openai.LLM(model="gpt-4o-mini", temperature=0.7)
+
+def get_tts(voice_id, workspace_id: str = None):
+    from backend.services.integration_service import IntegrationService
+    
     clean_voice_id = voice_id.split('(')[0].strip()
     openai_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
     
     if clean_voice_id.lower() in openai_voices:
         return openai.TTS(voice=clean_voice_id.lower())
     
-    eleven_key = os.getenv("ELEVENLABS_API_KEY")
+    eleven_key = None
+    if workspace_id:
+        eleven_key = IntegrationService.get_provider_key(workspace_id, "elevenlabs", "ELEVENLABS_API_KEY")
+    if not eleven_key:
+        eleven_key = os.getenv("ELEVENLABS_API_KEY")
+    
     if eleven_key:
         from livekit.plugins import elevenlabs
         from livekit.agents.tts import FallbackAdapter
@@ -58,3 +77,4 @@ def get_tts(voice_id):
         return FallbackAdapter(tts=[tts, openai.TTS(voice="alloy")])
         
     return openai.TTS(voice="alloy")
+

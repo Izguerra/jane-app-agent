@@ -53,3 +53,21 @@ class ActiveSession(Base):
     ip_address = Column(String(45))
     last_active_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+    id = Column(String(50), primary_key=True, index=True)
+    user_id = Column(String(50), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    action = Column(String(255), nullable=False)
+    details = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class AdminSetting(Base):
+    __tablename__ = "admin_settings"
+    id = Column(String(50), primary_key=True, index=True)
+    company_name = Column(String(100))
+    support_email = Column(String(255))
+    default_language = Column(String(50))
+    timezone = Column(String(100))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

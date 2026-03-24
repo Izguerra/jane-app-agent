@@ -6,9 +6,9 @@ from livekit.plugins import tavus, anam
 logger = logging.getLogger("avatar-agent")
 
 async def initialize_avatar(avatar_provider: str, settings: dict, session, room, ctx):
-    tavus_replica_id = settings.get("tavus_replica_id")
-    tavus_persona_id = settings.get("tavus_persona_id")
-    anam_persona_id = settings.get("anam_persona_id")
+    tavus_replica_id = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
+    tavus_persona_id = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
+    anam_persona_id = settings.get("anam_persona_id") or settings.get("anamPersonaId")
     
     avatar = None
     if avatar_provider == "anam" and anam_persona_id:
@@ -19,7 +19,10 @@ async def initialize_avatar(avatar_provider: str, settings: dict, session, room,
             await avatar.start(session, room=room)
             logger.info("Anam.ai Avatar Started!")
         except Exception as e:
+            import traceback
             logger.error(f"ANAM ERROR: {e}")
+            logger.error(f"ANAM TRACEBACK:\n{traceback.format_exc()}")
+            # Don't silently swallow — the session will still work as voice-only
             
     elif tavus_replica_id:
         try:
@@ -40,6 +43,8 @@ async def initialize_avatar(avatar_provider: str, settings: dict, session, room,
                 current_meta["tavus_conversation_id"] = cid
                 await room.update_metadata(json.dumps(current_meta))
         except Exception as e:
+            import traceback
             logger.error(f"TAVUS ERROR: {e}")
+            logger.error(f"TAVUS TRACEBACK:\n{traceback.format_exc()}")
             
     return avatar

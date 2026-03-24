@@ -1,13 +1,13 @@
 from fastapi import APIRouter
 from . import crud, logic
 
-router = APIRouter(prefix="/agents", tags=["agents"])
+router = APIRouter(tags=["agents"])
 
 # Include sub-routers
 router.include_router(crud.router)
 router.include_router(logic.router)
 
-@router.get("/options")
+@router.get("/agents/options")
 async def get_agent_options():
     return {
         "voices": [

@@ -256,9 +256,20 @@ export function VoiceSession({ onClose, mode = "voice" }: { onClose: () => void;
         }, RECONNECT_DELAY_MS);
     }, [onClose, refresh]);
 
-    const handleEndCall = useCallback(() => {
-        intentionalDisconnect.current = true;
-        onClose();
+    const handleEndCall = useCallback(async () => {
+        await toast.promise(
+            (async () => {
+                intentionalDisconnect.current = true;
+                onClose();
+                // Brief delay to allow room cleanup to propagate
+                await new Promise(r => setTimeout(r, 800));
+            })(),
+            {
+                loading: "Terminating voice session...",
+                success: "Call ended",
+                error: "Error ending call"
+            }
+        );
     }, [onClose]);
 
     const handleRetry = useCallback(() => {
@@ -389,9 +400,20 @@ export function AvatarSession({ onClose }: { onClose: () => void }) {
         }, RECONNECT_DELAY_MS);
     }, [onClose, refresh]);
 
-    const handleEndCall = useCallback(() => {
-        intentionalDisconnect.current = true;
-        onClose();
+    const handleEndCall = useCallback(async () => {
+        await toast.promise(
+            (async () => {
+                intentionalDisconnect.current = true;
+                onClose();
+                // Brief delay to allow room cleanup to propagate
+                await new Promise(r => setTimeout(r, 800));
+            })(),
+            {
+                loading: "Terminating avatar session...",
+                success: "Session ended",
+                error: "Error ending session"
+            }
+        );
     }, [onClose]);
 
     const handleRetry = useCallback(() => {

@@ -18,7 +18,7 @@ class SearchMixin:
         await self._play_filler("Searching the web...")
         try:
             from backend.tools.web_search import get_web_search_tool
-            tool = get_web_search_tool()
+            tool = get_web_search_tool(workspace_id=self.workspace_id)
             results = tool.search(query, max_results=max_results)
             return str(results)
         except Exception as e: return f"Error: {str(e)}"
