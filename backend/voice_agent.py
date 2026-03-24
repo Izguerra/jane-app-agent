@@ -175,12 +175,16 @@ async def entrypoint(ctx: JobContext):
             await agent.start(ctx.room, participant)
         else:
             logger.info("Starting Standard AgentSession")
+            from livekit.agents import TurnHandlingOptions
             from livekit.agents.voice import AgentSession, Agent as VoiceAgent
+            logger.info("Initializing Standard AgentSession with Adaptive Interruption Handling...")
             session = AgentSession(
-                vad=get_vad_model(), stt=VoicePipelineService.get_stt(workspace_id),
+                vad=get_vad_model(), 
+                stt=VoicePipelineService.get_stt(workspace_id),
                 llm=VoicePipelineService.get_llm(workspace_id, settings),
                 tts=VoicePipelineService.get_tts(workspace_id, voice_id, settings),
-                tools=all_tools
+                tools=all_tools,
+                turn_handling=TurnHandlingOptions(interruption={"mode": "adaptive"})
             )
             # Inject session back into agent_tools for filler logic
             agent_tools.session = session

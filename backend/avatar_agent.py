@@ -43,6 +43,8 @@ from backend.models_db import Agent as AgentModel, Workspace, Communication
 from backend.agent_tools import AgentTools
 from backend.services.mcp_loader_service import MCPLoaderService
 from backend.services.skill_service import SkillService
+from backend.services.voice_context_resolver import VoiceContextResolver
+from backend.services.voice_pipeline_service import VoicePipelineService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("avatar-agent")
@@ -149,9 +151,17 @@ async def entrypoint(ctx: JobContext):
         except Exception as e:
             logger.warning(f"Context injection failed (non-fatal): {e}")
         
+        from livekit.agents import TurnHandlingOptions
         from livekit.agents.voice import AgentSession, Agent as livekit_Agent
-        logger.info("Initializing AgentSession...")
-        session = AgentSession(vad=vad, stt=stt, llm=llm_instance, tts=tts_instance, tools=all_tools)
+        logger.info("Initializing AgentSession with Adaptive Interruption Handling...")
+        session = AgentSession(
+            vad=vad, 
+            stt=stt, 
+            llm=llm_instance, 
+            tts=tts_instance, 
+            tools=all_tools,
+            turn_handling=TurnHandlingOptions(interruption={"mode": "adaptive"})
+        )
         # Inject session back into agent_tools for filler logic
         agent_tools.session = session
 

@@ -64,10 +64,10 @@ class VoiceContextResolver:
             # Strict validation: Room names must match known legitimate patterns
             # Legitimate patterns: 'outbound-comm-...', 'inbound-comm-...', 'call-...', 'agent-session-...'
             valid_patterns = [
-                r'^outbound-comm-[a-zA-Z0-9\-]+$',
-                r'^inbound-comm-[a-zA-Z0-9\-]+$',
-                r'^call-[a-zA-Z0-9\-]+$',
-                r'^agent-session-[a-zA-Z0-9\-]+$'
+                r'^outbound-comm-[\w\-]+$',
+                r'^inbound-comm-[\w\-]+$',
+                r'^call-[\w\-]+$',
+                r'^agent-session-[\w\-]+$'
             ]
             
             if not any(re.match(pattern, room_name) for pattern in valid_patterns):

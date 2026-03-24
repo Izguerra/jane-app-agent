@@ -22,8 +22,8 @@ DEFAULT_SETTINGS = {
     "allowed_worker_types": ["weather-worker", "flight-tracker", "map-worker", "web-search", "advanced-browsing"]
 }
 
-def get_settings(workspace_id: int = None) -> Dict[str, Any]:
-    if workspace_id is None:
+def get_settings(workspace_id: str = None) -> Dict[str, Any]:
+    if not workspace_id:
         # Fallback for development/demo if absolutely necessary
         workspace_id = "ws_default"
         
@@ -37,13 +37,13 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
             print(f"DEBUG: Resolved Team ID {workspace_id} to Workspace ID {ws.id}")
             workspace_id = ws.id
         else:
-             print(f"DEBUG: Could not resolve Team ID {workspace_id} to a workspace")
+            print(f"DEBUG: Could not resolve Team ID {workspace_id} to a workspace")
 
     try:
         print(f"DEBUG: get_settings called for workspace_id={workspace_id}")
         
-        if not workspace_id:
-            logger.warning("get_settings called without workspace_id. Returning DEFAULT_SETTINGS.")
+        if not workspace_id or workspace_id == "ws_default":
+            # If still no workspace or default, return base defaults
             return DEFAULT_SETTINGS
 
         # Try to find an orchestrator agent first, or just any agent

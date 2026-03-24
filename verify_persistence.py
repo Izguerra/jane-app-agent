@@ -1,66 +1,59 @@
-import requests
-import json
+import os
 import sys
 
-BASE_URL = "http://127.0.0.1:8000"
+# Add project root to sys.path
+_project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _project_root)
 
-def verify_persistence():
-    print("1. Fetching current profile...")
-    try:
-        response = requests.get(f"{BASE_URL}/clinics/me")
-        if response.status_code != 200:
-            print(f"Failed to fetch profile: {response.status_code} {response.text}")
-            return False
-        
-        current_data = response.json()
-        print(f"Current Name: {current_data.get('name')}")
-    except Exception as e:
-        print(f"Error fetching profile: {e}")
-        return False
+from backend.database import SessionLocal
+from backend.services.skill_service import SkillService
+from backend.models_db import Agent, Skill, AgentSkill
 
-    print("\n2. Updating profile with test data...")
-    test_data = {
-        "name": "Persistence Test Studio",
-        "address": "999 Test Lane",
-        "phone": "555-9999",
-        "description": "This is a test description to verify persistence."
-    }
-    
+def test_persistence():
+    db = SessionLocal()
     try:
-        response = requests.put(f"{BASE_URL}/clinics/me", json=test_data)
-        if response.status_code != 200:
-            print(f"Failed to update profile: {response.status_code} {response.text}")
-            return False
-        print("Update successful.")
-    except Exception as e:
-        print(f"Error updating profile: {e}")
-        return False
-
-    print("\n3. Fetching profile again to verify persistence...")
-    try:
-        response = requests.get(f"{BASE_URL}/clinics/me")
-        if response.status_code != 200:
-            print(f"Failed to fetch profile: {response.status_code} {response.text}")
-            return False
+        # 1. Find an agent
+        agent = db.query(Agent).first()
+        if not agent:
+            print("No agents found in database.")
+            return
         
-        updated_data = response.json()
-        print(f"Updated Name: {updated_data.get('name')}")
-        print(f"Updated Address: {updated_data.get('address')}")
+        print(f"Testing persistence for Agent: {agent.id} (Workspace: {agent.workspace_id})")
         
-        if updated_data.get('name') == test_data['name'] and updated_data.get('address') == test_data['address']:
-            print("\n✅ SUCCESS: Data persisted correctly!")
-            return True
+        # 2. Get available skills
+        skills = SkillService.get_skills_catalog(db, agent.workspace_id)
+        if not skills:
+            print("No skills found in catalog.")
+            return
+        
+        test_skill = skills[0]
+        print(f"Toggling skill: {test_skill.name} ({test_skill.id})")
+        
+        # 3. Toggle ON
+        SkillService.toggle_skill(db, agent.id, test_skill.id, agent.workspace_id, True)
+        db.commit()
+        
+        # 4. Verify
+        enabled_skills = SkillService.get_skills_for_agent(db, agent.id)
+        is_enabled = any(s.id == test_skill.id for s in enabled_skills)
+        print(f"Post-toggle verification (ON): {is_enabled}")
+        
+        # 5. Toggle OFF
+        SkillService.toggle_skill(db, agent.id, test_skill.id, agent.workspace_id, False)
+        db.commit()
+        
+        # 6. Verify Again
+        enabled_skills = SkillService.get_skills_for_agent(db, agent.id)
+        is_still_enabled = any(s.id == test_skill.id for s in enabled_skills)
+        print(f"Post-toggle verification (OFF): {not is_still_enabled}")
+        
+        if is_enabled and not is_still_enabled:
+            print("✅ Skill persistence is WORKING perfectly.")
         else:
-            print("\n❌ FAILURE: Data did not persist.")
-            print(f"Expected: {test_data}")
-            print(f"Got: {updated_data}")
-            return False
+            print("❌ Skill persistence is FAILING.")
             
-    except Exception as e:
-        print(f"Error fetching profile: {e}")
-        return False
+    finally:
+        db.close()
 
 if __name__ == "__main__":
-    success = verify_persistence()
-    if not success:
-        sys.exit(1)
+    test_persistence()
