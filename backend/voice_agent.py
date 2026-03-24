@@ -89,8 +89,19 @@ async def entrypoint(ctx: JobContext):
             if agent_rec:
                 agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)
+                
+                # CRITICAL: Ensure the explicit agent_id from room metadata takes precedence
+                # over whatever settings.update() just merged (which might be the orchestrator agent)
+                agent_id = meta.get("agent_id") or agent_id
+                logger.info(f"Final resolved agent_id for execution: {agent_id}")
+                
                 # Inject allowed_worker_types directly from the model into settings
                 settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+                
+                # RE-APPLY meta LAST to ensure UI temporary overrides (like agent_type and skills) take precedence
+                if meta:
+                    settings.update(meta)
+
                 # Query Workspace directly — Agent model has no 'workspace' relationship
                 ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
                 if ws:
@@ -104,14 +115,13 @@ async def entrypoint(ctx: JobContext):
                 db.add(log_entry)
                 db.commit()
                 log_id = log_entry.id
+                
+            # 3. Build Prompt (Kept within the same DB session block)
+            logger.info(f"Loading skills and personality for agent_id={agent_id}")
+            skills = SkillService().get_skills_for_agent(db, agent_id)
+            personality = PersonalityService().get_personality(db, agent_id)
+            personality_prompt = PersonalityService().generate_personality_prompt(personality)
         finally: db.close()
-
-        # 3. Build Prompt
-        db = SessionLocal()
-        skills = SkillService().get_skills_for_agent(db, agent_id)
-        personality = PersonalityService().get_personality(db, agent_id)
-        personality_prompt = PersonalityService().generate_personality_prompt(personality)
-        db.close()
 
         prompt = VoicePromptBuilder.build_prompt(
             settings, personality_prompt, skills, workspace_info, 
@@ -125,7 +135,7 @@ async def entrypoint(ctx: JobContext):
             caller_id = participant.identity or settings.get("caller_phone") or settings.get("user_identifier")
             if caller_id:
                 context_prompt = AgentContextService.build_context_prompt(
-                    workspace_id=workspace_id, identifier=caller_id, channel="voice", limit=10, hours=72
+                    workspace_id=workspace_id, identifier=caller_id, channel="voice", limit=10, hours=72, agent_id=agent_id
                 )
                 if context_prompt:
                     prompt += f"\n\n{context_prompt}"
@@ -144,8 +154,12 @@ async def entrypoint(ctx: JobContext):
 
         # Inject MCP Tools (Granular Permission Check)
         enabled_slugs = [s.slug for s in skills]
-        mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
+        if "skills" in settings and isinstance(settings["skills"], list):
+            enabled_slugs = list(set(enabled_slugs + settings["skills"]))
+            
+        mcp_tools, mcp_instances, _ = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools:
+            logger.info(f"[Voice {agent_id}] Loaded {len(mcp_tools)} MCP tools. Total tools: {len(all_tools)}")
             all_tools.extend(mcp_tools)
         
         logger.info(f"Loading {len(all_tools)} tools for Voice Agent (Filtered by skills)")

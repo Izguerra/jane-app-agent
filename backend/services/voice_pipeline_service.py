@@ -21,7 +21,8 @@ class VoicePipelineService:
             try:
                 from livekit.plugins import google as google_plugin
                 return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=temperature)
-            except: pass
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini LLM (falling back...): {e}", exc_info=True)
 
         if openai_key:
             return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=temperature, _strict_tool_schema=False)
@@ -46,7 +47,7 @@ class VoicePipelineService:
 
     @staticmethod
     def get_tts(workspace_id, voice_id, settings):
-        is_openai_voice = voice_id.lower() in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+        is_openai_voice = voice_id.lower() in ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage", "ash", "coral", "verse"]
         if is_openai_voice:
             return openai.TTS(voice=voice_id)
         

@@ -21,18 +21,16 @@ class MCPLoaderService:
     }
 
     @staticmethod
-    async def load_mcp_servers(workspace_id: str, enabled_skill_slugs: List[str] = None) -> tuple[List[Any], List[Any]]:
+    async def load_mcp_servers(workspace_id: str, enabled_skill_slugs: List[str] = None) -> tuple[List[Any], List[Any], List[Any]]:
         """
         Loads allowed active MCP servers for the given workspace and agent.
         
-        Args:
-            workspace_id: The workspace ID.
-            enabled_skill_slugs: List of skill slugs enabled for the current agent. 
-                               If None, NO MCP servers will be loaded (Safe by default).
+        Returns:
+            (mcp_tools, mcp_instances, agno_toolkits)
         """
         if enabled_skill_slugs is None:
             logger.info("No enabled skills provided; skipping MCP tool loading for safety.")
-            return [], []
+            return [], [], []
 
         db = SessionLocal()
         try:
@@ -46,9 +44,10 @@ class MCPLoaderService:
 
         mcp_tools = []
         mcp_instances = []
+        agno_toolkits = []
 
         if not mcp_records:
-            return mcp_tools, mcp_instances
+            return mcp_tools, mcp_instances, agno_toolkits
 
         logger.info(f"Checking {len(mcp_records)} workspace MCP Servers against agent skills: {enabled_skill_slugs}")
 
@@ -89,16 +88,49 @@ class MCPLoaderService:
                     transport_type=srv.transport or "sse",
                     headers=headers
                 )
-                await mcp_instance.initialize()
-                tools = await mcp_instance.list_tools()
                 
-                mcp_tools.extend(tools)
-                mcp_instances.append(mcp_instance)
-                logger.info(f"Loaded {len(tools)} tools from MCP server '{srv.name}'")
-            except Exception as e:
-                logger.error(f"Failed to load tools from MCP Server {srv.id} ({srv.name}): {e}", exc_info=True)
+                # Resilient Initialization with Retries and Timeout
+                max_retries = 2
+                success = False
+                for attempt in range(max_retries):
+                    try:
+                        # 15-second timeout per operation to prevent hanging the vital agent startup but allow slow browsers like Playwright to boot
+                        await asyncio.wait_for(mcp_instance.initialize(), timeout=15.0)
+                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=15.0)
+                        
+                        mcp_tools.extend(tools)
+                        mcp_instances.append(mcp_instance)
+                        
+                        # Initialize Agno Toolkit
+                        try:
+                            if srv.transport == "sse":
+                                from agno.tools.mcp import MCPTools
+                                from agno.tools.mcp.params import SSEClientParams
+                                agno_mcp = MCPTools(
+                                    transport="sse",
+                                    server_params=SSEClientParams(url=srv.url, headers=headers),
+                                    timeout_seconds=15
+                                )
+                                agno_toolkits.append(agno_mcp)
+                        except Exception as e:
+                            logger.error(f"Failed to create Agno MCP Toolkit for '{srv.name}': {e}", exc_info=True)
 
-        return mcp_tools, mcp_instances
+                        logger.info(f"Loaded {len(tools)} tools from MCP server '{srv.name}'")
+                        success = True
+                        break
+                    except asyncio.TimeoutError:
+                        logger.warning(f"MCP {srv.name} init timed out (attempt {attempt+1}/{max_retries})")
+                        if attempt < max_retries - 1: await asyncio.sleep(1.0)
+                    except Exception as e:
+                        logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}", exc_info=True)
+                        if attempt < max_retries - 1: await asyncio.sleep(1.0)
+                        
+                if not success:
+                    logger.error(f"Failed to load tools from MCP Server {srv.id} ({srv.name}) after {max_retries} attempts.")
+            except Exception as e:
+                logger.error(f"Unexpected error loading MCP Server {srv.id} ({srv.name}): {e}", exc_info=True)
+
+        return mcp_tools, mcp_instances, agno_toolkits
 
     @staticmethod
     async def cleanup_mcp_servers(mcp_instances: List[Any]):

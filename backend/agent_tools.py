@@ -32,7 +32,9 @@ def get_worker_handler(w_type: str):
                     if method:
                         _WORKER_REGISTRY_CACHE[file_slug] = method
                         _WORKER_REGISTRY_CACHE[file_slug.replace("-worker", "")] = method
-        except: pass
+        except Exception as e:
+            import logging
+            logging.getLogger("agent-tools").error(f"Failed to load worker module {module_name}: {e}")
     return _WORKER_REGISTRY_CACHE.get(slug)
 
 class AgentTools(SearchMixin, CalendarMixin, CRMMixin, WorkerMixin, CommunicationMixin, ExternalTools):
@@ -47,5 +49,8 @@ class AgentTools(SearchMixin, CalendarMixin, CRMMixin, WorkerMixin, Communicatio
 
     async def _play_filler(self, message: str = "One moment please..."):
         if hasattr(self, 'session') and self.session and hasattr(self.session, 'say'):
-            try: self.session.say(message, allow_interruptions=False, add_to_chat_ctx=False)
-            except: pass
+            try: 
+                self.session.say(message, allow_interruptions=False, add_to_chat_ctx=False)
+            except Exception as e: 
+                import logging
+                logging.getLogger("agent-tools").warning(f"Failed to play filler message: {e}")

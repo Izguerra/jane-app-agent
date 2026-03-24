@@ -39,6 +39,7 @@ from backend.avatar.providers import initialize_avatar
 from backend.avatar.tracking import start_communication_log, finalize_communication_log
 from backend.services.voice_handlers import VoiceHandlers
 from backend.database import SessionLocal
+from backend.models_db import Agent as AgentModel, Workspace, Communication
 from backend.agent_tools import AgentTools
 from backend.services.mcp_loader_service import MCPLoaderService
 from backend.services.skill_service import SkillService
@@ -69,7 +70,8 @@ async def entrypoint(ctx: JobContext):
         part_meta = json.loads(participant.metadata) if participant.metadata else {}
         settings = resolve_settings(room_meta, part_meta)
         workspace_id = settings.get("workspace_id")
-        agent_id = settings.get("agent_id")
+        original_agent_id = settings.get("agent_id")
+        agent_id = original_agent_id
 
         db = SessionLocal()
         try:
@@ -84,8 +86,17 @@ async def entrypoint(ctx: JobContext):
                 if agent_rec.settings: 
                     # Merge agent settings into current settings
                     settings.update(agent_rec.settings)
+                
+                # CRITICAL: Ensure the explicit agent_id from room metadata takes precedence
+                agent_id = original_agent_id or agent_id
+                logger.info(f"Final resolved agent_id for execution: {agent_id}")
+                
                 # Inject allowed_worker_types directly from the model into settings
                 settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+            
+            # Load skills in the same DB session
+            logger.info(f"Loading skills for agent_id={agent_id}")
+            skills = SkillService().get_skills_for_agent(db, agent_id)
         finally:
             db.close()
         
@@ -104,21 +115,21 @@ async def entrypoint(ctx: JobContext):
         # Tools & Skills
         from backend.tools.worker_tools import WorkerTools
         
-        db = SessionLocal()
-        skills = SkillService().get_skills_for_agent(db, agent_id)
-        db.close()
         enabled_slugs = [s.slug for s in skills]
         
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
+        logger.info(f"Initializating AgentTools for avatar agent...")
         agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
         all_tools = llm.find_function_tools(agent_tools)
+        logger.info(f"Discovered {len(all_tools)} function tools.")
         
         # Inject MCP Tools (Granular Permission Check)
-        mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
+        logger.info(f"Loading MCP tools for slugs: {enabled_slugs}")
+        mcp_tools, mcp_instances, _ = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools:
             all_tools.extend(mcp_tools)
         
-        logger.info(f"Loaded {len(all_tools)} tools for avatar agent (Filtered by skills)")
+        logger.info(f"Loaded {len(all_tools)} total tools for avatar agent.")
         
         # Prompt
         full_prompt = get_avatar_prompt(settings)
@@ -129,7 +140,7 @@ async def entrypoint(ctx: JobContext):
             caller_id = participant.identity or settings.get("user_identifier")
             if caller_id:
                 context_prompt = AgentContextService.build_context_prompt(
-                    workspace_id=workspace_id, identifier=caller_id, channel="avatar", limit=10, hours=72
+                    workspace_id=workspace_id, identifier=caller_id, channel="avatar", limit=10, hours=72, agent_id=agent_id
                 )
                 if context_prompt:
                     full_prompt += f"\n\n{context_prompt}"
@@ -138,6 +149,7 @@ async def entrypoint(ctx: JobContext):
             logger.warning(f"Context injection failed (non-fatal): {e}")
         
         from livekit.agents.voice import AgentSession, Agent as livekit_Agent
+        logger.info("Initializing AgentSession...")
         session = AgentSession(vad=vad, stt=stt, llm=llm_instance, tts=tts_instance, tools=all_tools)
         # Inject session back into agent_tools for filler logic
         agent_tools.session = session
@@ -147,24 +159,21 @@ async def entrypoint(ctx: JobContext):
         # Register voice event handlers (matches voice_agent.py for consistent state tracking)
         VoiceHandlers.register_session_events(session, ctx)
         
-        # 3. Start Agent Session first so tracks are published
-        logger.info("Starting AgentSession pipeline...")
-        await session.start(agent_logic, room=ctx.room)
+        # 3. Start Agent Session - Background task to allow Avatar init to proceed
+        logger.info("Starting AgentSession pipeline (Background task)...")
+        session_task = asyncio.create_task(session.start(agent_logic, room=ctx.room))
         
-        # Verify tracks for diagnostic purposes
-        for lp in ctx.room.local_participant.track_publications.values():
-            logger.info(f"Local track published: {lp.track.kind if lp.track else 'unknown'} (sid={lp.sid})")
-
         # 4. Initialize Avatar (hooks into existing published tracks)
-        resolved_provider = settings.get("avatar_provider", "tavus")
+        resolved_provider = settings.get("avatar_provider", "anam")
         logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
         avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
         
-        # 5. Brief delay for audio pipeline stabilization and Anam sync
+        # 5. Brief delay for stabilization, then send greeting
         await asyncio.sleep(1.2)
         session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
         logger.info("Avatar agent fully started and greeted")
 
+        # 6. Register speech event handlers BEFORE waiting for shutdown
         @session.on("user_speech_committed")
         def on_user_speech(msg: llm.ChatMessage):
             transcript.append(f"USER: {msg.content}")
@@ -173,6 +182,7 @@ async def entrypoint(ctx: JobContext):
         def on_agent_speech(msg: llm.ChatMessage):
             transcript.append(f"AGENT: {msg.content}")
 
+        # 7. Wait for room disconnect (blocking)
         shutdown_event = asyncio.Event()
         @ctx.room.on("disconnected")
         def on_room_disconnect(reason=None):
@@ -180,8 +190,14 @@ async def entrypoint(ctx: JobContext):
 
         await shutdown_event.wait()
         
-        from backend.services.mcp_loader_service import MCPLoaderService
-        await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
+        # 8. Cleanup
+        # Cancel the session task if still running
+        if not session_task.done():
+            session_task.cancel()
+        
+        if 'mcp_instances' in locals() and mcp_instances:
+            await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
+        
         await finalize_communication_log(log_id, transcript, avatar)
         
     except Exception as e:
