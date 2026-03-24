@@ -66,12 +66,13 @@ async def entrypoint(ctx: JobContext):
         participant = await ctx.wait_for_participant()
         
         # Resolve Settings & Agent Identity
-        room_meta = json.loads(ctx.room.metadata) if ctx.room.metadata else {}
-        part_meta = json.loads(participant.metadata) if participant.metadata else {}
-        settings = resolve_settings(room_meta, part_meta)
-        workspace_id = settings.get("workspace_id")
-        original_agent_id = settings.get("agent_id")
-        agent_id = original_agent_id
+        workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
+        if not workspace_id:
+            logger.warning(f"Closing avatar entrypoint for room {ctx.room.name} - Context could not be resolved.")
+            return
+
+        settings = meta
+        original_agent_id = agent_id
 
         db = SessionLocal()
         try:

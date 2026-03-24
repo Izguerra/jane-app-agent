@@ -77,7 +77,20 @@ async def texml_inbound(request: Request, db: Session = Depends(get_db)):
         # Validation
         if not validate_room_name(call_sid):
             logger.warning(f"SECURITY: Rejected malformed CallSid in texml/inbound: {call_sid}")
-            return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response><Say>Invalid.</Say></Response>', media_type="application/xml")
+            
+            # Proactive cleanup
+            try:
+                from livekit import api
+                lkapi = api.LiveKitAPI(os.getenv("LIVEKIT_URL"), os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET"))
+                await lkapi.room.delete_room(api.DeleteRoomRequest(room=f"inbound-{call_sid}"))
+                await lkapi.aclose()
+            except: pass
+
+            return Response(
+                content='<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>', 
+                media_type="application/xml",
+                status_code=403
+            )
             
         room_name = f"inbound-{call_sid}"
         from backend.routers.voice import outbound_twiml
@@ -96,7 +109,11 @@ async def texml_outbound(request: Request, db: Session = Depends(get_db)):
         # Safety check on room name even if derived from comm.id
         if not validate_room_name(room_name):
             logger.warning(f"SECURITY: Malformed room name generated in texml/outbound: {room_name}")
-            return Response(content='<Response><Say>Invalid session.</Say></Response>', media_type="application/xml")
+            return Response(
+                content='<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>', 
+                media_type="application/xml",
+                status_code=403
+            )
 
         from backend.routers.voice import outbound_twiml
         import urllib.parse

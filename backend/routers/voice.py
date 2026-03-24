@@ -452,10 +452,23 @@ async def outbound_twiml(room: str, metadata: str = None):
     # STRICT VALIDATION: Block room names with quotes, equals, or other injection characters
     if not validate_room_name(room):
         print(f"SECURITY ALERT: Rejected malformed room name in outbound-twiml: {room}")
-        # Return generic error TwiML instead of 400 to avoid revealing too much to scanners
+        
+        # PROACTIVE CLEANUP: Try to delete the room if it was pre-created by a SIP bridge
+        try:
+            from livekit import api
+            lkapi = api.LiveKitAPI(os.getenv("LIVEKIT_URL"), os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET"))
+            await lkapi.room.delete_room(api.DeleteRoomRequest(room=room))
+            await lkapi.aclose()
+            print(f"DEBUG: Proactively deleted malformed room '{room}' from LiveKit")
+        except Exception as de:
+            # Room likely doesn't exist yet, which is fine
+            pass
+
+        # Return <Reject /> with 403 to trigger immediate SIP disconnect
         return Response(
-            content='<?xml version="1.0" encoding="UTF-8"?><Response><Say>Invalid session.</Say></Response>',
-            media_type="application/xml"
+            content='<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>',
+            media_type="application/xml",
+            status_code=403
         )
 
     try:

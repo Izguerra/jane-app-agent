@@ -17,11 +17,18 @@ def kill_process_on_port(port):
 
 def kill_agents():
     """Kills any running agent processes."""
-    patterns = ["voice_agent.py", "avatar_agent.py"]
+    # Broad patterns to catch both specific agents and generic python/node runners
+    patterns = [
+        "voice_agent.py", 
+        "avatar_agent.py", 
+        "python.*agent", 
+        "node.*agent",
+        "livekit-agents"
+    ]
     for pattern in patterns:
         try:
-            subprocess.run(["pkill", "-9", "-f", pattern])
-            print(f"Killed all processes matching '{pattern}'")
+            print(f"Purging processes matching '{pattern}'...")
+            subprocess.run(["pkill", "-9", "-f", pattern], stderr=subprocess.DEVNULL)
         except Exception:
             pass
 

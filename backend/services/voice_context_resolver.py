@@ -2,6 +2,7 @@ import logging
 import json
 import asyncio
 import os
+import re
 from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe
 from backend.database import SessionLocal
@@ -44,10 +45,11 @@ class VoiceContextResolver:
         if not workspace_id and participant.metadata:
             workspace_id, agent_id, call_context, settings = VoiceContextResolver._resolve_from_participant_metadata(participant)
 
-        # 5. Fallback
+        # 5. Fallback - REMOVED INSECURE DEFAULT
         if not workspace_id:
-            logger.warning("FALLBACK: No workspace_id resolved. Using default.")
-            workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
+            logger.warning(f"SECURITY WARNING: No workspace_id resolved for room {ctx.room.name}. Potential probe or misconfiguration. Rejecting.")
+            # return None to signal failure
+            return None, None, None, {}
 
         return workspace_id, agent_id, call_context, settings
 
@@ -59,9 +61,22 @@ class VoiceContextResolver:
 
         db = SessionLocal()
         try:
+            # Strict validation: Room names must match known legitimate patterns
+            # Legitimate patterns: 'outbound-comm-...', 'inbound-comm-...', 'call-...', 'agent-session-...'
+            valid_patterns = [
+                r'^outbound-comm-[a-zA-Z0-9\-]+$',
+                r'^inbound-comm-[a-zA-Z0-9\-]+$',
+                r'^call-[a-zA-Z0-9\-]+$',
+                r'^agent-session-[a-zA-Z0-9\-]+$'
+            ]
+            
+            if not any(re.match(pattern, room_name) for pattern in valid_patterns):
+                logger.warning(f"SECURITY ALERT: Malformed room name rejected in resolver: {room_name}")
+                return None, None, None
+
             # Outbound
             if room_name.startswith("outbound-"):
-                raw_id = room_name.replace("outbound-", "").replace("outbound--", "")
+                raw_id = room_name.replace("outbound--", "outbound-").replace("outbound-", "")
                 comm_id = raw_id.replace("comm-", "comm_") if raw_id.startswith("comm-") else raw_id
                 
                 # Check for phone number style room name

@@ -42,55 +42,23 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
     try:
         print(f"DEBUG: get_settings called for workspace_id={workspace_id}")
         
+        if not workspace_id:
+            logger.warning("get_settings called without workspace_id. Returning DEFAULT_SETTINGS.")
+            return DEFAULT_SETTINGS
+
         # Try to find an orchestrator agent first, or just any agent
         settings = db.query(Agent).filter(
             Agent.workspace_id == workspace_id,
             Agent.is_orchestrator == True
         ).first()
         
-        if settings:
-             print(f"DEBUG: Found orchestrator agent: {settings.id}")
-        
         if not settings:
             # Fallback to any agent
             settings = db.query(Agent).filter(Agent.workspace_id == workspace_id).first()
-            if settings:
-                 print(f"DEBUG: Found fallback agent: {settings.id}")
         
         if not settings:
-            # Check if workspace exists
-            workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-            if not workspace:
-                # Find a valid team
-                team = db.query(Team).first()
-                if not team:
-                    # Should unlikely happen if seeded, but create one just in case
-                    team = Team(id="team_default", name="Default Team")
-                    db.add(team)
-                    db.commit()
-                
-                workspace = Workspace(id=workspace_id, team_id=team.id, name="Demo Workspace")
-                db.add(workspace)
-                db.commit()
-
-            # Create default agent
-            gen_id = generate_settings_id().replace("st", "ag")
-            print(f"DEBUG: Generating Agent ID: {gen_id}")
-            settings = Agent(
-                id=gen_id,
-                workspace_id=workspace_id,
-                name="Default Agent",
-                voice_id=DEFAULT_SETTINGS["voice_id"],
-                language=DEFAULT_SETTINGS["language"],
-                prompt_template=DEFAULT_SETTINGS["prompt_template"],
-                welcome_message=DEFAULT_SETTINGS["welcome_message"],
-                is_active=DEFAULT_SETTINGS["is_active"],
-                allowed_worker_types=DEFAULT_SETTINGS["allowed_worker_types"],
-                is_orchestrator=True # Default to orchestrator if it's the first one
-            )
-            db.add(settings)
-            db.commit()
-            db.refresh(settings)
+            logger.warning(f"No agent settings found for workspace_id={workspace_id}. Returning DEFAULT_SETTINGS.")
+            return DEFAULT_SETTINGS
             
         # Parse settings JSON
         extended_settings = settings.settings or {}

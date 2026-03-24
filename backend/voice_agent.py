@@ -70,6 +70,10 @@ async def entrypoint(ctx: JobContext):
 
         # 1. Resolve Context
         workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
+        if not workspace_id:
+            logger.warning(f"Closing entrypoint for room {ctx.room.name} - Context could not be resolved.")
+            return
+
         settings = get_settings(workspace_id)
         settings.update(meta)
 
