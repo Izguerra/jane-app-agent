@@ -119,22 +119,36 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     }, []);
 
     const handleEndCall = useCallback(async () => {
-        intentionalDisconnect.current = true;
-        setToken("");
-        setUrl("");
-        setMode('chat');
-        // Clean up server-side rooms
-        if (agentId && agentId !== 'new') {
-            try {
-                await fetch("/api/voice/cleanup-room", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ agent_id: agentId })
-                });
-            } catch (e) {
-                console.warn("Room cleanup on end call failed (non-critical):", e);
+        await toast.promise(
+            (async () => {
+                intentionalDisconnect.current = true;
+                setConnectionStatus('transitioning');
+                setToken("");
+                setUrl("");
+                setMode('chat');
+                
+                // Clean up server-side rooms
+                if (agentId && agentId !== 'new') {
+                    try {
+                        await fetch("/api/voice/cleanup-room", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ agent_id: agentId })
+                        });
+                    } catch (e) {
+                        console.warn("Room cleanup on end call failed (non-critical):", e);
+                    }
+                }
+                // Brief delay to allow UI to settle
+                await new Promise(r => setTimeout(r, 500));
+                setConnectionStatus('idle');
+            })(),
+            {
+                loading: "Ending call...",
+                success: "Call terminated",
+                error: "Failed to end call cleanly"
             }
-        }
+        );
     }, [agentId]);
 
     const handleModeSwitch = async (targetMode: 'chat' | 'voice' | 'avatar') => {

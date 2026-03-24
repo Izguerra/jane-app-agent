@@ -21,8 +21,8 @@ def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
         # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
         # Returned as list of tuples (family, type, proto, canonname, sockaddr)
         return [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.178.157', port)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.179.230', port))
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.180.66', port)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.181.18', port))
         ]
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 socket.getaddrinfo = _patched_getaddrinfo

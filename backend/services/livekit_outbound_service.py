@@ -67,7 +67,7 @@ class LiveKitOutboundService:
             room = await lkapi.room.create_room(
                 api.CreateRoomRequest(
                     name=room_name,
-                    empty_timeout=300,  # 5 minutes
+                    empty_timeout=60,  # 1 minute (reduced from 5m to prevent leaks)
                     max_participants=2
                 )
             )
