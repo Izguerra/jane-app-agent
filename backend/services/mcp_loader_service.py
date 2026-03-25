@@ -18,6 +18,8 @@ class MCPLoaderService:
         "advanced-browsing": ["Playwright Browser", "Browser"],
         "web-research": ["Context7", "Search"],
         "livekit-debug": ["LiveKit Debugger", "LiveKit Debug"],
+        "weather-worker": ["Weather", "OpenWeather", "Playwright Browser"],
+        "flight-tracker": ["Flight", "Aviation", "Playwright Browser"],
         # Worker Mappings
         "lead-research": ["Playwright Browser", "Browser"],
         "competitor-analysis": ["Playwright Browser", "Browser"],
@@ -95,13 +97,13 @@ class MCPLoaderService:
                 )
                 
                 # Resilient Initialization with Retries and Timeout
-                max_retries = 2
+                max_retries = 3
                 success = False
                 for attempt in range(max_retries):
                     try:
-                        # 15-second timeout per operation to prevent hanging the vital agent startup but allow slow browsers like Playwright to boot
-                        await asyncio.wait_for(mcp_instance.initialize(), timeout=15.0)
-                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=15.0)
+                        # 30-second timeout per operation to allow heavy servers like Playwright to boot
+                        await asyncio.wait_for(mcp_instance.initialize(), timeout=30.0)
+                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=30.0)
                         
                         mcp_tools.extend(tools)
                         mcp_instances.append(mcp_instance)
@@ -114,7 +116,7 @@ class MCPLoaderService:
                                 agno_mcp = MCPTools(
                                     transport="sse",
                                     server_params=SSEClientParams(url=srv.url, headers=headers),
-                                    timeout_seconds=15
+                                    timeout_seconds=30
                                 )
                                 agno_toolkits.append(agno_mcp)
                         except Exception as e:
@@ -124,8 +126,8 @@ class MCPLoaderService:
                         success = True
                         break
                     except asyncio.TimeoutError:
-                        logger.warning(f"MCP {srv.name} init timed out (attempt {attempt+1}/{max_retries})")
-                        if attempt < max_retries - 1: await asyncio.sleep(1.0)
+                        logger.warning(f"MCP {srv.name} ({srv.url}) init timed out (attempt {attempt+1}/{max_retries})")
+                        if attempt < max_retries - 1: await asyncio.sleep(2.0)
                     except (ImportError, ModuleNotFoundError):
                         # Handle cases where agno or mcp packages might be missing
                         raise
@@ -138,10 +140,10 @@ class MCPLoaderService:
                         else:
                             logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}", exc_info=True)
                             
-                        if attempt < max_retries - 1: await asyncio.sleep(1.0)
+                        if attempt < max_retries - 1: await asyncio.sleep(2.0)
                         
                 if not success:
-                    logger.error(f"Failed to load tools from MCP Server {srv.id} ({srv.name}) after {max_retries} attempts.")
+                    logger.error(f"Failed to load tools from MCP Server {srv.id} ({srv.name}) at {srv.url} after {max_retries} attempts.")
             except Exception as e:
                 logger.error(f"Unexpected error loading MCP Server {srv.id} ({srv.name}): {e}", exc_info=True)
 

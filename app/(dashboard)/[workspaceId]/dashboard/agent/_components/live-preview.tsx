@@ -803,21 +803,29 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                             m.content
                                         ) : (
                                             <div className="prose prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:p-0">
-                                                <Markdown
-                                                    options={{
-                                                        overrides: {
-                                                            a: {
-                                                                component: ({ children, ...props }: React.HTMLProps<HTMLAnchorElement>) => (
-                                                                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline font-medium break-all">
-                                                                        {children}
-                                                                    </a>
-                                                                )
+                                                {m.content ? (
+                                                    <Markdown
+                                                        options={{
+                                                            overrides: {
+                                                                a: {
+                                                                    component: ({ children, ...props }: React.HTMLProps<HTMLAnchorElement>) => (
+                                                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline font-medium break-all">
+                                                                            {children}
+                                                                        </a>
+                                                                    )
+                                                                }
                                                             }
-                                                        }
-                                                    }}
-                                                >
-                                                    {m.content}
-                                                </Markdown>
+                                                        }}
+                                                    >
+                                                        {m.content}
+                                                    </Markdown>
+                                                ) : (
+                                                    <div className="flex items-center gap-1 py-1">
+                                                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
+                                                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse [animation-delay:200ms]" />
+                                                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse [animation-delay:400ms]" />
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -1285,9 +1293,9 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
     ]);
 
     // Filter for remote video track (the avatar)
+    // We are more aggressive here: if it's not local and it's video, it's the avatar.
     const remoteTrack = tracks.find(t => 
         (t as any).participant?.isLocal === false && 
-        ((t as any).source === Track.Source.Camera || (t as any).source === Track.Source.Unknown || (t as any).source === Track.Source.ScreenShare) &&
         ((t as any).track?.kind === 'video' || (t as any).publication?.kind === 'video')
     );
 
