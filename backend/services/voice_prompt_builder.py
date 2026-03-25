@@ -86,7 +86,10 @@ class VoicePromptBuilder:
         location_context = f"CURRENT ENVIRONMENT CONTEXT:\\n- User's Timezone: {settings.get('client_timezone', 'America/Toronto')}\\n- User's Estimated Location: {client_location}\\n" if client_location else ""
 
         # 2. Worker context string generation
-        allowed_workers = settings.get("allowed_worker_types", [])
+        allowed_workers = settings.get("allowed_worker_types") or []
+        if not isinstance(allowed_workers, list):
+            allowed_workers = []
+            
         if enabled_skills:
             allowed_workers = list(set(allowed_workers + [s.slug for s in enabled_skills]))
         

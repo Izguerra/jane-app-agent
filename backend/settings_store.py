@@ -1,6 +1,9 @@
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 
+import logging
+logger = logging.getLogger(__name__)
+
 # Handle both import contexts (uvicorn vs direct execution)
 try:
     from backend.database import SessionLocal, generate_settings_id

@@ -100,7 +100,7 @@ async def entrypoint(ctx: JobContext):
                 logger.info(f"Final resolved agent_id for execution: {agent_id}")
                 
                 # Inject allowed_worker_types directly from the model into settings
-                settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+                settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
                 
                 # RE-APPLY meta LAST to ensure UI temporary overrides (like agent_type and skills) take precedence
                 if meta:
@@ -158,6 +158,11 @@ async def entrypoint(ctx: JobContext):
 
         # Inject MCP Tools (Granular Permission Check)
         enabled_slugs = [s.slug for s in skills]
+        
+        # Include allowed_worker_types in enabled_slugs so they trigger MCP loading (e.g., lead-research -> Browser)
+        allowed_workers = settings.get("allowed_worker_types") or []
+        enabled_slugs = list(set(enabled_slugs + allowed_workers))
+        
         if "skills" in settings and isinstance(settings["skills"], list):
             enabled_slugs = list(set(enabled_slugs + settings["skills"]))
             

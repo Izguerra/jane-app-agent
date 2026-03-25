@@ -95,7 +95,7 @@ async def entrypoint(ctx: JobContext):
                 logger.info(f"Final resolved agent_id for execution: {agent_id}")
                 
                 # Inject allowed_worker_types directly from the model into settings
-                settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+                settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
             
             # Load skills in the same DB session
             logger.info(f"Loading skills for agent_id={agent_id}")
@@ -127,6 +127,15 @@ async def entrypoint(ctx: JobContext):
         logger.info(f"Discovered {len(all_tools)} function tools.")
         
         # Inject MCP Tools (Granular Permission Check)
+        enabled_slugs = [s.slug for s in skills]
+        
+        # Include allowed_worker_types in enabled_slugs so they trigger MCP loading (e.g., lead-research -> Browser)
+        allowed_workers = settings.get("allowed_worker_types") or []
+        enabled_slugs = list(set(enabled_slugs + allowed_workers))
+        
+        if "skills" in settings and isinstance(settings["skills"], list):
+            enabled_slugs = list(set(enabled_slugs + settings["skills"]))
+        
         logger.info(f"Loading MCP tools for slugs: {enabled_slugs}")
         mcp_tools, mcp_instances, _ = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools:
@@ -188,8 +197,9 @@ async def entrypoint(ctx: JobContext):
         logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
         avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
         
-        # 6. Brief delay for stabilization, then send greeting
-        await asyncio.sleep(1.2)
+        # 6. Stabilization delay: Allow WebRTC video tracks to fully publish before greeting
+        logger.info("Waiting 3.0s for avatar video track stabilization...")
+        await asyncio.sleep(3.0)
         session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
         logger.info("Avatar agent fully started and greeted")
 

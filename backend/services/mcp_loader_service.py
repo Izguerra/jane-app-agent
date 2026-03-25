@@ -17,7 +17,12 @@ class MCPLoaderService:
     SKILL_MAP = {
         "advanced-browsing": ["Playwright Browser", "Browser"],
         "web-research": ["Context7", "Search"],
-        "livekit-debug": ["LiveKit Debugger", "LiveKit Debug"]
+        "livekit-debug": ["LiveKit Debugger", "LiveKit Debug"],
+        # Worker Mappings
+        "lead-research": ["Playwright Browser", "Browser"],
+        "competitor-analysis": ["Playwright Browser", "Browser"],
+        "content-writer": ["Playwright Browser", "Browser"],
+        "job-search": ["Playwright Browser", "Browser"]
     }
 
     @staticmethod
@@ -121,8 +126,18 @@ class MCPLoaderService:
                     except asyncio.TimeoutError:
                         logger.warning(f"MCP {srv.name} init timed out (attempt {attempt+1}/{max_retries})")
                         if attempt < max_retries - 1: await asyncio.sleep(1.0)
+                    except (ImportError, ModuleNotFoundError):
+                        # Handle cases where agno or mcp packages might be missing
+                        raise
                     except Exception as e:
-                        logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}", exc_info=True)
+                        # Catch specific networking errors that often occur during SSE initialization
+                        import httpx
+                        import httpcore
+                        if isinstance(e, (httpx.ReadError, httpcore.ReadError)):
+                            logger.warning(f"MCP {srv.name} connection dropped during init (ReadError) (attempt {attempt+1}/{max_retries})")
+                        else:
+                            logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}", exc_info=True)
+                            
                         if attempt < max_retries - 1: await asyncio.sleep(1.0)
                         
                 if not success:

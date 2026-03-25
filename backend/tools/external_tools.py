@@ -52,12 +52,23 @@ class ExternalTools:
                 print(f"DEBUG: Weather API Request: {url} with params { {k: '***' if k=='appid' else v for k,v in params.items()} }")
                 
                 async with session.get(url, params=params) as response:
-                    if response.status != 200:
+                    if response.status == 404 and "," in location:
+                        # Try searching without the state/province suffix
+                        city_only = location.split(",")[0].strip()
+                        params["q"] = city_only
+                        async with session.get(url, params=params) as retry_resp:
+                            if retry_resp.status == 200:
+                                response = retry_resp
+                                data = await response.json()
+                                location = city_only
+                            else:
+                                return f"Could not get weather for {location} (City not found)."
+                    elif response.status != 200:
                         error_text = await response.text()
                         print(f"ERROR: Weather API failed for {location}: {response.status} - {error_text}")
                         return f"Could not get weather for {location}. Status: {response.status}"
-                    
-                    data = await response.json()
+                    else:
+                        data = await response.json()
                     
                     # --- Data Extraction Helper ---
                     def extract_metrics(raw_data):

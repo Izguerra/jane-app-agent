@@ -100,32 +100,28 @@ async def stream_with_followup(
 ):
     """
     Async generator that wraps a response stream with timed follow-up
-    acknowledgements. Uses a background worker task and queue to 
-    safely drain the generator without violating AnyIO task-local cancel scopes.
+    acknowledgements. 
+    
+    CRITICAL FIX: This uses a single-loop approach with anext() + wait_for 
+    to maintain the same async task and cancel scope, preventing
+    'RuntimeError: Attempted to exit cancel scope in a different task'
+    which occurs when using a separate background drain task with AnyIO/MCP.
     """
     first_real_chunk_received = False
     followup_sent = False
     second_followup_sent = False
     
-    # anext() compatibility for python < 3.10 and safe loop execution
-    queue = asyncio.Queue()
-    
-    async def _drain_generator():
-        try:
-            async for chunk in response_generator:
-                if chunk:
-                    if hasattr(chunk, 'content') and chunk.content:
-                        await queue.put({"type": "chunk", "data": chunk.content})
-                    elif isinstance(chunk, str):
-                        await queue.put({"type": "chunk", "data": chunk})
-            await queue.put({"type": "done"})
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error(f"Error reading agent stream: {e}", exc_info=True)
-            await queue.put({"type": "error", "data": e})
+    # CRITICAL FIX: Ensure we have an async iterator for anext()
+    try:
+        response_iterator = response_generator.__aiter__()
+    except AttributeError:
+        # Fallback if it's already an iterator or doesn't support __aiter__
+        response_iterator = response_generator
 
-    consumer_task = asyncio.create_task(_drain_generator())
+    # initial_ack should be yielded by the CALLER (e.g. routers/chat.py) 
+    # if they want immediate feedback, to prevent double-yielding in the 
+    # combined stream content.
+
     start_time = asyncio.get_event_loop().time()
     
     try:
@@ -141,31 +137,52 @@ async def stream_with_followup(
                     wait_time = max(0.1, second_followup_delay - elapsed)
             
             try:
+                # Use anext() for Python 3.10+ compatibility
                 if wait_time is not None:
-                    msg = await asyncio.wait_for(queue.get(), timeout=wait_time)
+                    chunk = await asyncio.wait_for(anext(response_iterator), timeout=wait_time)
                 else:
-                    msg = await queue.get()
+                    chunk = await anext(response_iterator)
                 
-                if msg["type"] == "chunk":
-                    first_real_chunk_received = True
-                    yield msg["data"]
-                elif msg["type"] == "done":
-                    break
-                elif msg["type"] == "error":
-                    yield f"\n[Error: {msg['data']}]"
-                    break
+                if chunk:
+                    content = None
+                    if hasattr(chunk, 'content') and chunk.content:
+                        content = chunk.content
+                    elif isinstance(chunk, str):
+                        content = chunk
+                    else:
+                        # Fallback for unexpected types (like Agno RunResponse if passed)
+                        # If it's a tool call (like Agno Action), content might be empty
+                        content = getattr(chunk, 'content', None)
                     
+                    if content:
+                        first_real_chunk_received = True
+                        logger.debug(f"Streaming chunk: {len(content)} chars")
+                        yield content
+                    elif not first_real_chunk_received:
+                        # If it's a tool call chunk and no text yet, yield a thought indicator
+                        # to keep the bubble alive and prevent "empty bubble" perception
+                        logger.debug("Received tool call or empty chunk before first text. Yielding indicator.")
+                        yield " " # Just a space to keep it alive
+                        
             except asyncio.TimeoutError:
-                # Inject follow-up
+                # Inject follow-up if we haven't received anything yet
                 if not first_real_chunk_received:
                     if not followup_sent:
                         followup_sent = True
+                        logger.debug("Yielding first follow-up acknowledgment")
                         yield get_followup_phrase()
                     elif not second_followup_sent:
                         second_followup_sent = True
+                        logger.debug("Yielding second follow-up acknowledgment")
                         yield "\n\nAlmost there, just a few more seconds..."
-    finally:
-        consumer_task.cancel()
+                        
+            except StopAsyncIteration:
+                # Generator finished
+                break
+                
+    except Exception as e:
+        logger.error(f"Error in stream_with_followup: {e}", exc_info=True)
+        yield f"\n[Error: {str(e)}]"
 
 
 async def _call_fast_llm(user_message: str) -> str:
