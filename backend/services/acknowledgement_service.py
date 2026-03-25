@@ -78,13 +78,13 @@ async def generate_dynamic_acknowledgement(user_message: str, timeout: float = 1
             timeout=timeout
         )
         if ack and len(ack.strip()) > 5:
-            return ack.strip() + " "
+            return ack.strip()
     except asyncio.TimeoutError:
         logger.debug("Acknowledgement LLM timed out, using fallback")
     except Exception as e:
         logger.debug(f"Acknowledgement LLM error: {e}, using fallback")
     
-    return random.choice(FALLBACK_PHRASES) + " "
+    return random.choice(FALLBACK_PHRASES)
 
 
 def get_followup_phrase() -> str:
@@ -123,6 +123,7 @@ async def stream_with_followup(
     # combined stream content.
 
     start_time = asyncio.get_event_loop().time()
+    buffer = "" # Phase 20 Fix: Local buffer for prefix stripping
     
     try:
         while True:
@@ -155,6 +156,39 @@ async def stream_with_followup(
                         content = getattr(chunk, 'content', None)
                     
                     if content:
+                        if not first_real_chunk_received and initial_ack:
+                            # Phase 20 Fix: BUFFER chunks until we can determine if they match the initial_ack
+                            buffer += content
+                            
+                            def normalize_for_comp(t):
+                                if not t: return ""
+                                import re
+                                # Remove all non-alphanumeric characters to be ultra-robust against punctuation/spacing differences
+                                return re.sub(r'[^a-zA-Z0-9]', '', t).lower()
+                            
+                            b_norm = normalize_for_comp(buffer)
+                            a_norm = normalize_for_comp(initial_ack)
+                            
+                            logger.info(f"Prefix Check: buffer_norm='{b_norm}', ack_norm='{a_norm}'")
+                            
+                            # If buffer is still shorter than ack, and looks like a match so far, keep buffering
+                            if len(b_norm) < len(a_norm) and a_norm.startswith(b_norm):
+                                logger.info(f"Buffering prefix chunk: '{content}'")
+                                continue
+                                
+                            # If it matches the full ack, strip it
+                            if a_norm and b_norm.startswith(a_norm):
+                                logger.info(f"MATCH FOUND: Stripping '{initial_ack}' from buffer")
+                                content = buffer[len(initial_ack):].lstrip()
+                                first_real_chunk_received = True
+                                if not content:
+                                    continue
+                            else:
+                                # Doesn't match, yield the whole buffer and stop stripping
+                                logger.info(f"Prefix MISMATCH. Yielding whole buffer: '{buffer}'")
+                                content = buffer
+                                first_real_chunk_received = True
+                        
                         first_real_chunk_received = True
                         logger.debug(f"Streaming chunk: {len(content)} chars")
                         yield content

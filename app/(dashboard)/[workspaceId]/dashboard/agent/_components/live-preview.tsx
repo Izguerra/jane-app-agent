@@ -1276,9 +1276,42 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
 }
 
 function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData: any; onClose: () => void; pipSize: 'sm' | 'md' | 'lg'; setPipSize: (s: 'sm' | 'md' | 'lg') => void }) {
-    const tracks = useTracks([Track.Source.Camera]);
-    // Filter for remote camera (the avatar)
-    const remoteTrack = tracks.find(t => t.participant.isLocal === false && t.source === Track.Source.Camera);
+    // Phase 21 Fix: Relaxing track source filter to include Unknown/ScreenShare 
+    // to catch tracks from providers that might not tag as 'Camera'
+    const tracks = useTracks([
+        Track.Source.Camera,
+        Track.Source.ScreenShare,
+        Track.Source.Unknown
+    ]);
+
+    // Filter for remote video track (the avatar)
+    const remoteTrack = tracks.find(t => 
+        (t as any).participant?.isLocal === false && 
+        ((t as any).source === Track.Source.Camera || (t as any).source === Track.Source.Unknown || (t as any).source === Track.Source.ScreenShare) &&
+        ((t as any).track?.kind === 'video' || (t as any).publication?.kind === 'video')
+    );
+
+    // Diagnostics for track subscription
+    useEffect(() => {
+        if (tracks.length > 0) {
+            console.log("DEBUG: [Phase 21] Tracks available in room:", tracks.map(t => ({
+                source: (t as any).source,
+                kind: (t as any).track?.kind || (t as any).publication?.kind,
+                participant: (t as any).participant?.identity,
+                isLocal: (t as any).participant?.isLocal,
+                isEnabled: (t as any).track?.isEnabled,
+                isSubscribed: (t as any).isSubscribed
+            })));
+        }
+        if (remoteTrack) {
+            console.log("DEBUG: [Phase 21] Identified Avatar RemoteTrack:", {
+                identity: (remoteTrack as any).participant?.identity,
+                source: (remoteTrack as any).source,
+                subscribed: (remoteTrack as any).isSubscribed
+            });
+        }
+    }, [tracks, remoteTrack]);
+
     // Filter for local camera (user preview)
     const localTrack = tracks.find(t => t.participant.isLocal === true && t.source === Track.Source.Camera);
     const [showCaptions, setShowCaptions] = useState(true);
@@ -1304,7 +1337,11 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
                     </Button>
                 </div>
             ) : remoteTrack ? (
-                <VideoTrack trackRef={remoteTrack} className="w-full h-full object-cover" />
+                <VideoTrack 
+                    key={`avatar-video-${(remoteTrack as any).participant?.identity || 'agent'}-${(remoteTrack as any).track?.sid || (remoteTrack as any).publication?.trackSid || 'loading'}`}
+                    trackRef={remoteTrack} 
+                    className="w-full h-full object-cover"
+                />
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 animate-pulse">
                     <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
