@@ -1,3 +1,4 @@
+import asyncio
 from livekit.agents import llm
 
 class CommunicationMixin:
@@ -6,7 +7,8 @@ class CommunicationMixin:
         if not phone_number or not message: return "Error: Missing info."
         try:
             from backend.services.sms_service import send_sms
-            success, error = send_sms(phone_number, message, self.workspace_id)
+            # Use asyncio.to_thread to prevent blocking the event loop with synchronous Twilio/Telnyx calls
+            success, error = await asyncio.to_thread(send_sms, phone_number, message, self.workspace_id)
             return "SMS sent." if success else f"Failed: {error}"
         except Exception as e: return f"Error: {str(e)}"
 
@@ -16,6 +18,13 @@ class CommunicationMixin:
         try:
             from backend.services.email_service import EmailService
             service = EmailService()
-            success, error = service.send_email(to_email=email_address, subject=subject, html_content=f"<p>{message}</p>", workspace_id=self.workspace_id)
+            # Use asyncio.to_thread to prevent blocking the event loop with synchronous Resend calls
+            success, error = await asyncio.to_thread(
+                service.send_email, 
+                to_email=email_address, 
+                subject=subject, 
+                html_content=f"<p>{message}</p>", 
+                workspace_id=self.workspace_id
+            )
             return "Email sent." if success else f"Failed: {error}"
         except Exception as e: return f"Error: {str(e)}"

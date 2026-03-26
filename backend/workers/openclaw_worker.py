@@ -17,7 +17,7 @@ class OpenClawWorker:
         """
         Synchronous wrapper that waits for the external container to finish the task.
         """
-        timeout = 60 # 60 seconds max wait for browser tasks
+        timeout = 30 # 30 seconds max wait for browser tasks
         start_time = time.time()
         
         while time.time() - start_time < timeout:

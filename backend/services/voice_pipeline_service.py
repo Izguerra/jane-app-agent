@@ -49,7 +49,7 @@ class VoicePipelineService:
     def get_tts(workspace_id, voice_id, settings):
         is_openai_voice = voice_id.lower() in ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage", "ash", "coral", "verse"]
         if is_openai_voice:
-            return openai.TTS(voice=voice_id)
+            return openai.TTS(voice=voice_id, speed=1.15)
         
         eleven_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="elevenlabs", env_fallback="ELEVENLABS_API_KEY")
         if eleven_key:

@@ -195,13 +195,32 @@ class ExternalTools:
                         f_num = flight.get('flight', {}).get('iata', 'Unknown')
                         status = flight.get('flight_status', 'unknown')
                         airline_name = flight.get('airline', {}).get('name', '')
-                        dep = flight.get('departure', {})
-                        arr = flight.get('arrival', {})
                         
-                        dep_txt = f"{dep.get('airport')} ({dep.get('iata')}) at {dep.get('scheduled', '')}"
-                        arr_txt = f"{arr.get('airport')} ({arr.get('iata')}) at {arr.get('scheduled', '')}"
+                        # Use real-time data if available, otherwise fallback to scheduled
+                        dep = flight.get("departure", {})
+                        arr = flight.get("arrival", {})
                         
-                        output.append(f"✈️ {f_num} {airline_name}\n   Status: {status}\n   Departs: {dep_txt}\n   Arrives: {arr_txt}")
+                        # Helper to get the best time string
+                        def get_time(info):
+                            return info.get("actual") or info.get("estimated") or info.get("scheduled") or "N/A"
+
+                        dep_time = get_time(dep)
+                        arr_time = get_time(arr)
+                        
+                        # Format delay if exists
+                        dep_delay = dep.get("delay")
+                        arr_delay = arr.get("delay")
+                        
+                        delay_info = ""
+                        if dep_delay:
+                            delay_info += f" (Departed {dep_delay} mins late)"
+                        if arr_delay:
+                            delay_info += f" (Delayed {arr_delay} mins on arrival)"
+
+                        dep_txt = f"{dep.get('airport')} ({dep.get('iata')}) at {dep_time}"
+                        arr_txt = f"{arr.get('airport')} ({arr.get('iata')}) at {arr_time}"
+                        
+                        output.append(f"✈️ {f_num} {airline_name}\n   Status: {status.upper()}{delay_info}\n   Departs: {dep_txt}\n   Arrives: {arr_txt}")
                     
                     return "\n\n".join(output)
                     

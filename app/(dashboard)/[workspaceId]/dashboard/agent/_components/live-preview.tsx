@@ -941,7 +941,6 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                             )}
                             <RoomAudioRenderer />
                             {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
-                            <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -972,6 +971,7 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
     const { state } = useVoiceAssistant();
     const segments = useTranscriptions();
     const [messages, setMessages] = useState<any[]>([]);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (segments && segments.length > 0) {
@@ -980,27 +980,33 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
                 (segments as any[]).forEach(seg => {
                     const existingIdx = newMessages.findIndex(m => m.id === seg.id);
                     if (existingIdx !== -1) {
-                        newMessages[existingIdx] = { ...newMessages[existingIdx], text: seg.text, timestamp: Date.now() };
+                        newMessages[existingIdx] = { ...newMessages[existingIdx], text: seg.text };
                     } else {
                         newMessages.push({
                             id: seg.id,
-                            text: seg.text,
-                            timestamp: Date.now()
+                            text: seg.text
                         });
                     }
                 });
-                // Keep only last 3 messages to avoid overcrowding and restrict height to ~3 rows
+                // Keep slightly more history to allow scrolling within the 3-row window
                 return newMessages
-                    .filter(m => Date.now() - m.timestamp < 6000)
-                    .slice(-3);
+                    .filter(m => Date.now() - m.timestamp < 8000)
+                    .slice(-6);
             });
         }
     }, [segments]);
 
+    // Auto-scroll to bottom whenever messages change
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+
     // Secondary cleaner to remove stale messages
     useEffect(() => {
         const interval = setInterval(() => {
-            setMessages(prev => prev.filter(m => Date.now() - m.timestamp < 6000));
+            setMessages(prev => prev.filter(m => Date.now() - m.timestamp < 8000));
         }, 1000);
         return () => clearInterval(interval);
     }, []);
@@ -1008,21 +1014,27 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
     if (!showCaptions) return null;
 
     return (
-        <div className="absolute bottom-24 left-0 right-0 z-50 flex flex-col items-center justify-end px-6 pointer-events-none gap-2 overflow-hidden max-h-[30%]">
-            <AnimatePresence mode="popLayout">
-                {messages.map((m) => (
-                    <motion.div
-                        key={m.id}
-                        layout
-                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -60, scale: 0.8, transition: { duration: 0.4 } }}
-                        className="bg-black/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-white text-sm md:text-base font-medium shadow-xl border border-white/10 max-w-[90%] text-center line-clamp-2"
-                    >
-                        {m.text}
-                    </motion.div>
-                ))}
-            </AnimatePresence>
+        <div className="absolute bottom-24 left-0 right-0 z-50 flex flex-col items-center justify-end px-6 pointer-events-none">
+            <div 
+                ref={scrollRef}
+                className="max-w-[90%] max-h-[120px] overflow-y-auto flex flex-col gap-2 scroll-smooth scrollbar-hide pointer-events-none p-2"
+                style={{ maskImage: 'linear-gradient(to bottom, transparent, black 20%)' }}
+            >
+                <AnimatePresence mode="popLayout">
+                    {messages.map((m) => (
+                        <motion.div
+                            key={m.id}
+                            layout
+                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -20, scale: 0.9, transition: { duration: 0.2 } }}
+                            className="bg-black/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-white text-sm md:text-base font-medium shadow-xl border border-white/10 text-center"
+                        >
+                            {m.text}
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
 
             <AnimatePresence>
                 {messages.length === 0 && state === 'thinking' && (
@@ -1042,8 +1054,10 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
 
 function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: () => void, showCaptions?: boolean, toggleCaptions?: () => void }) {
     const { localParticipant } = useLocalParticipant();
+    
+    // FIX: Default to 'on' (not muted, not video off)
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(true);
+    const [isVideoOff, setIsVideoOff] = useState(false);
 
     const toggleMic = async () => {
         if (!localParticipant) return;
@@ -1061,10 +1075,14 @@ function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: ()
 
     useEffect(() => {
         if (localParticipant) {
-            setIsMuted(!localParticipant.isMicrophoneEnabled);
-            setIsVideoOff(!localParticipant.isCameraEnabled);
+            // Only sync if the state is actually different to avoid race conditions during init
+            const micMuted = !localParticipant.isMicrophoneEnabled;
+            const camOff = !localParticipant.isCameraEnabled;
+            
+            if (isMuted !== micMuted) setIsMuted(micMuted);
+            if (isVideoOff !== camOff) setIsVideoOff(camOff);
         }
-    }, [localParticipant]);
+    }, [localParticipant, localParticipant?.isMicrophoneEnabled, localParticipant?.isCameraEnabled]);
 
     return (
         <div className="flex items-center gap-3 p-2 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md border border-slate-200 dark:border-white/10 shadow-2xl">
@@ -1227,22 +1245,22 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
         onClose();
     };
 
-    // Auto-unmute on join/mount if possible
+    // Auto-unmute on join/mount
     useEffect(() => {
-        if (localParticipant && !localParticipant.isMicrophoneEnabled) {
-            localParticipant.setMicrophoneEnabled(true).catch(() => {
-                // Autoplay policy might block this, user will have to click
-                console.log("Auto-unmute blocked by browser");
+        if (localParticipant) {
+            localParticipant.setMicrophoneEnabled(true).catch((err) => {
+                console.warn("Auto-unmute failed:", err);
             });
+            setIsMuted(false);
         }
     }, [localParticipant]);
 
-    // Sync initial state
+    // Sync state
     useEffect(() => {
         if (localParticipant) {
             setIsMuted(!localParticipant.isMicrophoneEnabled);
         }
-    }, [localParticipant]);
+    }, [localParticipant, localParticipant?.isMicrophoneEnabled]);
 
     return (
         <div className="flex flex-col gap-3 w-full items-center">
@@ -1284,16 +1302,12 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
 }
 
 function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData: any; onClose: () => void; pipSize: 'sm' | 'md' | 'lg'; setPipSize: (s: 'sm' | 'md' | 'lg') => void }) {
-    // Phase 21 Fix: Relaxing track source filter to include Unknown/ScreenShare 
-    // to catch tracks from providers that might not tag as 'Camera'
     const tracks = useTracks([
-        Track.Source.Camera,
-        Track.Source.ScreenShare,
-        Track.Source.Unknown
+        Track.Source.Camera
     ]);
 
     // Filter for remote video track (the avatar)
-    // We are more aggressive here: if it's not local and it's video, it's the avatar.
+    // Robust detection: Match ANY remote participant track that is video
     const remoteTrack = tracks.find(t => 
         (t as any).participant?.isLocal === false && 
         ((t as any).track?.kind === 'video' || (t as any).publication?.kind === 'video')
@@ -1302,17 +1316,21 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
     // Diagnostics for track subscription
     useEffect(() => {
         if (tracks.length > 0) {
-            console.log("DEBUG: [Phase 21] Tracks available in room:", tracks.map(t => ({
+            console.log("DEBUG: [AvatarStage] Tracks in room:", tracks.length, tracks.map(t => ({
                 source: (t as any).source,
                 kind: (t as any).track?.kind || (t as any).publication?.kind,
                 participant: (t as any).participant?.identity,
                 isLocal: (t as any).participant?.isLocal,
                 isEnabled: (t as any).track?.isEnabled,
-                isSubscribed: (t as any).isSubscribed
+                isSubscribed: (t as any).isSubscribed,
+                sid: (t as any).track?.sid || (t as any).publication?.trackSid
             })));
+        } else {
+             console.log("DEBUG: [AvatarStage] No tracks detected yet.");
         }
+        
         if (remoteTrack) {
-            console.log("DEBUG: [Phase 21] Identified Avatar RemoteTrack:", {
+            console.log("DEBUG: [AvatarStage] ACTIVE Avatar RemoteTrack:", {
                 identity: (remoteTrack as any).participant?.identity,
                 source: (remoteTrack as any).source,
                 subscribed: (remoteTrack as any).isSubscribed
@@ -1351,11 +1369,13 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
                     className="w-full h-full object-cover"
                 />
             ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 animate-pulse">
-                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
-                        <Bot className="h-8 w-8 text-blue-600" />
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                    <div className="flex flex-col items-center gap-3 animate-pulse">
+                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
+                            <Bot className="h-8 w-8 text-blue-600" />
+                        </div>
+                        <span className="text-sm font-medium">Connecting to Avatar...</span>
                     </div>
-                    <span className="text-sm font-medium">Connecting to Avatar...</span>
                 </div>
             )}
 
@@ -1398,27 +1418,10 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
                 </div>
             )}
 
-            {/* Live Transcript Overlay */}
-            <div className="absolute bottom-4 left-4 right-4 z-30 pointer-events-none">
-                <TranscriptOverlay showCaptions={showCaptions} />
-            </div>
-
             {/* Floating Controls */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
                 <CustomControls onClose={onClose} showCaptions={showCaptions} toggleCaptions={() => setShowCaptions(!showCaptions)} />
             </div>
         </div>
     );
-}
-
-function ParticipantLogger() {
-    const remoteParticipants = useParticipants();
-    const { localParticipant } = useLocalParticipant();
-    
-    useEffect(() => {
-        const total = remoteParticipants.length + (localParticipant ? 1 : 0);
-        console.log(`🚀 [PARTICIPANT COUNT] Total participants in room: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
-    }, [remoteParticipants.length, localParticipant]);
-    
-    return null;
 }

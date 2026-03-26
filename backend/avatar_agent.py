@@ -18,8 +18,6 @@ import socket
 _orig_getaddrinfo = socket.getaddrinfo
 def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     if host == "jane-clinic-app-tupihomh.livekit.cloud":
-        # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
-        # Returned as list of tuples (family, type, proto, canonname, sockaddr)
         return [
             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.180.66', port)),
             (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.181.18', port))
@@ -27,24 +25,40 @@ def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
     return _orig_getaddrinfo(host, port, family, type, proto, flags)
 socket.getaddrinfo = _patched_getaddrinfo
 
-# Ensure project root is in sys.path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-from backend.avatar.config import resolve_settings, get_llm, get_tts
-from backend.avatar.prompts import get_avatar_prompt
-from backend.avatar.providers import initialize_avatar
-from backend.avatar.tracking import start_communication_log, finalize_communication_log
-from backend.services.voice_handlers import VoiceHandlers
-from backend.database import SessionLocal
-from backend.models_db import Agent as AgentModel, Workspace, Communication
-from backend.agent_tools import AgentTools
-from backend.services.mcp_loader_service import MCPLoaderService
-from backend.services.skill_service import SkillService
-from backend.services.voice_context_resolver import VoiceContextResolver
-from backend.services.voice_pipeline_service import VoicePipelineService
+# Lazy import setup
+def get_avatar_deps():
+    from backend.avatar.config import resolve_settings, get_llm, get_tts
+    from backend.avatar.prompts import get_avatar_prompt
+    from backend.avatar.providers import initialize_avatar
+    from backend.avatar.tracking import start_communication_log, finalize_communication_log
+    from backend.services.voice_handlers import VoiceHandlers
+    from backend.database import SessionLocal
+    from backend.models_db import Agent as AgentModel, Workspace, Communication
+    from backend.agent_tools import AgentTools
+    from backend.services.mcp_loader_service import MCPLoaderService
+    from backend.services.skill_service import SkillService
+    from backend.services.voice_context_resolver import VoiceContextResolver
+    from backend.services.voice_pipeline_service import VoicePipelineService
+    
+    return {
+        "resolve_settings": resolve_settings,
+        "get_llm": get_llm,
+        "get_tts": get_tts,
+        "get_avatar_prompt": get_avatar_prompt,
+        "initialize_avatar": initialize_avatar,
+        "start_communication_log": start_communication_log,
+        "finalize_communication_log": finalize_communication_log,
+        "VoiceHandlers": VoiceHandlers,
+        "SessionLocal": SessionLocal,
+        "AgentModel": AgentModel,
+        "Workspace": Workspace,
+        "Communication": Communication,
+        "AgentTools": AgentTools,
+        "MCPLoaderService": MCPLoaderService,
+        "SkillService": SkillService,
+        "VoiceContextResolver": VoiceContextResolver,
+        "VoicePipelineService": VoicePipelineService
+    }
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("avatar-agent")
@@ -65,10 +79,23 @@ async def entrypoint(ctx: JobContext):
             await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
         
         await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
-        participant = await ctx.wait_for_participant()
+        
+        logger.info("Waiting for participant to join...")
+        try:
+            participant = await asyncio.wait_for(ctx.wait_for_participant(), timeout=15)
+            logger.info(f"Connected to participant: {participant.identity} (Name: {participant.name or 'N/A'})")
+        except asyncio.TimeoutError:
+            logger.warning("Timed out waiting for participant. Room might be empty. Closing job.")
+            return
+        except Exception as pe:
+            logger.error(f"Error waiting for participant: {pe}")
+            return
+            
+        # Lazy load dependencies within the spawned process
+        deps = get_avatar_deps()
         
         # Resolve Settings & Agent Identity
-        workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
+        workspace_id, agent_id, call_context, meta = await deps["VoiceContextResolver"].resolve_context(ctx, participant)
         if not workspace_id:
             logger.warning(f"Closing avatar entrypoint for room {ctx.room.name} - Context could not be resolved.")
             return
@@ -76,13 +103,13 @@ async def entrypoint(ctx: JobContext):
         settings = meta
         original_agent_id = agent_id
 
-        db = SessionLocal()
+        db = deps["SessionLocal"]()
         try:
             # Robust agent resolution: respect passed agent_id, or fallback to first in workspace
             if agent_id:
-                agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
+                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].id == agent_id, deps["AgentModel"].workspace_id == workspace_id).first()
             else:
-                agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].workspace_id == workspace_id).first()
             
             if agent_rec:
                 agent_id = agent_rec.id
@@ -99,18 +126,18 @@ async def entrypoint(ctx: JobContext):
             
             # Load skills in the same DB session
             logger.info(f"Loading skills for agent_id={agent_id}")
-            skills = SkillService().get_skills_for_agent(db, agent_id)
+            skills = deps["SkillService"]().get_skills_for_agent(db, agent_id)
         finally:
             db.close()
         
         # Tracking
-        log_id = start_communication_log(workspace_id, agent_id, settings, participant.identity)
+        log_id = deps["start_communication_log"](workspace_id, agent_id, settings, participant.identity)
         transcript = []
 
         # Pipeline Components — pass workspace_id for DB key retrieval
-        stt = VoicePipelineService.get_stt(workspace_id)
-        llm_instance = get_llm(workspace_id=workspace_id)
-        tts_instance = get_tts(settings.get("voice_id", "Josh"), workspace_id=workspace_id)
+        stt = deps["VoicePipelineService"].get_stt(workspace_id)
+        llm_instance = deps["get_llm"](workspace_id=workspace_id)
+        tts_instance = deps["get_tts"](settings.get("voice_id", "Josh"), workspace_id=workspace_id)
         vad = ctx.proc.userdata["vad"]
         
         logger.info(f"Avatar pipeline: LLM={type(llm_instance).__name__}, TTS={type(tts_instance).__name__}")
@@ -122,7 +149,7 @@ async def entrypoint(ctx: JobContext):
         
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
         logger.info(f"Initializating AgentTools for avatar agent...")
-        agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
+        agent_tools = deps["AgentTools"](workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
         all_tools = llm.find_function_tools(agent_tools)
         logger.info(f"Discovered {len(all_tools)} function tools.")
         
@@ -137,14 +164,14 @@ async def entrypoint(ctx: JobContext):
             enabled_slugs = list(set(enabled_slugs + settings["skills"]))
         
         logger.info(f"Loading MCP tools for slugs: {enabled_slugs}")
-        mcp_tools, mcp_instances, _ = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
+        mcp_tools, mcp_instances, _ = await deps["MCPLoaderService"].load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools:
             all_tools.extend(mcp_tools)
         
         logger.info(f"Loaded {len(all_tools)} total tools for avatar agent.")
         
         # Prompt
-        full_prompt = get_avatar_prompt(settings)
+        full_prompt = deps["get_avatar_prompt"](settings)
         
         # Inject cross-channel context memory (Layer 2)
         try:
@@ -177,7 +204,7 @@ async def entrypoint(ctx: JobContext):
         agent_logic = livekit_Agent(instructions=full_prompt)
         
         # Register voice event handlers (matches voice_agent.py for consistent state tracking)
-        VoiceHandlers.register_session_events(session, ctx)
+        deps["VoiceHandlers"].register_session_events(session, ctx)
         
         # 3. Register speech event handlers BEFORE starting
         @session.on("user_speech_committed")
@@ -195,7 +222,7 @@ async def entrypoint(ctx: JobContext):
         # 5. Initialize Avatar (hooks into existing published tracks)
         resolved_provider = settings.get("avatar_provider", "anam")
         logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
-        avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
+        avatar = await deps["initialize_avatar"](resolved_provider, settings, session, ctx.room, ctx)
         
         # 6. Stabilization delay: Allow WebRTC video tracks to fully publish before greeting
         logger.info("Waiting 3.0s for avatar video track stabilization...")
@@ -217,9 +244,9 @@ async def entrypoint(ctx: JobContext):
             session_task.cancel()
         
         if 'mcp_instances' in locals() and mcp_instances:
-            await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
+            await deps["MCPLoaderService"].cleanup_mcp_servers(mcp_instances)
         
-        await finalize_communication_log(log_id, transcript, avatar)
+        await deps["finalize_communication_log"](log_id, transcript, avatar)
         
     except Exception as e:
         logger.error(f"CRITICAL ERROR IN AVATAR AGENT ENTRYPOINT: {e}", exc_info=True)
@@ -230,6 +257,10 @@ async def entrypoint(ctx: JobContext):
 from backend.utils.process_manager import ProcessManager
 
 if __name__ == "__main__":
+    # Load environment variables early for worker registration
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(_project_root, "..", ".env"))
+    
     pm = ProcessManager(name="avatar-agent", pid_file=os.path.join(_project_root, "avatar_agent.pid"))
     pm.check_lock()
     pm.write_lock()

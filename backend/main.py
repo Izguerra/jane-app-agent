@@ -119,17 +119,20 @@ def db_test():
 
 @app.on_event("startup")
 async def on_startup():
-    from backend.database import init_db
-    init_db()
+    print("STARTUP: Skipping init_db (Table verification handled externally)", flush=True)
+    # from backend.database import init_db
+    # init_db()
+    print("STARTUP: init_db complete", flush=True)
     
     # Start Campaign Processor
     try:
         from backend.workers.campaign_worker import run_campaign_processor
         import asyncio
+        print("STARTUP: Launching Campaign Processor task...", flush=True)
         asyncio.create_task(run_campaign_processor())
-        print("Started Campaign Processor")
+        print("STARTUP: Campaign Processor task launched", flush=True)
     except Exception as e:
-        print(f"Failed to start campaign processor: {e}")
+        print(f"STARTUP ERROR: Failed to start campaign processor: {e}", flush=True)
         
     # Session Cleanup Scheduler is now started in the main startup_event to avoid duplication.
     pass
@@ -195,6 +198,7 @@ async def startup_event():
     import logging
     import asyncio
     from backend.services.scheduler_service import run_scheduler
+    print("STARTUP: Starting startup_event...", flush=True)
 
     logger = logging.getLogger("uvicorn.error")
     # logger.info("Starting Worker Executor...")
@@ -202,16 +206,19 @@ async def startup_event():
     # logger.info("Worker Executor started")
 
     # Start Scheduler
+    print("STARTUP: Launching Scheduler task...", flush=True)
     asyncio.create_task(run_scheduler())
     logger.info("Scheduler started")
 
     # Start Health Worker
     try:
         from backend.workers.health_worker import run_health_worker
+        print("STARTUP: Launching Health Worker task...", flush=True)
         asyncio.create_task(run_health_worker())
         logger.info("Health Worker started")
     except Exception as e:
-        logger.error(f"Failed to start Health Worker: {e}")
+        logger.error(f"STARTUP ERROR: Failed to start Health Worker: {e}")
+    print("STARTUP: startup_event complete", flush=True)
 
 @app.on_event("shutdown")
 async def shutdown_event():

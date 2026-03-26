@@ -13,7 +13,8 @@ async def initialize_avatar(avatar_provider: str, settings: dict, session, room,
     avatar = None
     if avatar_provider == "anam" and anam_persona_id:
         try:
-            logger.info(f"Initializing Anam.ai avatar with persona={anam_persona_id}. Subscription: Auto")
+            api_key = os.environ.get("ANAM_API_KEY", "")
+            logger.info(f"Initializing Anam.ai avatar with persona={anam_persona_id}. Key prefix: {api_key[:8]}...")
             persona_cfg = anam.PersonaConfig(name=settings.get("name", "JaneApp Agent"), avatarId=anam_persona_id)
             avatar = anam.AvatarSession(persona_config=persona_cfg)
             

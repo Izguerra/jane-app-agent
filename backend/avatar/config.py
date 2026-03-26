@@ -62,7 +62,7 @@ def get_tts(voice_id, workspace_id: str = None):
     openai_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
     
     if clean_voice_id.lower() in openai_voices:
-        return openai.TTS(voice=clean_voice_id.lower())
+        return openai.TTS(voice=clean_voice_id.lower(), speed=1.15)
     
     eleven_key = None
     if workspace_id:

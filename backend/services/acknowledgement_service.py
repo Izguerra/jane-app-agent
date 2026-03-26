@@ -43,13 +43,13 @@ FOLLOWUP_PHRASES = [
 
 
 GREETING_MAP = {
-    "hi": "Hello! How can I help you today?",
-    "hello": "Hi there! What can I do for you?",
-    "hey": "Hey! How's it going? How can I assist?",
-    "how are you": "I'm doing great, thank you! How can I help you today?",
-    "how are you?": "I'm doing great, thank you! How can I help you today?",
-    "thanks": "You're very welcome!",
-    "thank you": "You're very welcome!",
+    "hi": "Hi there! Just a second...",
+    "hello": "Hello! Looking into things for you...",
+    "hey": "Hey! One moment while I get started...",
+    "how are you": "I'm doing great! Let me see how I can help...",
+    "how are you?": "I'm doing great! Let me see how I can help...",
+    "thanks": "You're welcome! Happy to help.",
+    "thank you": "You're welcome! Happy to help.",
 }
 
 async def generate_dynamic_acknowledgement(user_message: str, timeout: float = 1.0) -> str:
@@ -95,8 +95,8 @@ def get_followup_phrase() -> str:
 async def stream_with_followup(
     response_generator,
     initial_ack: str,
-    followup_delay: float = 4.0,
-    second_followup_delay: float = 8.0
+    followup_delay: float = 6.0,
+    second_followup_delay: float = 15.0
 ):
     """
     Async generator that wraps a response stream with timed follow-up
@@ -208,7 +208,13 @@ async def stream_with_followup(
                     elif not second_followup_sent:
                         second_followup_sent = True
                         logger.debug("Yielding second follow-up acknowledgment")
-                        yield "\n\nAlmost there, just a few more seconds..."
+                        yield "\n\nSearching for the best information... This might take a moment."
+                    else:
+                        # CAP: No more follow-ups after the second one
+                        logger.debug("Max follow-ups reached, waiting silently...")
+                        # We wait indefinitely for the next chunk or StopAsyncIteration
+                        wait_time = None
+                        continue
                         
             except StopAsyncIteration:
                 # Generator finished

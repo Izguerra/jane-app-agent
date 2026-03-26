@@ -97,13 +97,18 @@ class MCPLoaderService:
                 )
                 
                 # Resilient Initialization with Retries and Timeout
+                import anyio
                 max_retries = 3
                 success = False
                 for attempt in range(max_retries):
                     try:
                         # 30-second timeout per operation to allow heavy servers like Playwright to boot
-                        await asyncio.wait_for(mcp_instance.initialize(), timeout=30.0)
-                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=30.0)
+                        # Use anyio.fail_after to match the MCP SDK's anyio-based cancel scopes
+                        with anyio.fail_after(30.0):
+                            await mcp_instance.initialize()
+                        
+                        with anyio.fail_after(30.0):
+                            tools = await mcp_instance.list_tools()
                         
                         mcp_tools.extend(tools)
                         mcp_instances.append(mcp_instance)
@@ -125,7 +130,7 @@ class MCPLoaderService:
                         logger.info(f"Loaded {len(tools)} tools from MCP server '{srv.name}'")
                         success = True
                         break
-                    except asyncio.TimeoutError:
+                    except (asyncio.TimeoutError, anyio.PriorityTimeoutError, TimeoutError):
                         logger.warning(f"MCP {srv.name} ({srv.url}) init timed out (attempt {attempt+1}/{max_retries})")
                         if attempt < max_retries - 1: await asyncio.sleep(2.0)
                     except (ImportError, ModuleNotFoundError):
