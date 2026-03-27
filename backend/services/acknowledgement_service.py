@@ -43,13 +43,13 @@ FOLLOWUP_PHRASES = [
 
 
 GREETING_MAP = {
-    "hi": "Hi there! Just a second...",
-    "hello": "Hello! Looking into things for you...",
-    "hey": "Hey! One moment while I get started...",
-    "how are you": "I'm doing great! Let me see how I can help...",
-    "how are you?": "I'm doing great! Let me see how I can help...",
-    "thanks": "You're welcome! Happy to help.",
-    "thank you": "You're welcome! Happy to help.",
+    "hi": "Hello! How can I help you today?",
+    "hello": "Hi there! What can I do for you?",
+    "hey": "Hey! How's it going? How can I assist?",
+    "how are you": "I'm doing great, thank you! How can I help you today?",
+    "how are you?": "I'm doing great, thank you! How can I help you today?",
+    "thanks": "You're very welcome!",
+    "thank you": "You're very welcome!",
 }
 
 async def generate_dynamic_acknowledgement(user_message: str, timeout: float = 1.0) -> str:
@@ -78,13 +78,13 @@ async def generate_dynamic_acknowledgement(user_message: str, timeout: float = 1
             timeout=timeout
         )
         if ack and len(ack.strip()) > 5:
-            return ack.strip()
+            return ack.strip() + " "
     except asyncio.TimeoutError:
         logger.debug("Acknowledgement LLM timed out, using fallback")
     except Exception as e:
         logger.debug(f"Acknowledgement LLM error: {e}, using fallback")
     
-    return random.choice(FALLBACK_PHRASES)
+    return random.choice(FALLBACK_PHRASES) + " "
 
 
 def get_followup_phrase() -> str:
@@ -95,35 +95,38 @@ def get_followup_phrase() -> str:
 async def stream_with_followup(
     response_generator,
     initial_ack: str,
-    followup_delay: float = 6.0,
-    second_followup_delay: float = 15.0
+    followup_delay: float = 4.0,
+    second_followup_delay: float = 8.0
 ):
     """
     Async generator that wraps a response stream with timed follow-up
-    acknowledgements. 
-    
-    CRITICAL FIX: This uses a single-loop approach with anext() + wait_for 
-    to maintain the same async task and cancel scope, preventing
-    'RuntimeError: Attempted to exit cancel scope in a different task'
-    which occurs when using a separate background drain task with AnyIO/MCP.
+    acknowledgements. Uses a background worker task and queue to 
+    safely drain the generator without violating AnyIO task-local cancel scopes.
     """
     first_real_chunk_received = False
     followup_sent = False
     second_followup_sent = False
     
-    # CRITICAL FIX: Ensure we have an async iterator for anext()
-    try:
-        response_iterator = response_generator.__aiter__()
-    except AttributeError:
-        # Fallback if it's already an iterator or doesn't support __aiter__
-        response_iterator = response_generator
+    # anext() compatibility for python < 3.10 and safe loop execution
+    queue = asyncio.Queue()
+    
+    async def _drain_generator():
+        try:
+            async for chunk in response_generator:
+                if chunk:
+                    if hasattr(chunk, 'content') and chunk.content:
+                        await queue.put({"type": "chunk", "data": chunk.content})
+                    elif isinstance(chunk, str):
+                        await queue.put({"type": "chunk", "data": chunk})
+            await queue.put({"type": "done"})
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Error reading agent stream: {e}", exc_info=True)
+            await queue.put({"type": "error", "data": e})
 
-    # initial_ack should be yielded by the CALLER (e.g. routers/chat.py) 
-    # if they want immediate feedback, to prevent double-yielding in the 
-    # combined stream content.
-
+    consumer_task = asyncio.create_task(_drain_generator())
     start_time = asyncio.get_event_loop().time()
-    buffer = "" # Phase 20 Fix: Local buffer for prefix stripping
     
     try:
         while True:
@@ -138,91 +141,31 @@ async def stream_with_followup(
                     wait_time = max(0.1, second_followup_delay - elapsed)
             
             try:
-                # Use anext() for Python 3.10+ compatibility
                 if wait_time is not None:
-                    chunk = await asyncio.wait_for(anext(response_iterator), timeout=wait_time)
+                    msg = await asyncio.wait_for(queue.get(), timeout=wait_time)
                 else:
-                    chunk = await anext(response_iterator)
+                    msg = await queue.get()
                 
-                if chunk:
-                    content = None
-                    if hasattr(chunk, 'content') and chunk.content:
-                        content = chunk.content
-                    elif isinstance(chunk, str):
-                        content = chunk
-                    else:
-                        # Fallback for unexpected types (like Agno RunResponse if passed)
-                        # If it's a tool call (like Agno Action), content might be empty
-                        content = getattr(chunk, 'content', None)
+                if msg["type"] == "chunk":
+                    first_real_chunk_received = True
+                    yield msg["data"]
+                elif msg["type"] == "done":
+                    break
+                elif msg["type"] == "error":
+                    yield f"\n[Error: {msg['data']}]"
+                    break
                     
-                    if content:
-                        if not first_real_chunk_received and initial_ack:
-                            # Phase 20 Fix: BUFFER chunks until we can determine if they match the initial_ack
-                            buffer += content
-                            
-                            def normalize_for_comp(t):
-                                if not t: return ""
-                                import re
-                                # Remove all non-alphanumeric characters to be ultra-robust against punctuation/spacing differences
-                                return re.sub(r'[^a-zA-Z0-9]', '', t).lower()
-                            
-                            b_norm = normalize_for_comp(buffer)
-                            a_norm = normalize_for_comp(initial_ack)
-                            
-                            logger.info(f"Prefix Check: buffer_norm='{b_norm}', ack_norm='{a_norm}'")
-                            
-                            # If buffer is still shorter than ack, and looks like a match so far, keep buffering
-                            if len(b_norm) < len(a_norm) and a_norm.startswith(b_norm):
-                                logger.info(f"Buffering prefix chunk: '{content}'")
-                                continue
-                                
-                            # If it matches the full ack, strip it
-                            if a_norm and b_norm.startswith(a_norm):
-                                logger.info(f"MATCH FOUND: Stripping '{initial_ack}' from buffer")
-                                content = buffer[len(initial_ack):].lstrip()
-                                first_real_chunk_received = True
-                                if not content:
-                                    continue
-                            else:
-                                # Doesn't match, yield the whole buffer and stop stripping
-                                logger.info(f"Prefix MISMATCH. Yielding whole buffer: '{buffer}'")
-                                content = buffer
-                                first_real_chunk_received = True
-                        
-                        first_real_chunk_received = True
-                        logger.debug(f"Streaming chunk: {len(content)} chars")
-                        yield content
-                    elif not first_real_chunk_received:
-                        # If it's a tool call chunk and no text yet, yield a thought indicator
-                        # to keep the bubble alive and prevent "empty bubble" perception
-                        logger.debug("Received tool call or empty chunk before first text. Yielding indicator.")
-                        yield " " # Just a space to keep it alive
-                        
             except asyncio.TimeoutError:
-                # Inject follow-up if we haven't received anything yet
+                # Inject follow-up
                 if not first_real_chunk_received:
                     if not followup_sent:
                         followup_sent = True
-                        logger.debug("Yielding first follow-up acknowledgment")
                         yield get_followup_phrase()
                     elif not second_followup_sent:
                         second_followup_sent = True
-                        logger.debug("Yielding second follow-up acknowledgment")
-                        yield "\n\nSearching for the best information... This might take a moment."
-                    else:
-                        # CAP: No more follow-ups after the second one
-                        logger.debug("Max follow-ups reached, waiting silently...")
-                        # We wait indefinitely for the next chunk or StopAsyncIteration
-                        wait_time = None
-                        continue
-                        
-            except StopAsyncIteration:
-                # Generator finished
-                break
-                
-    except Exception as e:
-        logger.error(f"Error in stream_with_followup: {e}", exc_info=True)
-        yield f"\n[Error: {str(e)}]"
+                        yield "\n\nAlmost there, just a few more seconds..."
+    finally:
+        consumer_task.cancel()
 
 
 async def _call_fast_llm(user_message: str) -> str:

@@ -108,9 +108,6 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
             logger.error(f"Error checking database for WhatsApp credentials: {e}")
         # Continue to fallback
     
-    # Format phone numbers early
-    formatted_to = format_phone_number(to_number)
-    
     # 2. Check Database for Assigned Number / Provider (New)
     try:
         from backend.database import SessionLocal
@@ -134,13 +131,13 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
                     try:
                         result = telnyx_svc.send_sms(
                             from_number=from_number,
-                            to_number=formatted_to,
+                            to_number=to_number,
                             text=message
                         )
-                        logger.info(f"Telnyx SMS sent successfully to {formatted_to}: {result}")
+                        logger.info(f"Telnyx SMS sent successfully: {result}")
                         return True, None
                     except Exception as te:
-                        logger.error(f"Telnyx SMS failed to {formatted_to}: {te}")
+                        logger.error(f"Telnyx SMS failed: {te}")
                         return False, str(te)
                 
                 # If twilio, we fall through to existing Twilio logic but use the from_number found
@@ -164,6 +161,9 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
         else:
             logger.error("No credentials available (neither Client WhatsApp nor Platform SMS). Message cannot be sent.")
             return False, "No SMS/WhatsApp credentials available"
+    
+    # Format phone number to E.164
+    formatted_to = format_phone_number(to_number)
     
     # Ensure is_whatsapp is set correctly if from_number explicitly has 'whatsapp:'
     # OR if using the known Twilio Sandbox number (+14155238888), which is EXCLUSIVELY WhatsApp.

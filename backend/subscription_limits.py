@@ -78,39 +78,3 @@ def check_limit(current_usage, limit):
     """Returns True if usage is within limit, False otherwise."""
     return current_usage < limit
 
-
-# Integration Registry: all known integration providers and their metadata
-INTEGRATION_REGISTRY = {
-    "openai": {"display_name": "OpenAI", "category": "ai"},
-    "google_gemini": {"display_name": "Google Gemini", "category": "ai"},
-    "mistral": {"display_name": "Mistral AI", "category": "ai"},
-    "anthropic": {"display_name": "Anthropic", "category": "ai"},
-    "openrouter": {"display_name": "OpenRouter", "category": "ai"},
-    "deepseek": {"display_name": "DeepSeek", "category": "ai"},
-    "tavily": {"display_name": "Tavily Search", "category": "search"},
-    "twilio": {"display_name": "Twilio", "category": "phone"},
-    "phone": {"display_name": "Phone", "category": "phone"},
-    "google_calendar": {"display_name": "Google Calendar", "category": "calendar"},
-    "exchange": {"display_name": "Microsoft Exchange", "category": "calendar"},
-    "tavus": {"display_name": "Tavus Avatar", "category": "avatar"},
-    "anam": {"display_name": "Anam Avatar", "category": "avatar"},
-    "stripe": {"display_name": "Stripe", "category": "payment"},
-    "zapier": {"display_name": "Zapier", "category": "automation"},
-    "slack": {"display_name": "Slack", "category": "communication"},
-    "sendgrid": {"display_name": "SendGrid", "category": "email"},
-}
-
-# Integrations available per plan tier
-PLAN_INTEGRATIONS = {
-    "starter": ["openai", "google_gemini", "tavily"],
-    "professional": ["openai", "google_gemini", "mistral", "anthropic", "openrouter", "tavily", "twilio", "phone", "google_calendar", "tavus"],
-    "pro": ["openai", "google_gemini", "mistral", "anthropic", "openrouter", "deepseek", "tavily", "twilio", "phone", "google_calendar", "tavus", "anam", "stripe"],
-    "pro+": list(INTEGRATION_REGISTRY.keys()),
-    "promax": list(INTEGRATION_REGISTRY.keys()),
-    "enterprise": list(INTEGRATION_REGISTRY.keys()),
-}
-
-def get_available_integrations(plan_name: str) -> list:
-    """Returns the list of integration providers available for a given plan."""
-    tier = (plan_name or "starter").lower().replace(" plan", "").replace(" ", "")
-    return PLAN_INTEGRATIONS.get(tier, PLAN_INTEGRATIONS["starter"])

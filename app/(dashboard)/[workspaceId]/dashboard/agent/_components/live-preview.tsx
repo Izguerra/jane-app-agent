@@ -119,36 +119,22 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     }, []);
 
     const handleEndCall = useCallback(async () => {
-        await toast.promise(
-            (async () => {
-                intentionalDisconnect.current = true;
-                setConnectionStatus('transitioning');
-                setToken("");
-                setUrl("");
-                setMode('chat');
-                
-                // Clean up server-side rooms
-                if (agentId && agentId !== 'new') {
-                    try {
-                        await fetch("/api/voice/cleanup-room", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ agent_id: agentId })
-                        });
-                    } catch (e) {
-                        console.warn("Room cleanup on end call failed (non-critical):", e);
-                    }
-                }
-                // Brief delay to allow UI to settle
-                await new Promise(r => setTimeout(r, 500));
-                setConnectionStatus('idle');
-            })(),
-            {
-                loading: "Ending call...",
-                success: "Call terminated",
-                error: "Failed to end call cleanly"
+        intentionalDisconnect.current = true;
+        setToken("");
+        setUrl("");
+        setMode('chat');
+        // Clean up server-side rooms
+        if (agentId && agentId !== 'new') {
+            try {
+                await fetch("/api/voice/cleanup-room", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ agent_id: agentId })
+                });
+            } catch (e) {
+                console.warn("Room cleanup on end call failed (non-critical):", e);
             }
-        );
+        }
     }, [agentId]);
 
     const handleModeSwitch = async (targetMode: 'chat' | 'voice' | 'avatar') => {
@@ -803,29 +789,21 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                             m.content
                                         ) : (
                                             <div className="prose prose-sm max-w-none break-words prose-p:leading-relaxed prose-pre:p-0">
-                                                {m.content ? (
-                                                    <Markdown
-                                                        options={{
-                                                            overrides: {
-                                                                a: {
-                                                                    component: ({ children, ...props }: React.HTMLProps<HTMLAnchorElement>) => (
-                                                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline font-medium break-all">
-                                                                            {children}
-                                                                        </a>
-                                                                    )
-                                                                }
+                                                <Markdown
+                                                    options={{
+                                                        overrides: {
+                                                            a: {
+                                                                component: ({ children, ...props }: React.HTMLProps<HTMLAnchorElement>) => (
+                                                                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline font-medium break-all">
+                                                                        {children}
+                                                                    </a>
+                                                                )
                                                             }
-                                                        }}
-                                                    >
-                                                        {m.content}
-                                                    </Markdown>
-                                                ) : (
-                                                    <div className="flex items-center gap-1 py-1">
-                                                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-                                                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse [animation-delay:200ms]" />
-                                                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse [animation-delay:400ms]" />
-                                                    </div>
-                                                )}
+                                                        }
+                                                    }}
+                                                >
+                                                    {m.content}
+                                                </Markdown>
                                             </div>
                                         )}
                                     </div>
@@ -935,12 +913,13 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                     </div>
 
                                     <div className="w-full max-w-xs space-y-3 shrink-0 mb-4 z-10">
-                                        <VoiceControlPanel onClose={handleEndCall} />
+                                        <VoiceControlPanel onClose={handleEndCall} showCaptions={showCaptions} toggleCaptions={() => setShowCaptions(!showCaptions)} />
                                     </div>
                                 </div>
                             )}
                             <RoomAudioRenderer />
-                            {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
+                            <TranscriptOverlay showCaptions={showCaptions} />
+                            <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -980,33 +959,37 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
                 (segments as any[]).forEach(seg => {
                     const existingIdx = newMessages.findIndex(m => m.id === seg.id);
                     if (existingIdx !== -1) {
-                        newMessages[existingIdx] = { ...newMessages[existingIdx], text: seg.text };
+                        newMessages[existingIdx] = { ...newMessages[existingIdx], text: seg.text, timestamp: Date.now() };
                     } else {
                         newMessages.push({
                             id: seg.id,
-                            text: seg.text
+                            text: seg.text,
+                            timestamp: Date.now()
                         });
                     }
                 });
-                // Keep slightly more history to allow scrolling within the 3-row window
+                // Keep last 8 messages within 15 seconds for better readability
                 return newMessages
-                    .filter(m => Date.now() - m.timestamp < 8000)
-                    .slice(-6);
+                    .filter(m => Date.now() - m.timestamp < 15000)
+                    .slice(-8);
             });
         }
     }, [segments]);
 
-    // Auto-scroll to bottom whenever messages change
+    // Auto-scroll to bottom when messages change
     useEffect(() => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            scrollRef.current.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: 'smooth'
+            });
         }
     }, [messages]);
 
     // Secondary cleaner to remove stale messages
     useEffect(() => {
         const interval = setInterval(() => {
-            setMessages(prev => prev.filter(m => Date.now() - m.timestamp < 8000));
+            setMessages(prev => prev.filter(m => Date.now() - m.timestamp < 15000));
         }, 1000);
         return () => clearInterval(interval);
     }, []);
@@ -1014,27 +997,21 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
     if (!showCaptions) return null;
 
     return (
-        <div className="absolute bottom-24 left-0 right-0 z-50 flex flex-col items-center justify-end px-6 pointer-events-none">
-            <div 
-                ref={scrollRef}
-                className="max-w-[90%] max-h-[120px] overflow-y-auto flex flex-col gap-2 scroll-smooth scrollbar-hide pointer-events-none p-2"
-                style={{ maskImage: 'linear-gradient(to bottom, transparent, black 20%)' }}
-            >
-                <AnimatePresence mode="popLayout">
-                    {messages.map((m) => (
-                        <motion.div
-                            key={m.id}
-                            layout
-                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -20, scale: 0.9, transition: { duration: 0.2 } }}
-                            className="bg-black/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-white text-sm md:text-base font-medium shadow-xl border border-white/10 text-center"
-                        >
-                            {m.text}
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
-            </div>
+        <div ref={scrollRef} className="absolute bottom-24 left-0 right-0 z-50 flex flex-col items-center justify-end px-6 pointer-events-none gap-2 overflow-y-auto max-h-[35%] scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <AnimatePresence mode="popLayout">
+                {messages.map((m) => (
+                    <motion.div
+                        key={m.id}
+                        layout
+                        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -60, scale: 0.8, transition: { duration: 0.4 } }}
+                        className="bg-black/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-white text-sm md:text-base font-medium shadow-xl border border-white/10 max-w-[90%] text-center"
+                    >
+                        {m.text}
+                    </motion.div>
+                ))}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {messages.length === 0 && state === 'thinking' && (
@@ -1054,10 +1031,8 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
 
 function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: () => void, showCaptions?: boolean, toggleCaptions?: () => void }) {
     const { localParticipant } = useLocalParticipant();
-    
-    // FIX: Default to 'on' (not muted, not video off)
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(false);
+    const [isVideoOff, setIsVideoOff] = useState(true);
 
     const toggleMic = async () => {
         if (!localParticipant) return;
@@ -1075,14 +1050,10 @@ function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: ()
 
     useEffect(() => {
         if (localParticipant) {
-            // Only sync if the state is actually different to avoid race conditions during init
-            const micMuted = !localParticipant.isMicrophoneEnabled;
-            const camOff = !localParticipant.isCameraEnabled;
-            
-            if (isMuted !== micMuted) setIsMuted(micMuted);
-            if (isVideoOff !== camOff) setIsVideoOff(camOff);
+            setIsMuted(!localParticipant.isMicrophoneEnabled);
+            setIsVideoOff(!localParticipant.isCameraEnabled);
         }
-    }, [localParticipant, localParticipant?.isMicrophoneEnabled, localParticipant?.isCameraEnabled]);
+    }, [localParticipant]);
 
     return (
         <div className="flex items-center gap-3 p-2 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md border border-slate-200 dark:border-white/10 shadow-2xl">
@@ -1216,7 +1187,7 @@ function CustomVisualizer({ accentColor }: { accentColor: string }) {
     );
 }
 
-function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => void; onDisconnect?: () => void; isVideo?: boolean }) {
+function VoiceControlPanel({ onClose, onDisconnect, isVideo, showCaptions, toggleCaptions }: { onClose: () => void; onDisconnect?: () => void; isVideo?: boolean; showCaptions?: boolean; toggleCaptions?: () => void }) {
     const { localParticipant } = useLocalParticipant();
     const [isMuted, setIsMuted] = useState(false);
 
@@ -1245,22 +1216,22 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
         onClose();
     };
 
-    // Auto-unmute on join/mount
+    // Auto-unmute on join/mount if possible
     useEffect(() => {
-        if (localParticipant) {
-            localParticipant.setMicrophoneEnabled(true).catch((err) => {
-                console.warn("Auto-unmute failed:", err);
+        if (localParticipant && !localParticipant.isMicrophoneEnabled) {
+            localParticipant.setMicrophoneEnabled(true).catch(() => {
+                // Autoplay policy might block this, user will have to click
+                console.log("Auto-unmute blocked by browser");
             });
-            setIsMuted(false);
         }
     }, [localParticipant]);
 
-    // Sync state
+    // Sync initial state
     useEffect(() => {
         if (localParticipant) {
             setIsMuted(!localParticipant.isMicrophoneEnabled);
         }
-    }, [localParticipant, localParticipant?.isMicrophoneEnabled]);
+    }, [localParticipant]);
 
     return (
         <div className="flex flex-col gap-3 w-full items-center">
@@ -1281,6 +1252,19 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
                     </>
                 )}
             </Button>
+            {toggleCaptions && (
+                <Button
+                    variant="secondary"
+                    className={`w-40 rounded-full shadow-md ${!showCaptions ? 'opacity-50' : ''}`}
+                    onClick={toggleCaptions}
+                >
+                    {showCaptions ? (
+                        <><MessageSquare className="h-4 w-4 mr-2" />Captions On</>
+                    ) : (
+                        <><MessageSquareOff className="h-4 w-4 mr-2" />Captions Off</>
+                    )}
+                </Button>
+            )}
             <Button
                 variant="destructive"
                 className="w-40 rounded-full shadow-md"
@@ -1302,42 +1286,9 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
 }
 
 function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData: any; onClose: () => void; pipSize: 'sm' | 'md' | 'lg'; setPipSize: (s: 'sm' | 'md' | 'lg') => void }) {
-    const tracks = useTracks([
-        Track.Source.Camera
-    ]);
-
-    // Filter for remote video track (the avatar)
-    // Robust detection: Match ANY remote participant track that is video
-    const remoteTrack = tracks.find(t => 
-        (t as any).participant?.isLocal === false && 
-        ((t as any).track?.kind === 'video' || (t as any).publication?.kind === 'video')
-    );
-
-    // Diagnostics for track subscription
-    useEffect(() => {
-        if (tracks.length > 0) {
-            console.log("DEBUG: [AvatarStage] Tracks in room:", tracks.length, tracks.map(t => ({
-                source: (t as any).source,
-                kind: (t as any).track?.kind || (t as any).publication?.kind,
-                participant: (t as any).participant?.identity,
-                isLocal: (t as any).participant?.isLocal,
-                isEnabled: (t as any).track?.isEnabled,
-                isSubscribed: (t as any).isSubscribed,
-                sid: (t as any).track?.sid || (t as any).publication?.trackSid
-            })));
-        } else {
-             console.log("DEBUG: [AvatarStage] No tracks detected yet.");
-        }
-        
-        if (remoteTrack) {
-            console.log("DEBUG: [AvatarStage] ACTIVE Avatar RemoteTrack:", {
-                identity: (remoteTrack as any).participant?.identity,
-                source: (remoteTrack as any).source,
-                subscribed: (remoteTrack as any).isSubscribed
-            });
-        }
-    }, [tracks, remoteTrack]);
-
+    const tracks = useTracks([Track.Source.Camera]);
+    // Filter for remote camera (the avatar)
+    const remoteTrack = tracks.find(t => t.participant.isLocal === false && t.source === Track.Source.Camera);
     // Filter for local camera (user preview)
     const localTrack = tracks.find(t => t.participant.isLocal === true && t.source === Track.Source.Camera);
     const [showCaptions, setShowCaptions] = useState(true);
@@ -1363,19 +1314,13 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
                     </Button>
                 </div>
             ) : remoteTrack ? (
-                <VideoTrack 
-                    key={`avatar-video-${(remoteTrack as any).participant?.identity || 'agent'}-${(remoteTrack as any).track?.sid || (remoteTrack as any).publication?.trackSid || 'loading'}`}
-                    trackRef={remoteTrack} 
-                    className="w-full h-full object-cover"
-                />
+                <VideoTrack trackRef={remoteTrack} className="w-full h-full object-cover" />
             ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                    <div className="flex flex-col items-center gap-3 animate-pulse">
-                        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
-                            <Bot className="h-8 w-8 text-blue-600" />
-                        </div>
-                        <span className="text-sm font-medium">Connecting to Avatar...</span>
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 animate-pulse">
+                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
+                        <Bot className="h-8 w-8 text-blue-600" />
                     </div>
+                    <span className="text-sm font-medium">Connecting to Avatar...</span>
                 </div>
             )}
 
@@ -1418,10 +1363,27 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
                 </div>
             )}
 
+            {/* Live Transcript Overlay */}
+            <div className="absolute bottom-4 left-4 right-4 z-30 pointer-events-none">
+                <TranscriptOverlay showCaptions={showCaptions} />
+            </div>
+
             {/* Floating Controls */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
                 <CustomControls onClose={onClose} showCaptions={showCaptions} toggleCaptions={() => setShowCaptions(!showCaptions)} />
             </div>
         </div>
     );
+}
+
+function ParticipantLogger() {
+    const remoteParticipants = useParticipants();
+    const { localParticipant } = useLocalParticipant();
+    
+    useEffect(() => {
+        const total = remoteParticipants.length + (localParticipant ? 1 : 0);
+        console.log(`🚀 [PARTICIPANT COUNT] Total participants in room: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
+    }, [remoteParticipants.length, localParticipant]);
+    
+    return null;
 }

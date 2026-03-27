@@ -124,19 +124,10 @@ class OutboundCallingService:
         # Create communication record
         communication_id = generate_comm_id()
         
-        # 1. Ensure communication_id is safe and doesn't started with underscore
-        clean_comm_id = communication_id.strip("_")
-        
-        # 2. Generate unique room name for this call
+        # Generate unique room name for this call
         # Use 'outbound-' prefix so Asterisk can route to correct context
-        # Standardize on outbound-comm-uuid OR outbound-test-uuid
-        # This MUST match the valid_patterns in voice_context_resolver.py
-        room_name = f"outbound-{clean_comm_id}".replace("_", "-")
-        
-        # 3. Final validation to ensure it matches our resolver regex
-        if not room_name.startswith("outbound-comm-") and not room_name.startswith("outbound-test-"):
-             # Fallback to ensure it's at least a valid outbound-comm pattern
-             room_name = f"outbound-comm-{clean_comm_id.replace('comm-', '')}".replace("_", "-")
+        # and so that it matches telnyx strict SIP header validation
+        room_name = f"outbound-{communication_id}".replace("_", "-")
         
         # Encode call context in LiveKit room metadata
         room_metadata = {

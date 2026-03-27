@@ -10,7 +10,6 @@ from backend.database import get_db, generate_comm_id
 from backend.models_db import Communication, PhoneNumber
 from backend.services.integration_service import IntegrationService
 from .utils import log_debug
-from backend.routers.voice import validate_room_name
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Telnyx Calls"])
@@ -72,27 +71,7 @@ async def texml_inbound(request: Request, db: Session = Depends(get_db)):
     """TeXML endpoint for inbound calls."""
     try:
         form = await request.form()
-        call_sid = form.get('CallSid', '').replace(':', '-').replace('_', '-')
-        
-        # Validation
-        if not validate_room_name(call_sid):
-            logger.warning(f"SECURITY: Rejected malformed CallSid in texml/inbound: {call_sid}")
-            
-            # Proactive cleanup
-            try:
-                from livekit import api
-                lkapi = api.LiveKitAPI(os.getenv("LIVEKIT_URL"), os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET"))
-                await lkapi.room.delete_room(api.DeleteRoomRequest(room=f"inbound-{call_sid}"))
-                await lkapi.aclose()
-            except: pass
-
-            return Response(
-                content='<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>', 
-                media_type="application/xml",
-                status_code=403
-            )
-            
-        room_name = f"inbound-{call_sid}"
+        room_name = f"inbound-{form.get('CallSid').replace(':', '-').replace('_', '-')}"
         from backend.routers.voice import outbound_twiml
         return await outbound_twiml(room=room_name)
     except: return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response><Say>Error.</Say></Response>', media_type="application/xml")
@@ -106,15 +85,7 @@ async def texml_outbound(request: Request, db: Session = Depends(get_db)):
         comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first() or db.query(Communication).filter(Communication.user_identifier == to_number, Communication.direction == "outbound", Communication.status == "ongoing").order_by(Communication.started_at.desc()).first()
         if not comm: return Response(content='<Response><Say>No session.</Say></Response>', media_type="application/xml")
         
-        # Safety check on room name even if derived from comm.id
-        if not validate_room_name(room_name):
-            logger.warning(f"SECURITY: Malformed room name generated in texml/outbound: {room_name}")
-            return Response(
-                content='<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>', 
-                media_type="application/xml",
-                status_code=403
-            )
-
+        room_name = f"outbound-{str(comm.id).replace('_', '-')}"
         from backend.routers.voice import outbound_twiml
         import urllib.parse
         meta = urllib.parse.quote(json.dumps({"communication_id": comm.id, "workspace_id": comm.workspace_id, "call_intent": comm.call_intent, "customer_id": comm.customer_id, "agent_id": comm.agent_id}))

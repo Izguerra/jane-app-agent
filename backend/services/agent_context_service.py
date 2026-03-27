@@ -105,8 +105,7 @@ class AgentContextService:
         customer_id: str,
         limit: int = 20,
         hours: int = 72,
-        exclude_communication_id: str = None,
-        agent_id: str = None
+        exclude_communication_id: str = None
     ) -> List[Dict[str, str]]:
         """
         Fetch recent conversation messages across ALL channels for a customer.
@@ -135,9 +134,6 @@ class AgentContextService:
 
         if exclude_communication_id:
             comm_query = comm_query.filter(Communication.id != exclude_communication_id)
-            
-        if agent_id:
-            comm_query = comm_query.filter(Communication.agent_id == agent_id)
 
         comm_records = comm_query.all()
 
@@ -159,17 +155,13 @@ class AgentContextService:
         messages.reverse()
 
         # Also check for call transcripts in Communication records (voice/avatar)
-        call_comms_query = db.query(Communication).filter(
+        call_comms = db.query(Communication).filter(
             Communication.workspace_id == workspace_id,
             Communication.customer_id == customer_id,
             Communication.type == "call",
             Communication.transcript.isnot(None),
             Communication.started_at >= cutoff
-        )
-        if agent_id:
-            call_comms_query = call_comms_query.filter(Communication.agent_id == agent_id)
-            
-        call_comms = call_comms_query.order_by(desc(Communication.started_at)).limit(5).all()
+        ).order_by(desc(Communication.started_at)).limit(5).all()
 
         result = []
 
@@ -251,8 +243,7 @@ class AgentContextService:
         identifier: str,
         channel: str = None,
         limit: int = 10,
-        hours: int = 72,
-        agent_id: str = None
+        hours: int = 72
     ) -> str:
         """
         Build a context section for voice/avatar system prompts.
@@ -281,7 +272,7 @@ class AgentContextService:
 
             # Get cross-channel history
             context_messages = AgentContextService.get_unified_context(
-                db, workspace_id, customer.id, limit=limit, hours=hours, agent_id=agent_id
+                db, workspace_id, customer.id, limit=limit, hours=hours
             )
 
             if not context_messages and not summary:
@@ -318,8 +309,7 @@ class AgentContextService:
         workspace_id: str,
         query: str,
         user_identifier: str = None,
-        limit: int = 5,
-        agent_id: str = None
+        limit: int = 5
     ) -> List[str]:
         """
         Use vector similarity search to retrieve relevant past conversations.
@@ -344,8 +334,6 @@ class AgentContextService:
             metadata_filter = {"workspace_id": workspace_id, "type": "chat_message"}
             if user_identifier:
                 metadata_filter["user_identifier"] = str(user_identifier)
-            if agent_id:
-                metadata_filter["agent_id"] = str(agent_id)
 
             results = kb_service.query(query, top_k=limit, filter=metadata_filter)
 
@@ -369,8 +357,7 @@ class AgentContextService:
         identifier: str,
         current_history: List[Dict],
         communication_id: str = None,
-        channel: str = None,
-        agent_id: str = None
+        channel: str = None
     ) -> List[Dict]:
         """
         Enrich the current session's history with cross-channel context.
@@ -396,8 +383,7 @@ class AgentContextService:
             cross_channel = AgentContextService.get_unified_context(
                 db, workspace_id, customer.id,
                 limit=10, hours=72,
-                exclude_communication_id=communication_id,
-                agent_id=agent_id
+                exclude_communication_id=communication_id
             )
 
             if not cross_channel:

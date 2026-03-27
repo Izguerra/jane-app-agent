@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { LayoutDashboard, BarChart3, Settings, Building2, Bot } from 'lucide-react';
@@ -80,11 +80,6 @@ export default function AdminLayout({
     // Hide parent header
     return (
         <>
-            <style jsx global>{`
-                body > section > header {
-                    display: none;
-                }
-            `}</style>
             <div className="flex h-screen bg-gray-50">
                 {/* Sidebar */}
                 <div className="w-64 bg-white border-r flex flex-col">

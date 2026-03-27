@@ -229,7 +229,7 @@ async def chat(
             team_id=current_user.team_id,
             workspace_id=workspace.id,
             history=request.history,
-            agent_id=active_comm.agent_id, # FIX: Use comm DB agent ID instead of trusting frontend
+            agent_id=request.agent_id,
             agent_config=request.agent_config,
             communication_id=comm_id,
             db=db,

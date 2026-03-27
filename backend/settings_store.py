@@ -1,9 +1,6 @@
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 
-import logging
-logger = logging.getLogger(__name__)
-
 # Handle both import contexts (uvicorn vs direct execution)
 try:
     from backend.database import SessionLocal, generate_settings_id
@@ -25,8 +22,8 @@ DEFAULT_SETTINGS = {
     "allowed_worker_types": ["weather-worker", "flight-tracker", "map-worker", "web-search", "advanced-browsing"]
 }
 
-def get_settings(workspace_id: str = None) -> Dict[str, Any]:
-    if not workspace_id:
+def get_settings(workspace_id: int = None) -> Dict[str, Any]:
+    if workspace_id is None:
         # Fallback for development/demo if absolutely necessary
         workspace_id = "ws_default"
         
@@ -40,28 +37,60 @@ def get_settings(workspace_id: str = None) -> Dict[str, Any]:
             print(f"DEBUG: Resolved Team ID {workspace_id} to Workspace ID {ws.id}")
             workspace_id = ws.id
         else:
-            print(f"DEBUG: Could not resolve Team ID {workspace_id} to a workspace")
+             print(f"DEBUG: Could not resolve Team ID {workspace_id} to a workspace")
 
     try:
         print(f"DEBUG: get_settings called for workspace_id={workspace_id}")
         
-        if not workspace_id or workspace_id == "ws_default":
-            # If still no workspace or default, return base defaults
-            return DEFAULT_SETTINGS
-
         # Try to find an orchestrator agent first, or just any agent
         settings = db.query(Agent).filter(
             Agent.workspace_id == workspace_id,
             Agent.is_orchestrator == True
         ).first()
         
+        if settings:
+             print(f"DEBUG: Found orchestrator agent: {settings.id}")
+        
         if not settings:
             # Fallback to any agent
             settings = db.query(Agent).filter(Agent.workspace_id == workspace_id).first()
+            if settings:
+                 print(f"DEBUG: Found fallback agent: {settings.id}")
         
         if not settings:
-            logger.warning(f"No agent settings found for workspace_id={workspace_id}. Returning DEFAULT_SETTINGS.")
-            return DEFAULT_SETTINGS
+            # Check if workspace exists
+            workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+            if not workspace:
+                # Find a valid team
+                team = db.query(Team).first()
+                if not team:
+                    # Should unlikely happen if seeded, but create one just in case
+                    team = Team(id="team_default", name="Default Team")
+                    db.add(team)
+                    db.commit()
+                
+                workspace = Workspace(id=workspace_id, team_id=team.id, name="Demo Workspace")
+                db.add(workspace)
+                db.commit()
+
+            # Create default agent
+            gen_id = generate_settings_id().replace("st", "ag")
+            print(f"DEBUG: Generating Agent ID: {gen_id}")
+            settings = Agent(
+                id=gen_id,
+                workspace_id=workspace_id,
+                name="Default Agent",
+                voice_id=DEFAULT_SETTINGS["voice_id"],
+                language=DEFAULT_SETTINGS["language"],
+                prompt_template=DEFAULT_SETTINGS["prompt_template"],
+                welcome_message=DEFAULT_SETTINGS["welcome_message"],
+                is_active=DEFAULT_SETTINGS["is_active"],
+                allowed_worker_types=DEFAULT_SETTINGS["allowed_worker_types"],
+                is_orchestrator=True # Default to orchestrator if it's the first one
+            )
+            db.add(settings)
+            db.commit()
+            db.refresh(settings)
             
         # Parse settings JSON
         extended_settings = settings.settings or {}
@@ -105,9 +134,7 @@ def get_settings(workspace_id: str = None) -> Dict[str, Any]:
             "soul": settings.soul
         }
     except Exception as e:
-        import traceback
         print(f"Error fetching settings: {e}")
-        traceback.print_exc()
         return DEFAULT_SETTINGS
     finally:
         db.close()

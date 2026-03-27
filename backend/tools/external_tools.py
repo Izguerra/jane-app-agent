@@ -52,23 +52,12 @@ class ExternalTools:
                 print(f"DEBUG: Weather API Request: {url} with params { {k: '***' if k=='appid' else v for k,v in params.items()} }")
                 
                 async with session.get(url, params=params) as response:
-                    if response.status == 404 and "," in location:
-                        # Try searching without the state/province suffix
-                        city_only = location.split(",")[0].strip()
-                        params["q"] = city_only
-                        async with session.get(url, params=params) as retry_resp:
-                            if retry_resp.status == 200:
-                                response = retry_resp
-                                data = await response.json()
-                                location = city_only
-                            else:
-                                return f"Could not get weather for {location} (City not found)."
-                    elif response.status != 200:
+                    if response.status != 200:
                         error_text = await response.text()
                         print(f"ERROR: Weather API failed for {location}: {response.status} - {error_text}")
                         return f"Could not get weather for {location}. Status: {response.status}"
-                    else:
-                        data = await response.json()
+                    
+                    data = await response.json()
                     
                     # --- Data Extraction Helper ---
                     def extract_metrics(raw_data):
@@ -195,32 +184,38 @@ class ExternalTools:
                         f_num = flight.get('flight', {}).get('iata', 'Unknown')
                         status = flight.get('flight_status', 'unknown')
                         airline_name = flight.get('airline', {}).get('name', '')
+                        dep = flight.get('departure', {})
+                        arr = flight.get('arrival', {})
                         
-                        # Use real-time data if available, otherwise fallback to scheduled
-                        dep = flight.get("departure", {})
-                        arr = flight.get("arrival", {})
+                        dep_txt = f"{dep.get('airport')} ({dep.get('iata')}) at {dep.get('scheduled', '')}"
+                        arr_txt = f"{arr.get('airport')} ({arr.get('iata')}) at {arr.get('scheduled', '')}"
                         
-                        # Helper to get the best time string
-                        def get_time(info):
-                            return info.get("actual") or info.get("estimated") or info.get("scheduled") or "N/A"
-
-                        dep_time = get_time(dep)
-                        arr_time = get_time(arr)
+                        # Delay information
+                        dep_delay = dep.get('delay')
+                        arr_delay = arr.get('delay')
+                        delay_txt = ""
+                        if dep_delay and int(dep_delay) > 0:
+                            delay_txt += f"\n   ⚠️ Departure delayed by {dep_delay} minutes"
+                        if arr_delay and int(arr_delay) > 0:
+                            delay_txt += f"\n   ⚠️ Arrival delayed by {arr_delay} minutes"
                         
-                        # Format delay if exists
-                        dep_delay = dep.get("delay")
-                        arr_delay = arr.get("delay")
+                        # Actual times (if different from scheduled)
+                        actual_dep = dep.get('actual') or dep.get('estimated')
+                        actual_arr = arr.get('actual') or arr.get('estimated')
+                        actual_txt = ""
+                        if actual_dep and actual_dep != dep.get('scheduled'):
+                            actual_txt += f"\n   Actual departure: {actual_dep}"
+                        if actual_arr and actual_arr != arr.get('scheduled'):
+                            actual_txt += f"\n   Actual arrival: {actual_arr}"
                         
-                        delay_info = ""
-                        if dep_delay:
-                            delay_info += f" (Departed {dep_delay} mins late)"
-                        if arr_delay:
-                            delay_info += f" (Delayed {arr_delay} mins on arrival)"
-
-                        dep_txt = f"{dep.get('airport')} ({dep.get('iata')}) at {dep_time}"
-                        arr_txt = f"{arr.get('airport')} ({arr.get('iata')}) at {arr_time}"
+                        # Gate/Terminal info
+                        gate_txt = ""
+                        if dep.get('gate'):
+                            gate_txt += f"\n   Departure Gate: {dep.get('terminal', '')}{dep.get('gate', '')}"
+                        if arr.get('gate'):
+                            gate_txt += f"\n   Arrival Gate: {arr.get('terminal', '')}{arr.get('gate', '')}"
                         
-                        output.append(f"✈️ {f_num} {airline_name}\n   Status: {status.upper()}{delay_info}\n   Departs: {dep_txt}\n   Arrives: {arr_txt}")
+                        output.append(f"✈️ {f_num} {airline_name}\n   Status: {status}{delay_txt}\n   Departs: {dep_txt}\n   Arrives: {arr_txt}{actual_txt}{gate_txt}")
                     
                     return "\n\n".join(output)
                     

@@ -64,6 +64,22 @@ SupaAgent provides real-time analytics for all communications.
 - **History:** View full transcripts, sentiment analysis, and call outcomes.
 - **Analytics:** Monitor message volume, average session duration, and response latency.
 
+## 📅 Roadmap & Future ToDo
+
+### 🤖 Agent Capabilities & Integrations
+- [ ] **Agent-Level Authentication**: Migration from Workspace-level to per-Agent tool authentication (Gmail, Calendar, Telnyx).
+- [ ] **WhatsApp Integration**: Native Telnyx WhatsApp support with per-agent phone identities.
+- [ ] **Outbound Voice**: Proactive agent-initiated calls via LiveKit SIP and Telnyx.
+- [ ] **Granular Permissions**: JSONB-based scoping for read/write/delete access on agent tools.
+- [ ] **Contact Sync**: Integration with Google People API and Microsoft Graph for unified contact memory.
+- [ ] **UX Optimization**: Capability-based cards and integrated "Connect" flows for easier agent configuration.
+
+### 📱 Mobile Companion App
+- [ ] **Wake-Word Activation**: Hands-free interaction using `Agent.name` as the wake word (via Porcupine).
+- [ ] **Cross-Platform**: Flutter-based iOS/Android app with background listening support.
+- [ ] **Device Integration**: Location-aware navigation, camera-based Vision AI, and biometric security (FaceID/TouchID).
+- [ ] **Handoff & Sync**: QR-code based workspace synchronization and mobile-to-web memory persistence.
+
 ## 📜 Deployment
 
 The application is ready for production deployment on Vercel (Frontend) and any Docker-compatible hosting (Backend). 

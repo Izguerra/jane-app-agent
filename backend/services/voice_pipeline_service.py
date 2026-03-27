@@ -17,15 +17,15 @@ class VoicePipelineService:
         mistral_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="mistral", env_fallback="MISTRAL_API_KEY")
         openrouter_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="openrouter", env_fallback="OPENROUTER_API_KEY")
 
-        if openai_key:
-            return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=temperature, _strict_tool_schema=False)
-        
         if gemini_key:
             try:
                 from livekit.plugins import google as google_plugin
                 return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=temperature)
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini LLM (falling back...): {e}", exc_info=True)
+
+        if openai_key:
+            return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=temperature, _strict_tool_schema=False)
         
         if mistral_key:
             return openai.LLM(model="mistral-large-latest", base_url="https://api.mistral.ai/v1", api_key=mistral_key)

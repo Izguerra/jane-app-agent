@@ -18,8 +18,6 @@ class CRMMixin:
             res = crm.get_customers(workspace_id=self.workspace_id, search=query)
             customers = res.get("items", [])
             return "\n".join([f"- {c.first_name} {c.last_name} ({c.email})" for c in customers]) or "No customers found."
-        except Exception as e:
-            return f"Error searching customers: {str(e)}"
         finally: db.close()
 
     @llm.function_tool(description="Update an existing customer record with new information.")
@@ -33,8 +31,6 @@ class CRMMixin:
                 if v is not None and hasattr(customer, k): setattr(customer, k, v)
             db.commit()
             return f"Updated customer {customer_id}."
-        except Exception as e:
-            return f"Error updating customer: {str(e)}"
         finally: db.close()
 
     @llm.function_tool(description="List active sales deals.")
@@ -45,6 +41,4 @@ class CRMMixin:
             if stage: query = query.filter(Deal.stage == stage)
             deals = query.all()
             return "\n".join([f"- {d.title}: ${d.value/100:.2f}" for d in deals]) or "No deals found."
-        except Exception as e:
-            return f"Error listing deals: {str(e)}"
         finally: db.close()

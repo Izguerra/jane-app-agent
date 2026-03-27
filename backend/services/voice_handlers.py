@@ -39,11 +39,7 @@ class VoiceHandlers:
             if session and hasattr(session, 'history'):
                 for item in session.history.items:
                     role = getattr(item, 'role', 'unknown')
-                    content = getattr(item, 'content', '')
-                    if hasattr(item, 'text_content'):
-                        tc = item.text_content
-                        content = tc() if callable(tc) else tc
-                        
+                    content = item.text_content() if hasattr(item, 'text_content') else getattr(item, 'content', '')
                     if isinstance(content, list): content = ' '.join(str(c) for c in content)
                     
                     system_indicators = ["SYSTEM INSTRUCTIONS:", "IDENTITY VERIFICATION", "GATEKEEPER RULE"]
@@ -51,32 +47,30 @@ class VoiceHandlers:
                         transcript_items.append(f"{str(role).upper()}: {content}")
 
             db = SessionLocal()
-            try:
-                log = db.query(Communication).filter(Communication.id == log_id).first()
-                if log:
-                    log.status = "completed"
-                    end_time = datetime.now(timezone.utc)
-                    log.ended_at = end_time
-                    
-                    transcript_text = "\n".join(transcript_items)
-                    log.transcript = transcript_text
-                    
-                    duration = (end_time - (log.started_at or start_time)).total_seconds()
-                    log.duration = int(duration)
-                    
-                    if workspace_id:
-                        ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-                        if ws:
-                            ws.voice_minutes_this_month = (ws.voice_minutes_this_month or 0) + max(1, int(duration/60))
-                    
-                    db.commit()
-                    
-                    if transcript_text:
-                        await VoiceHandlers._trigger_analysis(log_id, transcript_text)
-            finally:
-                db.close()
+            log = db.query(Communication).filter(Communication.id == log_id).first()
+            if log:
+                log.status = "completed"
+                end_time = datetime.now(timezone.utc)
+                log.ended_at = end_time
+                
+                transcript_text = "\n".join(transcript_items)
+                log.transcript = transcript_text
+                
+                duration = (end_time - (log.started_at or start_time)).total_seconds()
+                log.duration = int(duration)
+                
+                if workspace_id:
+                    ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+                    if ws:
+                        ws.voice_minutes_this_month = (ws.voice_minutes_this_month or 0) + max(1, int(duration/60))
+                
+                db.commit()
+                
+                if transcript_text:
+                    await VoiceHandlers._trigger_analysis(log_id, transcript_text)
+            db.close()
         except Exception as e:
-            logger.error(f"Failed to capture transcript or update DB: {e}", exc_info=True)
+            logger.error(f"Failed to capture transcript or update DB: {e}")
 
     @staticmethod
     async def _trigger_analysis(log_id, transcript_text):

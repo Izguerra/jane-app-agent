@@ -5,17 +5,12 @@ Uses LiveKit's CreateSIPParticipant API to make outbound calls directly,
 bypassing Twilio and Asterisk for outbound flow.
 """
 
-import json
 import os
-import uuid
-import logging
 from livekit import api
-from backend.routers.voice import validate_room_name
 from backend.database import SessionLocal, generate_comm_id
 from backend.models_db import Communication, Workspace
 from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
 
 class LiveKitOutboundService:
     def __init__(self):
@@ -54,14 +49,8 @@ class LiveKitOutboundService:
         
         # Create communication record
         communication_id = generate_comm_id()
-        room_name = f"outbound-{communication_id or str(uuid.uuid4())[:8]}"
+        room_name = f"outbound-{str(communication_id).replace('_', '-')}"
         
-        # Validation
-        if not validate_room_name(room_name):
-            logger.error(f"SECURITY ALERT: Rejected malformed room name in LiveKitOutboundService: {room_name}")
-            return None
-            
-        try:
         # Ensure phone number is in E.164 format
         if not to_phone.startswith('+'):
             to_phone = f"+{to_phone}"
@@ -78,7 +67,7 @@ class LiveKitOutboundService:
             room = await lkapi.room.create_room(
                 api.CreateRoomRequest(
                     name=room_name,
-                    empty_timeout=60,  # 1 minute (reduced from 5m to prevent leaks)
+                    empty_timeout=300,  # 5 minutes
                     max_participants=2
                 )
             )

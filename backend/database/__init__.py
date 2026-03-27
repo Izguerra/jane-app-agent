@@ -109,37 +109,49 @@ load_dotenv(dotenv_path=_ENV_PATH)
 
 _db_logger.info(f"Loaded .env from: {_ENV_PATH} (exists={_ENV_PATH.exists()})")
 
-# --- POSTGRESQL API ---
-_engine = None
-_SessionLocal = None
+# ── POSTGRESQL ONLY — NO SQLITE FALLBACK ──
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = os.getenv("POSTGRES_URL")
 
-def get_engine():
-    global _engine
-    if _engine is None:
-        DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL")
-        if not DATABASE_URL:
-             raise ValueError("DATABASE_URL not set")
-             
-        if "sslmode=require" not in DATABASE_URL:
-            DATABASE_URL += ("&" if "?" in DATABASE_URL else "?") + "sslmode=require"
-            
-        if DATABASE_URL.startswith("postgres://"):
-            DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-            
-        engine_kwargs = {
-            "pool_pre_ping": True,
-            "pool_size": 5,
-            "max_overflow": 10
-        }
-        _engine = create_engine(DATABASE_URL, **engine_kwargs)
-    return _engine
+if not DATABASE_URL:
+    raise ValueError(
+        "FATAL: DATABASE_URL or POSTGRES_URL must be set in .env file.\n"
+        f"Searched .env at: {_ENV_PATH}\n"
+        "PostgreSQL is REQUIRED. Do NOT use SQLite. If PostgreSQL is down, fix PostgreSQL."
+    )
 
-def SessionLocal():
-    global _SessionLocal
-    if _SessionLocal is None:
-        from sqlalchemy.orm import sessionmaker
-        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
-    return _SessionLocal()
+# Hard-block any SQLite URL that somehow got configured
+if "sqlite" in DATABASE_URL.lower():
+    raise ValueError(
+        f"FATAL: SQLite database URL detected: {DATABASE_URL}\n"
+        "This application REQUIRES PostgreSQL. SQLite is NOT supported.\n"
+        "Fix your DATABASE_URL in .env to point to a PostgreSQL instance."
+    )
+
+if "sslmode=require" not in DATABASE_URL:
+    if "?" in DATABASE_URL:
+        DATABASE_URL += "&sslmode=require"
+    else:
+        DATABASE_URL += "?sslmode=require"
+
+# Fix postgres:// to postgresql:// for SQLAlchemy
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+_db_host = DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'
+print(f"[database] PostgreSQL connected: {_db_host}")
+_db_logger.info(f"PostgreSQL engine configured: {_db_host}")
+
+# Create engine — always PostgreSQL with connection pooling
+engine_kwargs = {
+    "pool_pre_ping": True,
+    "pool_size": 5,
+    "max_overflow": 10
+}
+
+engine = create_engine(DATABASE_URL, **engine_kwargs)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
@@ -161,7 +173,7 @@ def init_db():
         WorkerTemplate, WorkerTask, WorkerSchedule, WorkerInstance,
         Skill, AgentSkill, AgentPersonality, WorkspaceLLMConfig, MCPServer
     )
-    Base.metadata.create_all(bind=get_engine())
+    Base.metadata.create_all(bind=engine)
     print("Database tables created successfully")
 
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import React, { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import useSWR from 'swr';
@@ -95,11 +95,6 @@ export default function DashboardLayout({ children, params: paramsPromise }: Lay
 
     return (
         <>
-            <style jsx global>{`
-          body > section > header {
-              display: none;
-          }
-      `}</style>
             <div className="flex flex-col min-h-screen bg-gray-50">
                 {/* Mobile header */}
                 <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">

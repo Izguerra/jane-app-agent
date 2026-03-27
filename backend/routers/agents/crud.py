@@ -23,8 +23,6 @@ def flatten_agent(agent: Agent) -> Dict[str, Any]:
         "is_orchestrator": agent.is_orchestrator,
         "is_active": agent.is_active,
         "description": agent.description,
-        "allowed_worker_types": agent.allowed_worker_types or [],
-        "soul": agent.soul,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
         "phone_numbers": [
@@ -80,7 +78,7 @@ async def create_agent(
     wid = get_workspace_context(db, user, workspace_id=workspace_id, request=request)
     
     # Separate base fields from settings fields
-    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description", "soul", "allowed_worker_types"}
+    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description"}
     data_dict = agent_data.model_dump()
     
     base_values = {k: v for k, v in data_dict.items() if k in base_fields}
@@ -121,7 +119,7 @@ async def update_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description", "soul", "allowed_worker_types"}
+    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description"}
     update_dict = agent_data.model_dump(exclude_unset=True)
     
     current_settings = agent.settings if isinstance(agent.settings, dict) else (json.loads(agent.settings) if agent.settings else {})

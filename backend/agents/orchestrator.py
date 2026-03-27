@@ -53,17 +53,7 @@ class AgentOrchestrator:
             if not db: ctx_db.close()
 
         # 2. Setup standard tools
-        allowed_workers = settings.get("allowed_worker_types")
-        if isinstance(allowed_workers, str):
-            allowed_workers = [w.strip() for w in allowed_workers.split(",") if w.strip()]
-        elif not isinstance(allowed_workers, list):
-            allowed_workers = []
-            
-        import logging
-        orchestrator_logger = logging.getLogger("orchestrator")
-        orchestrator_logger.debug(f"Assembling tools for agent. Allowed workers: {allowed_workers}")
-
-        worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=allowed_workers)
+        worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
         agent_tools = AgentTools(
             workspace_id=workspace_id, 
             agent_id=agent_id, 

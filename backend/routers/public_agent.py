@@ -62,7 +62,7 @@ async def get_public_agent_settings(
         "use_tavus_avatar": settings.get("use_tavus_avatar") or settings.get("useTavusAvatar", False),
         "tavus_replica_id": settings.get("tavus_replica_id") or settings.get("tavusReplicaId"),
         "anam_persona_id": settings.get("anam_persona_id") or settings.get("anamPersonaId"),
-        "avatar_provider": settings.get("avatar_provider") or settings.get("avatarProvider", "anam"),
+        "avatar_provider": settings.get("avatar_provider") or settings.get("avatarProvider", "tavus"),
     }
 
 @router.get("/active-agent-settings")
@@ -118,7 +118,7 @@ async def get_active_agent_settings(
         "use_tavus_avatar": settings.get("use_tavus_avatar") or settings.get("useTavusAvatar", False),
         "tavus_replica_id": settings.get("tavus_replica_id") or settings.get("tavusReplicaId"),
         "anam_persona_id": settings.get("anam_persona_id") or settings.get("anamPersonaId"),
-        "avatar_provider": settings.get("avatar_provider") or settings.get("avatarProvider", "anam"),
+        "avatar_provider": settings.get("avatar_provider") or settings.get("avatarProvider", "tavus"),
     }
 
 @router.post("/chat/{clinic_id}")
@@ -200,8 +200,7 @@ async def public_chat(
             started_at=datetime.now(timezone.utc)
         )
         # Link default agent?
-        agent_obj = db.query(Agent).filter(Agent.workspace_id == workspace.id).first()
-        active_comm.agent_id = agent_obj.id if agent_obj else None
+        active_comm.agent_id = db.query(Agent).filter(Agent.workspace_id == workspace.id).first().id
         db.add(active_comm)
         db.commit()
         db.refresh(active_comm)
@@ -240,8 +239,7 @@ async def public_chat(
             workspace_id=workspace.id, 
             history=request.history,
             communication_id=comm_id,
-            stream=True,
-            agent_id=active_comm.agent_id
+            stream=True
         ))
         
         # 2. Yield the filler as soon as it's ready (ideally < 200ms for greetings)

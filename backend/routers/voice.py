@@ -18,17 +18,6 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/voice", tags=["voice"])
 
 from typing import Optional, Dict, Any
-import re
-
-def validate_room_name(name: str) -> bool:
-    """
-    Validate room name to prevent injection attacks.
-    Only allows alphanumeric, dashes, and underscores (no quotes, spaces, etc).
-    """
-    if not name:
-        return False
-    # Allow only alphanumeric, dash, and underscore. Max length 128.
-    return bool(re.match(r'^[a-zA-Z0-9\-\_]{1,128}$', name))
 
 class TokenRequest(BaseModel):
     room_name: Optional[str] = None
@@ -61,9 +50,9 @@ async def _generate_token(
 
     if not room_name:
         if agent_id:
-            # CRITICAL FIX: Include mode AND a UUID suffix in room name to prevent stale metadata
-            # from a prior session colliding with a fast reconnect
-            room_name = f"agent-session-{agent_id[:8]}-{mode}-{str(uuid.uuid4())[:4]}"
+            # CRITICAL FIX: Include mode in room name to prevent stale metadata
+            # from a prior avatar session killing the voice agent (or vice versa)
+            room_name = f"agent-session-{agent_id[:8]}-{mode}"
         else:
             room_name = f"room-{str(uuid.uuid4())[:8]}-{mode}"
 
@@ -117,29 +106,8 @@ async def _generate_token(
     # 1. Start with DB settings from the Workspace
     settings = get_settings(workspace.id).copy()
     
-    # 1.5. Merge Integration Settings (Anam/Tavus)
-    from backend.database.models.workspace import Integration
-    integrations = db.query(Integration).filter(Integration.workspace_id == workspace.id, Integration.is_active == True).all()
-    for integration in integrations:
-        if integration.provider in ["anam", "tavus"]:
-            # Merge settings if they exist
-            if integration.settings:
-                try:
-                    int_settings = json.loads(integration.settings) if isinstance(integration.settings, str) else integration.settings
-                    # Prefix keys if needed or merge directly if they follow the naming convention
-                    # For Anam/Tavus we usually want them direct
-                    settings.update(int_settings)
-                    # Normalize keys
-                    if integration.provider == "anam" and int_settings.get("persona_id"):
-                        settings["anam_persona_id"] = int_settings["persona_id"]
-                    if integration.provider == "tavus" and int_settings.get("replica_id"):
-                        settings["tavus_replica_id"] = int_settings["replica_id"]
-                except Exception as e:
-                    print(f"DEBUG: Failed to parse {integration.provider} settings: {e}")
-
     # 2. Add DB settings from the specific Agent
     if agent_id:
-        settings["agent_id"] = agent_id
         from backend.models_db import Agent
         agent = db.query(Agent).filter(Agent.id == agent_id, Agent.workspace_id == workspace.id).first()
         if agent:
@@ -174,12 +142,6 @@ async def _generate_token(
     settings["workspace_id"] = workspace.id
     settings["user_email"] = current_user.email
     settings["mode"] = mode # Inject mode into metadata so agent knows logic
-    # CRITICAL: Inject the actual agent_id from the request into metadata
-    # Without this, the voice/avatar worker resolves to the orchestrator agent
-    # which may have no skills enabled, causing tool loading to fail.
-    if agent_id:
-        settings["agent_id"] = agent_id
-        print(f"DEBUG: Injected agent_id={agent_id} into room metadata")
     
     # Ensure Communication Log exists
     try:
@@ -449,28 +411,6 @@ async def outbound_twiml(room: str, metadata: str = None):
     TwiML endpoint for outbound calls.
     Routes call through Asterisk SIP bridge to LiveKit (same as inbound calls).
     """
-    # STRICT VALIDATION: Block room names with quotes, equals, or other injection characters
-    if not validate_room_name(room):
-        print(f"SECURITY ALERT: Rejected malformed room name in outbound-twiml: {room}")
-        
-        # PROACTIVE CLEANUP: Try to delete the room if it was pre-created by a SIP bridge
-        try:
-            from livekit import api
-            lkapi = api.LiveKitAPI(os.getenv("LIVEKIT_URL"), os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET"))
-            await lkapi.room.delete_room(api.DeleteRoomRequest(room=room))
-            await lkapi.aclose()
-            print(f"DEBUG: Proactively deleted malformed room '{room}' from LiveKit")
-        except Exception as de:
-            # Room likely doesn't exist yet, which is fine
-            pass
-
-        # Return <Reject /> with 403 to trigger immediate SIP disconnect
-        return Response(
-            content='<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="busy"/></Response>',
-            media_type="application/xml",
-            status_code=403
-        )
-
     try:
         # Decode metadata
         call_metadata = {}

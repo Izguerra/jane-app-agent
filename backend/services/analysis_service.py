@@ -127,7 +127,7 @@ Return ONLY a JSON object with keys: "summary", "intent", "outcome", "sentiment"
                             logger.info(f"Triggering CRM Analysis for Customer {cust_id}")
                             
                             # 1. Update Lifecycle Stage (MQL/SQL/Lead)
-                            analysis_result = await crm_service.analyze_and_update_customer_status(
+                            analysis_result = crm_service.analyze_and_update_customer_status(
                                 customer_id=cust_id,
                                 interaction_text=transcript,
                                 interaction_type="voice" if comm.type == "call" else "chat"
