@@ -25,7 +25,7 @@ def start_communication_log(workspace_id, agent_id, settings, participant_identi
             started_at=datetime.now(timezone.utc), workspace_id=workspace_id,
             channel="avatar_call", user_identifier=final_user_identifier,
             agent_id=agent_id, customer_id=customer_id,
-            metadata={"mode": "avatar", "replica_id": settings.get("tavus_replica_id")}
+            call_context={"mode": "avatar", "replica_id": settings.get("tavus_replica_id")}
         )
         db.add(log_entry)
         db.commit()
@@ -51,9 +51,9 @@ async def finalize_communication_log(log_id, transcript, avatar):
             log.duration = int((end_time - log.started_at).total_seconds())
             
             if avatar and hasattr(avatar, 'conversation_id'):
-                meta = dict(log.metadata or {})
+                meta = dict(log.call_context or {})
                 meta["tavus_conversation_id"] = avatar.conversation_id
-                log.metadata = meta
+                log.call_context = meta
 
             db.commit()
             

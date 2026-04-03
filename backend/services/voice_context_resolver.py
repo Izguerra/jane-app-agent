@@ -101,6 +101,22 @@ class VoiceContextResolver:
                 if comm_record:
                     workspace_id = comm_record.workspace_id
                     agent_id = comm_record.agent_id
+
+            # Dashboard / Browser Preview-style room name
+            # Example: wrk_000V7dMzXJLzP5mYgdf7FzjA3J_dashboard_agent_agnt_000VCR...
+            elif "wrk_" in room_name and "agnt_" in room_name:
+                parts = room_name.split("_")
+                # Find the part starting with wrk_ (usually the first, but be robust)
+                workspace_part = next((p for p in parts if p.startswith("wrk")), None)
+                if workspace_part:
+                    workspace_id = "wrk_" + workspace_part[3:] if not workspace_part.startswith("wrk_") else workspace_part
+                
+                # Find the part starting with agnt_
+                agent_part = next((p for p in parts if p.startswith("agnt")), None)
+                if agent_part:
+                    agent_id = "agnt_" + agent_part[5:] if not agent_part.startswith("agnt_") else agent_part
+                
+                logger.info(f"Resolved from DASHBOARD room name: workspace_id={workspace_id}, agent_id={agent_id}")
         except Exception as e:
             logger.error(f"Room name resolution error: {e}")
         finally:

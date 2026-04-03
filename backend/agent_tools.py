@@ -37,7 +37,7 @@ def get_worker_handler(w_type: str):
             logging.getLogger("agent-tools").error(f"Failed to load worker module {module_name}: {e}")
     return _WORKER_REGISTRY_CACHE.get(slug)
 
-class AgentTools(SearchMixin, CalendarMixin, CRMMixin, WorkerMixin, CommunicationMixin, ExternalTools):
+class AgentTools(llm.ToolContext, SearchMixin, CalendarMixin, CRMMixin, WorkerMixin, CommunicationMixin, ExternalTools):
     def __init__(self, workspace_id: str, customer_id: str = None, communication_id: str = None, agent_id: str = None, worker_tools=None):
         self.workspace_id = workspace_id
         self.customer_id = customer_id

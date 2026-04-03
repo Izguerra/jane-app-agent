@@ -109,4 +109,25 @@ async def test_integration_connection(
                 return HealthCheckResponse(provider=provider, status="degraded", message=f"Status {resp.status_code}", checked_at=datetime.now())
         except Exception as e: return HealthCheckResponse(provider=provider, status="down", message=str(e), checked_at=datetime.now())
     
+    elif provider == "telnyx":
+        key = os.getenv("TELNYX_API_KEY")
+        if not key: return HealthCheckResponse(provider=provider, status="down", message="No API key", checked_at=datetime.now())
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get("https://api.telnyx.com/v2/balance", headers={"Authorization": f"Bearer {key}"}, timeout=10.0)
+                return HealthCheckResponse(provider=provider, status="operational" if resp.status_code == 200 else "degraded", message="Success" if resp.status_code == 200 else f"Status {resp.status_code}", checked_at=datetime.now())
+        except Exception as e: return HealthCheckResponse(provider=provider, status="down", message=str(e), checked_at=datetime.now())
+
+    elif provider == "livekit":
+        url, key, secret = os.getenv("LIVEKIT_URL"), os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET")
+        if not all([url, key, secret]): return HealthCheckResponse(provider=provider, status="down", message="Missing credentials", checked_at=datetime.now())
+        try:
+            from livekit import api
+            lk_api = api.LiveKitAPI(url, key, secret)
+            # Simple list rooms to verify connection
+            await lk_api.room.list_rooms(api.ListRoomsRequest())
+            await lk_api.aclose()
+            return HealthCheckResponse(provider=provider, status="operational", message="Connected", checked_at=datetime.now())
+        except Exception as e: return HealthCheckResponse(provider=provider, status="down", message=str(e), checked_at=datetime.now())
+    
     return HealthCheckResponse(provider=provider, status="operational", message="Auth-only or per-user provider", checked_at=datetime.now())

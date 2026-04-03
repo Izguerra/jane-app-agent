@@ -1,6 +1,6 @@
-from livekit.agents.voice import Agent, AgentSession
+from livekit.agents import llm
+from livekit.agents.voice import Agent as VoiceAgent
 import inspect
 
-print("Agent signature:", inspect.signature(Agent.__init__))
-print("AgentSession signature:", inspect.signature(AgentSession.__init__))
-print("AgentSession.start signature:", inspect.signature(AgentSession.start))
+print("ChatContext.add_message signature:", inspect.signature(llm.ChatContext.add_message))
+print("VoiceAgent.__init__ signature:", inspect.signature(VoiceAgent.__init__))

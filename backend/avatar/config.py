@@ -12,18 +12,44 @@ def resolve_settings(metadata, participant_metadata):
         settings.update(participant_metadata)
     
     # Unify keys
-    settings["tavus_replica_id"] = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
-    settings["tavus_persona_id"] = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
-    settings["anam_persona_id"] = settings.get("anam_persona_id") or settings.get("anamPersonaId")
-    settings["avatar_provider"] = settings.get("avatar_provider") or settings.get("avatarProvider") or "tavus"
+    # 1. Unify and capture IDs first
+    tavus_id = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
+    anam_id = settings.get("anam_persona_id") or settings.get("anamPersonaId")
     
-    settings["voice_id"] = (
+    settings["tavus_replica_id"] = tavus_id
+    settings["anam_persona_id"] = anam_id
+    settings["tavus_persona_id"] = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
+
+    # 2. AUTO-DETECT PROVIDER (Removing Hardcoded Tavus Default)
+    provider = settings.get("avatar_provider") or settings.get("avatarProvider")
+    if not provider:
+        if anam_id:
+            provider = "anam"
+            logger.info(f"Auto-detected Anam provider from persona ID: {anam_id}")
+        elif tavus_id:
+            provider = "tavus"
+            logger.info(f"Auto-detected Tavus provider from replica ID: {tavus_id}")
+        else:
+            # Fallback to anam if no ID found, avoid forcing Tavus
+            provider = "anam"
+            logger.warning("No avatar ID found in settings, defaulting provider to 'anam'")
+    
+    settings["avatar_provider"] = provider
+    
+    # 3. Resolve Voice (Use 'Nova' for Anam by default, 'Josh' for Tavus)
+    user_voice = (
         settings.get("avatarVoiceId") or 
         settings.get("avatar_voice_id") or 
         settings.get("voiceId") or 
-        settings.get("voice_id") or 
-        "Josh"
+        settings.get("voice_id")
     )
+    
+    if user_voice:
+        settings["voice_id"] = user_voice
+    else:
+        # Smart default based on provider
+        settings["voice_id"] = "Nova" if provider == "anam" else "Josh"
+        logger.info(f"Using default voice '{settings['voice_id']}' for provider '{provider}'")
     return settings
 
 def get_llm(workspace_id: str = None):
@@ -37,10 +63,15 @@ def get_llm(workspace_id: str = None):
         openai_key = IntegrationService.get_provider_key(workspace_id, "openai", "OPENAI_API_KEY")
     
     # Fallback to env vars
-    if not gemini_key:
-        gemini_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_GEMINI_API_KEY")
-    if not openai_key:
+    if not gemini_key or gemini_key.lower() == "dummy":
+        gemini_key = os.getenv("GOOGLE_GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if gemini_key and gemini_key.lower() == "dummy":
+            gemini_key = None
+            
+    if not openai_key or openai_key.lower() == "dummy":
         openai_key = os.getenv("OPENAI_API_KEY")
+        if openai_key and openai_key.lower() == "dummy":
+            openai_key = None
     
     if gemini_key:
         try:
@@ -59,7 +90,7 @@ def get_tts(voice_id, workspace_id: str = None):
     from backend.services.integration_service import IntegrationService
     
     clean_voice_id = voice_id.split('(')[0].strip()
-    openai_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+    openai_voices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "ash", "ballad", "coral", "sage", "verse"]
     
     if clean_voice_id.lower() in openai_voices:
         return openai.TTS(voice=clean_voice_id.lower())

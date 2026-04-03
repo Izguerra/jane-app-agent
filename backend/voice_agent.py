@@ -1,44 +1,74 @@
+# MINIMAL top-level imports and environment setup for spawn/forkserver safety
 import logging
 import os
 import asyncio
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
-from dotenv import load_dotenv
-from livekit.rtc import ConnectionState
-from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
-import livekit.plugins.silero as silero
 
-# DNS BYPASS FIX
-import socket
-_orig_getaddrinfo = socket.getaddrinfo
-def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-    if host == "jane-clinic-app-tupihomh.livekit.cloud":
-        # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
-        # Returned as list of tuples (family, type, proto, canonname, sockaddr)
-        return [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.178.157', port)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.179.230', port))
-        ]
-    return _orig_getaddrinfo(host, port, family, type, proto, flags)
-socket.getaddrinfo = _patched_getaddrinfo
-
-# Path Setup — explicit paths for LiveKit subprocess safety (multiprocessing.spawn)
+# Project root for relative pathing (global for spawn safety)
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, _project_root)
-load_dotenv(dotenv_path=os.path.join(_project_root, ".env"))
 
-from backend.database import SessionLocal, generate_comm_id
-from backend.models_db import Communication, Agent as AgentModel, Customer, Workspace
-from backend.settings_store import get_settings
-from backend.services.voice_context_resolver import VoiceContextResolver
-from backend.services.voice_prompt_builder import VoicePromptBuilder
-from backend.services.voice_pipeline_service import VoicePipelineService
-from backend.services.voice_handlers import VoiceHandlers
-from backend.agent_tools import AgentTools
-from backend.services.skill_service import SkillService
-from backend.services.personality_service import PersonalityService
-from backend.services.mcp_loader_service import MCPLoaderService
+def initialize_agent_env():
+    """
+    Initializes the agent environment, ensuring paths and patches are applied.
+    Safe to call in both main and spawned subprocesses.
+    """
+    if _project_root not in sys.path:
+        sys.path.insert(0, _project_root)
+    
+    # Load environment variables early for child processes
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=os.path.join(_project_root, ".env"))
+
+    # Apply critical network patches (DNS bypass for macOS)
+    try:
+        from backend.utils.network_patch import apply_network_patches
+        apply_network_patches()
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Network patch failed to load: {e}")
+
+# IMPORTANT: Call this at top-level so spawned children inherit the project root in sys.path
+initialize_agent_env()
+
+def get_voice_deps():
+    from livekit.rtc import ConnectionState
+    from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
+    
+    from backend.database import SessionLocal, generate_comm_id
+    from backend.models_db import Communication, Agent as AgentModel, Customer, Workspace
+    from backend.settings_store import get_settings
+    from backend.services.voice_context_resolver import VoiceContextResolver
+    from backend.services.voice_prompt_builder import VoicePromptBuilder
+    from backend.services.voice_pipeline_service import VoicePipelineService
+    from backend.services.voice_handlers import VoiceHandlers
+    from backend.agent_tools import AgentTools
+    from backend.services.skill_service import SkillService
+    from backend.services.personality_service import PersonalityService
+    from backend.services.mcp_loader_service import MCPLoaderService
+    
+    return {
+        "datetime": datetime,
+        "timezone": timezone,
+        "ConnectionState": ConnectionState,
+        "AutoSubscribe": AutoSubscribe,
+        "JobContext": JobContext,
+        "llm": llm,
+        "SessionLocal": SessionLocal,
+        "generate_comm_id": generate_comm_id,
+        "Communication": Communication,
+        "AgentModel": AgentModel,
+        "Customer": Customer,
+        "Workspace": Workspace,
+        "get_settings": get_settings,
+        "VoiceContextResolver": VoiceContextResolver,
+        "VoicePromptBuilder": VoicePromptBuilder,
+        "VoicePipelineService": VoicePipelineService,
+        "VoiceHandlers": VoiceHandlers,
+        "AgentTools": AgentTools,
+        "SkillService": SkillService,
+        "PersonalityService": PersonalityService,
+        "MCPLoaderService": MCPLoaderService
+    }
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("voice-agent")
@@ -47,167 +77,195 @@ _vad_model = None
 def get_vad_model():
     global _vad_model
     if _vad_model is None:
+        import livekit.plugins.silero as silero
         _vad_model = silero.VAD.load()
     return _vad_model
 
-def prewarm(proc: JobProcess):
+def prewarm(proc):
+    initialize_agent_env()
     proc.userdata["vad"] = get_vad_model()
 
-async def entrypoint(ctx: JobContext):
+async def entrypoint(ctx):
+    # Ensure environment is initialized in the entrypoint process
+    initialize_agent_env()
+    
     # Setup process manager signals if it exists in the global scope
     if 'pm' in globals():
         globals()['pm'].setup_signals(asyncio.get_event_loop())
+    
+    agent = None
+    mcp_instances = []
+    log_id = None
+    workspace_id = None
+    start_time = datetime.now(timezone.utc)
         
     try:
-        logger.info(f"Entrypoint started for room {ctx.room.name}")
-        start_time = datetime.now(timezone.utc)
+        logger.info(f"🚀 [WORKER {os.getpid()}] Entrypoint started for room {ctx.room.name}")
+        
+        # 1. CONNECTION
+        from livekit.agents import AutoSubscribe
+        from livekit.rtc import ConnectionState
         
         if ctx.room.connection_state != ConnectionState.CONN_CONNECTED:
             await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+            logger.info("✅ Agent connected to room")
 
+        # Explicitly log when participants join
+        @ctx.room.on("participant_connected")
+        def on_participant_connected(participant):
+            logger.info(f"👋 Participant connected: {participant.identity}")
+
+        # Re-verify participant after joining
         participant = await ctx.wait_for_participant()
-        await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
+        
+        # Now we can safely set attributes on the local participant
+        await ctx.room.local_participant.set_attributes({
+            "agent": "true", 
+            "lk.agent.state": "initializing"
+        })
 
-        # 1. Resolve Context
-        workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
-        settings = get_settings(workspace_id)
+        # Lazy load dependencies within the spawned process
+        deps = get_voice_deps()
+
+        # Resolve Settings & Agent Identity
+        try:
+            workspace_id, agent_id, call_context, meta = await asyncio.wait_for(
+                deps["VoiceContextResolver"].resolve_context(ctx, participant),
+                timeout=10.0
+            )
+            if not workspace_id:
+                logger.warning(f"Closing voice entrypoint - Context could not be resolved.")
+                await ctx.room.local_participant.set_attributes({"lk.agent.state": "failed_resolution"})
+                return
+        except Exception as e:
+            logger.error(f"Failed to resolve context: {e}")
+            await ctx.room.local_participant.set_attributes({"lk.agent.state": "error"})
+            return
+
+        settings = deps["get_settings"](workspace_id)
         settings.update(meta)
 
         # 2. Database & Logging
-        db = SessionLocal()
+        db = deps["SessionLocal"]()
         log_id = settings.get("log_id")
-        customer_id = None
         workspace_info = {"name": "The Business", "phone": "N/A", "services": "General", "role": "Assistant"}
 
         try:
-            # Correct logic: Use agent_id if provided by resolver, otherwise fallback to first in workspace
             if agent_id:
-                agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
+                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].id == agent_id).first()
             else:
-                agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].workspace_id == workspace_id).first()
             
             if agent_rec:
                 agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)
-                
-                # CRITICAL: Ensure the explicit agent_id from room metadata takes precedence
-                # over whatever settings.update() just merged (which might be the orchestrator agent)
                 agent_id = meta.get("agent_id") or agent_id
-                logger.info(f"Final resolved agent_id for execution: {agent_id}")
-                
-                # Inject allowed_worker_types directly from the model into settings
-                settings["allowed_worker_types"] = agent_rec.allowed_worker_types
-                
-                # RE-APPLY meta LAST to ensure UI temporary overrides (like agent_type and skills) take precedence
-                if meta:
-                    settings.update(meta)
-
-                # Query Workspace directly — Agent model has no 'workspace' relationship
-                ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
-                if ws:
-                    workspace_info = {"name": ws.name, "phone": ws.phone, "services": settings.get("services"), "role": settings.get("role")}
-                
+                settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
+                if meta: settings.update(meta)
+                ws = db.query(deps["Workspace"]).filter(deps["Workspace"].id == workspace_id).first()
+                if ws: workspace_info = {"name": ws.name, "phone": ws.phone, "services": settings.get("services"), "role": settings.get("role")}
+            
             if not log_id:
-                log_entry = Communication(
-                    id=generate_comm_id(), type="call", direction="outbound" if call_context else "inbound",
+                log_entry = deps["Communication"](
+                    id=deps["generate_comm_id"](), type="call", 
+                    direction="outbound" if call_context else "inbound",
                     status="ongoing", started_at=start_time, workspace_id=workspace_id, agent_id=agent_id
                 )
                 db.add(log_entry)
                 db.commit()
                 log_id = log_entry.id
                 
-            # 3. Build Prompt (Kept within the same DB session block)
-            logger.info(f"Loading skills and personality for agent_id={agent_id}")
-            skills = SkillService().get_skills_for_agent(db, agent_id)
-            personality = PersonalityService().get_personality(db, agent_id)
-            personality_prompt = PersonalityService().generate_personality_prompt(personality)
+            # 3. Build Prompt
+            skills = deps["SkillService"]().get_skills_for_agent(db, agent_id)
+            personality = deps["PersonalityService"]().get_personality(db, agent_id)
+            personality_prompt = deps["PersonalityService"]().generate_personality_prompt(personality)
         finally: db.close()
 
-        prompt = VoicePromptBuilder.build_prompt(
+        prompt = deps["VoicePromptBuilder"].build_prompt(
             settings, personality_prompt, skills, workspace_info, 
             start_time.strftime("%A, %B %d, %Y at %I:%M %p"), settings.get("client_location")
         )
 
-        # Inject cross-channel context memory (Layer 2)
-        try:
-            from backend.services.agent_context_service import AgentContextService
-            # Use participant identity or phone number for customer resolution
-            caller_id = participant.identity or settings.get("caller_phone") or settings.get("user_identifier")
-            if caller_id:
-                context_prompt = AgentContextService.build_context_prompt(
-                    workspace_id=workspace_id, identifier=caller_id, channel="voice", limit=10, hours=72, agent_id=agent_id
-                )
-                if context_prompt:
-                    prompt += f"\n\n{context_prompt}"
-                    logger.info(f"Injected cross-channel context for caller: {caller_id}")
-        except Exception as e:
-            logger.warning(f"Context injection failed (non-fatal): {e}")
-
         # 4. Filtered Tools & Pipeline Setup
-        voice_id = settings.get("voice_id", "alloy")
-        
-        # Standard tools first
+        voice_id = settings.get("voice_id", "Puck")
         from backend.tools.worker_tools import WorkerTools
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
-        agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
-        all_tools = llm.find_function_tools(agent_tools)
+        agent_tools = deps["AgentTools"](workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
+        all_tools = deps["llm"].find_function_tools(agent_tools)
 
-        # Inject MCP Tools (Granular Permission Check)
-        enabled_slugs = [s.slug for s in skills]
+        # Inject MCP Tools
+        enabled_slugs = [s.slug for s in skills] + (settings.get("allowed_worker_types") or [])
         if "skills" in settings and isinstance(settings["skills"], list):
             enabled_slugs = list(set(enabled_slugs + settings["skills"]))
             
-        mcp_tools, mcp_instances, _ = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
-        if mcp_tools:
-            logger.info(f"[Voice {agent_id}] Loaded {len(mcp_tools)} MCP tools. Total tools: {len(all_tools)}")
-            all_tools.extend(mcp_tools)
+        mcp_tools, mcp_instances, _ = await deps["MCPLoaderService"].load_mcp_servers(workspace_id, enabled_slugs)
+        if mcp_tools: all_tools.extend(mcp_tools)
         
-        logger.info(f"Loading {len(all_tools)} tools for Voice Agent (Filtered by skills)")
+        # 5. Initialize Agent via Unified Multimodal Bridge
+        logger.info("Initializing Agent via Multimodal Bridge...")
+        agent = deps["VoicePipelineService"].get_multimodal_agent(
+            workspace_id=workspace_id,
+            voice_id=voice_id,
+            prompt=prompt,
+            vad=get_vad_model(),
+            fnc_ctx=agent_tools,
+            chat_ctx=None
+        )
         
-        logger.info("Initializing AgentSession pipeline")
-        agent = await VoicePipelineService.get_multimodal_agent(workspace_id, voice_id, prompt, all_tools)
-        if agent:
-            logger.info("Starting Multimodal Agent")
-            await agent.start(ctx.room, participant)
-        else:
-            logger.info("Starting Standard AgentSession")
-            from livekit.agents.voice import AgentSession, Agent as VoiceAgent
-            session = AgentSession(
-                vad=get_vad_model(), stt=VoicePipelineService.get_stt(workspace_id),
-                llm=VoicePipelineService.get_llm(workspace_id, settings),
-                tts=VoicePipelineService.get_tts(workspace_id, voice_id, settings),
-                tools=all_tools
-            )
-            # Inject session back into agent_tools for filler logic
-            agent_tools.session = session
-            
-            VoiceHandlers.register_session_events(session, ctx)
-            await session.start(VoiceAgent(instructions=prompt), room=ctx.room)
-            await asyncio.sleep(0.8)
-            session.say(settings.get("welcome_message", "Hello! How can I help you?"))
+        if not agent:
+            raise RuntimeError("Failed to initialize MultimodalAgent")
 
-        # 5. Wait & Cleanup
-        shutdown_event = asyncio.Event()
-        ctx.room.on("disconnected", lambda _: shutdown_event.set())
-        await shutdown_event.wait()
+        agent_tools.session = agent.session
+        deps["VoiceHandlers"].register_session_events(agent, ctx)
         
-        await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
-        await VoiceHandlers.capture_and_save_transcript(locals().get('session'), log_id, workspace_id, start_time)
+        await agent.start(ctx.room)
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+        logger.info("✅ Agent active and listening.")
+        
+        welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
+        agent.say(welcome_msg)
+
+        # 6. Wait & Cleanup
+        shutdown_event = asyncio.Event()
+        @ctx.room.on("disconnected")
+        def on_disconnected(_):
+            shutdown_event.set()
+            
+        await shutdown_event.wait()
         
     except Exception as e:
         logger.error(f"CRITICAL ERROR IN VOICE AGENT ENTRYPOINT: {e}", exc_info=True)
-        import traceback
-        traceback.print_exc()
         raise
-
-from backend.utils.process_manager import ProcessManager
+    finally:
+        if agent:
+            agent.stop()
+        
+        # Ensure deps is available for cleanup
+        try:
+            deps = get_voice_deps()
+            await deps["MCPLoaderService"].cleanup_mcp_servers(mcp_instances)
+            # Attempt to save transcript if session data is available
+            await deps["VoiceHandlers"].capture_and_save_transcript(agent.session if agent else None, log_id, workspace_id, start_time)
+        except Exception as cleanup_err:
+            logger.debug(f"Cleanup error (expected if aborted early): {cleanup_err}")
 
 if __name__ == "__main__":
+    initialize_agent_env()
+    from livekit.agents import cli, WorkerOptions
+    from backend.utils.process_manager import ProcessManager
+    
     pm = ProcessManager(name="voice-agent", pid_file=os.path.join(_project_root, "voice_agent.pid"))
     pm.check_lock()
     pm.write_lock()
     
     try:
-        cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-voice-v2.1"), port=8082))
+        cli.run_app(
+            WorkerOptions(
+                entrypoint_fnc=entrypoint, 
+                prewarm_fnc=prewarm, 
+                agent_name="voice-agent",
+                multiprocessing_context="forkserver"
+            )
+        )
     finally:
         pm.cleanup()

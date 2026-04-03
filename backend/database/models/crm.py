@@ -76,7 +76,7 @@ class Communication(Base):
     integration_id = Column(String(50), ForeignKey("integrations.id"))
     recording_url = Column(Text)
     user_identifier = Column(String(255))
-    agent_id = Column(String(50), ForeignKey("agents.id"))
+    agent_id = Column(String(50), ForeignKey("agents.id", ondelete="SET NULL"))
     call_intent = Column(Text)
     call_outcome = Column(Text)
     call_context = Column(JSON)
@@ -87,6 +87,8 @@ class Communication(Base):
     parent_communication_id = Column(String(50))
     campaign_id = Column(Text)
     campaign_name = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class ConversationMessage(Base):
     __tablename__ = "conversation_messages"

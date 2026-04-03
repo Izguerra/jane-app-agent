@@ -5,17 +5,22 @@ from backend.tools.external_tools import ExternalTools
 async def debug_apis():
     tools = ExternalTools()
     
-    print("--- DEBUGGING FLIGHT AC 415 ---")
-    res = await tools.get_flight_status(flight_number="AC 415")
-    print(f"Result for AC 415: {res}")
+    print("\n--- TEST 1: Digits Only (Should Fail and ask for info) ---")
+    res1 = await tools.get_flight_status(flight_number="190")
+    print(f"Result: {res1}")
     
-    print("\n--- DEBUGGING MAPS CN TOWER ---")
-    # User case: "How long to CN Tower" (Missing origin)
-    # The worker logic usually requires origin.
-    # If the Agent doesn't provide it, we expected it to ask.
-    # Let's see if Google Maps API works with just a destination? No, origin is required.
-    res_map = await tools.get_directions(origin="Toronto Pearson Airport", destination="CN Tower", mode="driving")
-    print(f"Result for Map: {res_map}")
+    print("\n--- TEST 2: Airline Name + Digits (Should Merge to AC190) ---")
+    res2 = await tools.get_flight_status(flight_number="190", airline="Air Canada")
+    print(f"Result: {res2}")
+    
+    print("\n--- TEST 3: Specific Flight with known Delay (AC 190) ---")
+    # This will test the new delay comparison logic as well
+    res3 = await tools.get_flight_status(flight_number="AC 190")
+    print(f"Result: {res3}")
+
+    print("\n--- TEST 4: AC 1902 (YYJ -> YYZ) ---")
+    res4 = await tools.get_flight_status(flight_number="AC 1902", origin="YYJ", destination="YYZ")
+    print(f"Result: {res4}")
 
 if __name__ == "__main__":
     from dotenv import load_dotenv

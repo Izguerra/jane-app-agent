@@ -2,31 +2,15 @@ import sys
 import os
 from unittest.mock import MagicMock
 
-# Ensure project root is in sys.path
+# --- ASSEMBLE PROJECT ROOT ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# --- MOCKING MISSING MODULES ---
-import types
-
-# Mock agno
-agno = types.ModuleType("agno")
-agno.agent = types.ModuleType("agno.agent")
-class MockAgent:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-agno.agent.Agent = MockAgent
-sys.modules["agno"] = agno
-sys.modules["agno.agent"] = agno.agent
-
-# Mock other potential missing deps
-sys.modules["pinecone"] = MagicMock()
-sys.modules["livekit"] = MagicMock()
-sys.modules["livekit.agents"] = MagicMock()
-sys.modules["livekit.agents.llm"] = MagicMock()
+# Load environment for real library usage
+from dotenv import load_dotenv
+load_dotenv(os.path.join(project_root, ".env"))
 
 from backend.agent import AgentManager
 
@@ -84,7 +68,7 @@ def verify_agent_skills():
     print("Running Checks:")
     
     checks = {
-        "Personality injection": personality_prompt in instructions[0],
+        "Personality injection": personality_prompt in full_prompt,
         "Standard prompt template": settings["prompt_template"] in full_prompt,
         "Skill 1 name": mock_skill_1.name in full_prompt,
         "Skill 1 instructions": mock_skill_1.instructions in full_prompt,

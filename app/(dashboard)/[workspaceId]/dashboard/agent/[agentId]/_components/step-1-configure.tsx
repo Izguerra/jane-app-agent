@@ -111,7 +111,17 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                                 <SelectValue placeholder="Select a voice" />
                             </SelectTrigger>
                             <SelectContent>
-                                {/* OpenAI Voices */}
+                                {/* Gemini Live Voices */}
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Gemini Live (Native Audio)</div>
+                                <SelectItem value="Aoede">Aoede (Gemini/Female)</SelectItem>
+                                <SelectItem value="Kore">Kore (Gemini/Female)</SelectItem>
+                                <SelectItem value="Puck">Puck (Gemini/Male)</SelectItem>
+                                <SelectItem value="Charon">Charon (Gemini/Male)</SelectItem>
+                                <SelectItem value="Fenrir">Fenrir (Gemini/Male)</SelectItem>
+
+                                {/* Temporarily Hidden Legacy Voices - Accessible via code if needed again
+                                
+                                <div className="border-t my-2" />
                                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">OpenAI</div>
                                 <SelectItem value="alloy">Alloy (OpenAI)</SelectItem>
                                 <SelectItem value="echo">Echo (OpenAI)</SelectItem>
@@ -125,7 +135,6 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                                 <SelectItem value="onyx">Onyx (OpenAI)</SelectItem>
                                 <SelectItem value="fable">Fable (OpenAI)</SelectItem>
 
-                                {/* Grok Voices */}
                                 <div className="border-t my-2" />
                                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Grok (xAI)</div>
                                 <SelectItem value="ara">Ara (Grok)</SelectItem>
@@ -134,7 +143,6 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                                 <SelectItem value="rex">Rex (Grok)</SelectItem>
                                 <SelectItem value="sal">Sal (Grok)</SelectItem>
 
-                                {/* ElevenLabs Voices */}
                                 <div className="border-t my-2" />
                                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">ElevenLabs</div>
                                 <SelectItem value="Rachel">Rachel (ElevenLabs)</SelectItem>
@@ -147,6 +155,7 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                                 <SelectItem value="Matilda">Matilda (ElevenLabs)</SelectItem>
                                 <SelectItem value="Nicole">Nicole (ElevenLabs)</SelectItem>
                                 <SelectItem value="Sam">Sam (ElevenLabs)</SelectItem>
+                                */}
                             </SelectContent>
                         </Select>
 
@@ -173,6 +182,11 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
 
                                     const grokVoices = ["ara", "eve", "leo", "rex", "sal"];
                                     const elevenVoices = ["Rachel", "Adam", "Bella", "Chris", "Emily", "Josh", "Leo", "Matilda", "Nicole", "Sam"];
+                                    const geminiVoices = ["Aoede", "Kore", "Puck", "Charon", "Fenrir"];
+
+                                    if (geminiVoices.includes(voiceId)) {
+                                        throw new Error("Gemini Live voices are generated natively in real-time and cannot be previewed.");
+                                    }
 
                                     if (grokVoices.includes(voiceId.toLowerCase())) provider = 'grok';
                                     else if (elevenVoices.includes(voiceId) || (voiceId === 'Leo' && !grokVoices.includes('leo'))) provider = 'elevenlabs';

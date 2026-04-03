@@ -22,6 +22,7 @@ import {
     VideoTrack,
     useTranscriptions,
     useParticipants,
+    useTrackToggle,
 } from "@livekit/components-react";
 import { AgentAudioVisualizerAura } from "@/components/agents-ui/agent-audio-visualizer-aura";
 
@@ -300,7 +301,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         tavus_replica_id: formData.tavusReplicaId,
         tavus_persona_id: formData.tavusPersonaId,
         anam_persona_id: formData.anamPersonaId,
-        avatar_provider: formData.avatarProvider || 'tavus',
+        avatar_provider: formData.avatarProvider || (formData.anamPersonaId ? 'anam' : (formData.tavusReplicaId ? 'tavus' : undefined)),
         avatar_voice_id: formData.avatarVoiceId,
         use_tavus_avatar: formData.useTavusAvatar,
 
@@ -377,6 +378,8 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     }, [mode]);
 
 
+    const tokenFetchInProgress = useRef(false);
+
     // Fetch Token on Voice Mode
     useEffect(() => {
         if (unavailable) return;
@@ -388,10 +391,15 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             // If we reuse a token, the user enters the room but the agent is never dispatched.
             // This guarantees a fresh dispatch on every call initialization.
 
+            // Guard against React StrictMode double-execution race conditions
+            if (tokenFetchInProgress.current) return;
+            tokenFetchInProgress.current = true;
+
             // This is for cases where user hasn't saved yet but wants to preview
             if (!agentId || agentId === 'new') {
                 setError("Please save the agent first to enable voice/video preview");
                 setIsConnecting(false);
+                tokenFetchInProgress.current = false;
                 return;
             }
 
@@ -399,6 +407,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                 // Do not connect if no avatar is selected
                 setError("Please select an avatar to start.");
                 setIsConnecting(false);
+                tokenFetchInProgress.current = false;
                 return;
             }
 
@@ -448,6 +457,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                     setError("Failed to connect to voice service");
                 } finally {
                     setIsConnecting(false);
+                    tokenFetchInProgress.current = false;
                 }
             })();
         }
@@ -623,7 +633,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                 size="icon"
                                 className={cn(
                                     "h-8 w-8 text-white rounded-full transition-all",
-                                    !formData.useTavusAvatar ? "opacity-60 hover:bg-white/10" : "hover:bg-white/20"
+                                    (!formData.useTavusAvatar || !(formData.tavusReplicaId || formData.anamPersonaId)) ? "opacity-60 bg-white/5 border border-white/10" : "hover:bg-white/20 bg-white/10"
                                 )}
                                 onClick={() => {
                                     if (!formData.useTavusAvatar) {
@@ -631,12 +641,12 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                         return;
                                     }
                                     if (!(formData.tavusReplicaId || formData.anamPersonaId)) {
-                                        toast.error("Please select an avatar first");
+                                        toast.error("Please select a specific avatar in the 'Choose Your Avatar' section first.");
                                         return;
                                     }
                                     handleModeSwitch('avatar');
                                 }}
-                                title={!formData.useTavusAvatar ? "Enable Visual Presence to use Avatar" : (!(formData.tavusReplicaId || formData.anamPersonaId) ? "Select an avatar to enable video" : "Switch to Avatar")}
+                                title={!formData.useTavusAvatar ? "Enable Visual Presence to use Avatar" : (!(formData.tavusReplicaId || formData.anamPersonaId) ? "Select an avatar below first" : "Switch to Avatar")}
                             >
                                 <Video className="h-4 w-4" />
                             </Button>
@@ -898,6 +908,8 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                         pipSize={pipSize}
                                         setPipSize={setPipSize}
                                         onClose={handleEndCall}
+                                        showCaptions={showCaptions}
+                                        setShowCaptions={setShowCaptions}
                                     />
                                 </div>
                             ) : (
@@ -913,12 +925,11 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                     </div>
 
                                     <div className="w-full max-w-xs space-y-3 shrink-0 mb-4 z-10">
-                                        <VoiceControlPanel onClose={handleEndCall} showCaptions={showCaptions} toggleCaptions={() => setShowCaptions(!showCaptions)} />
+                                        <VoiceControlPanel onClose={handleEndCall} />
                                     </div>
                                 </div>
                             )}
                             <RoomAudioRenderer />
-                            <TranscriptOverlay showCaptions={showCaptions} />
                             <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
@@ -1030,30 +1041,16 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
 }
 
 function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: () => void, showCaptions?: boolean, toggleCaptions?: () => void }) {
-    const { localParticipant } = useLocalParticipant();
-    const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(true);
+    const { toggle: toggleMic, enabled: isMicEnabled } = useTrackToggle({ source: Track.Source.Microphone });
+    const { toggle: toggleCam, enabled: isCamEnabled } = useTrackToggle({ source: Track.Source.Camera });
 
-    const toggleMic = async () => {
-        if (!localParticipant) return;
-        const newState = !isMuted;
-        await localParticipant.setMicrophoneEnabled(!newState);
-        setIsMuted(newState);
-    };
+    const isMuted = !isMicEnabled;
+    const isVideoOff = !isCamEnabled;
 
-    const toggleCam = async () => {
-        if (!localParticipant) return;
-        const newState = !isVideoOff;
-        await localParticipant.setCameraEnabled(!newState);
-        setIsVideoOff(newState);
-    };
-
-    useEffect(() => {
-        if (localParticipant) {
-            setIsMuted(!localParticipant.isMicrophoneEnabled);
-            setIsVideoOff(!localParticipant.isCameraEnabled);
-        }
-    }, [localParticipant]);
+    // Since LiveKit's deep components might auto-enable the track on launch,
+    // we strictly monitor the TRUE track state and force it down once on connect.
+    // [STABILIZATION]: User story now requires mic/camera ON by default.
+    // Removed force-disarm logic to allow immediate interaction.
 
     return (
         <div className="flex items-center gap-3 p-2 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md border border-slate-200 dark:border-white/10 shadow-2xl">
@@ -1071,7 +1068,7 @@ function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: ()
                 variant={isMuted ? "destructive" : "secondary"}
                 size="icon"
                 className="rounded-full h-10 w-10 shrink-0"
-                onClick={toggleMic}
+                onClick={() => toggleMic()}
             >
                 {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
@@ -1079,7 +1076,7 @@ function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: ()
                 variant={isVideoOff ? "destructive" : "secondary"}
                 size="icon"
                 className="rounded-full h-10 w-10 shrink-0"
-                onClick={toggleCam}
+                onClick={() => toggleCam()}
                 title={isVideoOff ? "Resume Vision" : "Pause Vision"}
             >
                 {isVideoOff ? <CameraOff className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
@@ -1103,6 +1100,7 @@ function VoiceStatusDisplay({ name }: { name: string }) {
     const connectionState = useConnectionState();
     const { localParticipant } = useLocalParticipant();
     const participants = useParticipants();
+    const [agentStuck, setAgentStuck] = useState(false);
 
     useEffect(() => {
         console.log("DEBUG: [agentId] VoiceStatusDisplay state update", {
@@ -1113,6 +1111,20 @@ function VoiceStatusDisplay({ name }: { name: string }) {
             localMic: localParticipant?.isMicrophoneEnabled
         });
     }, [connectionState, state, participants, localParticipant]);
+
+    // STABILITY FIX: Detect when agent joins room but never transitions to a working state.
+    // This catches the silent Gemini crash / file-watcher race condition.
+    useEffect(() => {
+        if (state === 'connecting' && String(connectionState).toLowerCase() === 'connected') {
+            const timeout = setTimeout(() => {
+                console.error("⏰ [STUCK DETECTION] Agent joined room but never started after 30s. Possible silent crash.");
+                setAgentStuck(true);
+            }, 30000);
+            return () => clearTimeout(timeout);
+        } else {
+            setAgentStuck(false);
+        }
+    }, [state, connectionState]);
 
     let statusText = "Connecting...";
     let statusColor = "bg-yellow-500";
@@ -1127,9 +1139,9 @@ function VoiceStatusDisplay({ name }: { name: string }) {
         } else {
             switch (state) {
                 case "connecting":
-                    statusText = "Connecting...";
-                    statusColor = "bg-yellow-500";
-                    subText = "Agent is joining...";
+                    statusText = agentStuck ? "Agent Not Responding" : "Connecting...";
+                    statusColor = agentStuck ? "bg-orange-500" : "bg-yellow-500";
+                    subText = agentStuck ? "Try ending the call and starting again" : "Agent is joining...";
                     break;
                 case "listening":
                     statusText = "Listening...";
@@ -1166,6 +1178,9 @@ function VoiceStatusDisplay({ name }: { name: string }) {
                 <div className={cn("w-2 h-2 rounded-full animate-pulse", statusColor)} />
                 <p className="text-sm text-muted-foreground transition-all duration-300">{statusText}</p>
             </div>
+            {agentStuck && (
+                <p className="text-xs text-orange-500 mt-1">Agent may have crashed during startup. Try ending the call.</p>
+            )}
         </>
     );
 }
@@ -1188,59 +1203,37 @@ function CustomVisualizer({ accentColor }: { accentColor: string }) {
 }
 
 function VoiceControlPanel({ onClose, onDisconnect, isVideo, showCaptions, toggleCaptions }: { onClose: () => void; onDisconnect?: () => void; isVideo?: boolean; showCaptions?: boolean; toggleCaptions?: () => void }) {
-    const { localParticipant } = useLocalParticipant();
-    const [isMuted, setIsMuted] = useState(false);
+    const { toggle: toggleMic, enabled: isMicEnabled } = useTrackToggle({ source: Track.Source.Microphone });
+    
+    const isMuted = !isMicEnabled;
 
-    const toggleMute = async () => {
-        if (!localParticipant) return;
-        const newState = !isMuted;
-        await localParticipant.setMicrophoneEnabled(!newState);
-        setIsMuted(newState);
-    };
-
-    // Handle End Call - disconnect room first, then close
+    // Handle End Call - immediately stop tracks via toggle if on
     const handleEndCall = async () => {
         try {
-            // Stop audio tracks to immediately stop any audio
-            if (localParticipant) {
-                await localParticipant.setMicrophoneEnabled(false);
+            if (isMicEnabled) {
+                toggleMic();
             }
-            // Call disconnect callback if provided (uses room.disconnect())
             if (onDisconnect) {
                 onDisconnect();
             }
         } catch (e) {
             console.error("Error during disconnect:", e);
         }
-        // Switch to chat mode
         onClose();
     };
 
-    // Auto-unmute on join/mount if possible
-    useEffect(() => {
-        if (localParticipant && !localParticipant.isMicrophoneEnabled) {
-            localParticipant.setMicrophoneEnabled(true).catch(() => {
-                // Autoplay policy might block this, user will have to click
-                console.log("Auto-unmute blocked by browser");
-            });
-        }
-    }, [localParticipant]);
-
-    // Sync initial state
-    useEffect(() => {
-        if (localParticipant) {
-            setIsMuted(!localParticipant.isMicrophoneEnabled);
-        }
-    }, [localParticipant]);
+    // Force disarm on initial active state
+    // [STABILIZATION]: User story now requires mic ON by default.
+    // Removed force-disarm logic to allow immediate interaction.
 
     return (
         <div className="flex flex-col gap-3 w-full items-center">
             <Button
                 variant={isMuted ? "destructive" : "secondary"}
                 className={`w-40 rounded-full shadow-md ${isMuted ? 'bg-red-100 text-red-600 hover:bg-red-200 border-red-200' : 'bg-white hover:bg-gray-100 border'}`}
-                onClick={toggleMute}
+                onClick={() => toggleMic()}
             >
-                {isMuted ? (
+            {isMuted ? (
                     <>
                         <MicOff className="h-4 w-4 mr-2" />
                         Unmute
@@ -1252,19 +1245,6 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo, showCaptions, toggl
                     </>
                 )}
             </Button>
-            {toggleCaptions && (
-                <Button
-                    variant="secondary"
-                    className={`w-40 rounded-full shadow-md ${!showCaptions ? 'opacity-50' : ''}`}
-                    onClick={toggleCaptions}
-                >
-                    {showCaptions ? (
-                        <><MessageSquare className="h-4 w-4 mr-2" />Captions On</>
-                    ) : (
-                        <><MessageSquareOff className="h-4 w-4 mr-2" />Captions Off</>
-                    )}
-                </Button>
-            )}
             <Button
                 variant="destructive"
                 className="w-40 rounded-full shadow-md"
@@ -1285,13 +1265,12 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo, showCaptions, toggl
     );
 }
 
-function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData: any; onClose: () => void; pipSize: 'sm' | 'md' | 'lg'; setPipSize: (s: 'sm' | 'md' | 'lg') => void }) {
+function AvatarVideoStage({ formData, onClose, pipSize, setPipSize, showCaptions, setShowCaptions }: { formData: any; onClose: () => void; pipSize: 'sm' | 'md' | 'lg'; setPipSize: (s: 'sm' | 'md' | 'lg') => void; showCaptions: boolean; setShowCaptions: (v: boolean) => void }) {
     const tracks = useTracks([Track.Source.Camera]);
     // Filter for remote camera (the avatar)
     const remoteTrack = tracks.find(t => t.participant.isLocal === false && t.source === Track.Source.Camera);
     // Filter for local camera (user preview)
     const localTrack = tracks.find(t => t.participant.isLocal === true && t.source === Track.Source.Camera);
-    const [showCaptions, setShowCaptions] = useState(true);
 
     return (
         <div className="w-full h-full relative bg-slate-50 dark:bg-zinc-900 flex items-center justify-center">

@@ -128,23 +128,28 @@ async def stream_with_followup(
     consumer_task = asyncio.create_task(_drain_generator())
     start_time = asyncio.get_event_loop().time()
     
+    last_activity_time = asyncio.get_event_loop().time()
+    HEARTBEAT_INTERVAL = 5.0  # Send a heartbeat every 5 seconds if silent
+    
     try:
         while True:
-            elapsed = asyncio.get_event_loop().time() - start_time
+            current_time = asyncio.get_event_loop().time()
+            elapsed_since_start = current_time - start_time
+            elapsed_since_activity = current_time - last_activity_time
             
-            # Determine wait timeout based on follow-up delays
-            wait_time = None
+            # Determine wait timeout
+            wait_time = HEARTBEAT_INTERVAL  # Default heartbeat
+            
+            # Initial phase follow-ups have priority and specific delays
             if not first_real_chunk_received:
                 if not followup_sent:
-                    wait_time = max(0.1, followup_delay - elapsed)
+                    wait_time = max(0.1, min(HEARTBEAT_INTERVAL, followup_delay - elapsed_since_start))
                 elif not second_followup_sent:
-                    wait_time = max(0.1, second_followup_delay - elapsed)
+                    wait_time = max(0.1, min(HEARTBEAT_INTERVAL, second_followup_delay - elapsed_since_start))
             
             try:
-                if wait_time is not None:
-                    msg = await asyncio.wait_for(queue.get(), timeout=wait_time)
-                else:
-                    msg = await queue.get()
+                msg = await asyncio.wait_for(queue.get(), timeout=wait_time)
+                last_activity_time = asyncio.get_event_loop().time()
                 
                 if msg["type"] == "chunk":
                     first_real_chunk_received = True
@@ -156,7 +161,7 @@ async def stream_with_followup(
                     break
                     
             except asyncio.TimeoutError:
-                # Inject follow-up
+                # Inject follow-up or heartbeat
                 if not first_real_chunk_received:
                     if not followup_sent:
                         followup_sent = True
@@ -164,6 +169,15 @@ async def stream_with_followup(
                     elif not second_followup_sent:
                         second_followup_sent = True
                         yield "\n\nAlmost there, just a few more seconds..."
+                    else:
+                        # Heartbeat for initial stall
+                        yield "\n[Agent still thinking...]"
+                else:
+                    # Heartbeat for silence mid-stream (e.g. during long tool call)
+                    # Use a subtle, repeatable phrase or log
+                    yield f"\n\n[Processing: Taking a bit longer to complete...]"
+                    # Extend wait time to avoid spamming
+                    HEARTBEAT_INTERVAL = 10.0 
     finally:
         consumer_task.cancel()
 

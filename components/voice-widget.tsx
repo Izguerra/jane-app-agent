@@ -12,6 +12,7 @@ import {
     useTracks,
     VideoTrack,
     TrackReference,
+    useTrackToggle,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import "@livekit/components-styles";
@@ -29,7 +30,7 @@ type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | '
 
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAY_MS = 2000;
-const RECONNECT_TIMEOUT_MS = 15000;
+const RECONNECT_TIMEOUT_MS = 30000; // Increased to 30s to allow for cold-start tool loading
 
 export function VoiceWidget() {
     const [isOpen, setIsOpen] = useState(false);
@@ -316,7 +317,7 @@ export function VoiceSession({ onClose, mode = "voice" }: { onClose: () => void;
             token={token}
             serverUrl={url}
             connect={!!token}
-            audio={true}
+            audio={false}
             video={false}
             className="flex flex-col h-full w-full bg-white dark:bg-zinc-900"
             onDisconnected={handleDisconnected}
@@ -350,13 +351,8 @@ export function VoiceSession({ onClose, mode = "voice" }: { onClose: () => void;
                 <AgentStatusDisplay />
             </div>
 
-            <div className="p-2 bg-secondary/10 border-t">
-                <div className="flex flex-col gap-2">
-                    <VoiceAssistantControlBar controls={{ leave: false }} />
-                    <Button onClick={handleEndCall} variant="destructive" className="w-full rounded-full shadow-sm">
-                        End Call
-                    </Button>
-                </div>
+            <div className="flex items-center justify-center gap-4 py-4 border-t bg-slate-50/50 dark:bg-white/5">
+                <CustomControls onClose={handleEndCall} />
             </div>
             <RoomAudioRenderer />
         </LiveKitRoom>
@@ -457,8 +453,8 @@ export function AvatarSession({ onClose }: { onClose: () => void }) {
             token={token}
             serverUrl={url}
             connect={!!token}
-            audio={true}
-            video={true}
+            audio={false}
+            video={false}
             className="flex flex-col h-full w-full bg-white relative group"
             onDisconnected={handleDisconnected}
             onConnected={handleConnected}
@@ -542,30 +538,14 @@ function VideoStage() {
 }
 
 function CustomControls({ onClose }: { onClose: () => void }) {
-    const { localParticipant } = useLocalParticipant();
-    const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(true);
+    const { toggle: toggleMic, enabled: isMicEnabled } = useTrackToggle({ source: Track.Source.Microphone });
+    const { toggle: toggleCam, enabled: isCamEnabled } = useTrackToggle({ source: Track.Source.Camera });
 
-    const toggleMic = async () => {
-        if (!localParticipant) return;
-        const newState = !isMuted;
-        await localParticipant.setMicrophoneEnabled(!newState);
-        setIsMuted(newState);
-    };
+    const isMuted = !isMicEnabled;
+    const isVideoOff = !isCamEnabled;
 
-    const toggleCam = async () => {
-        if (!localParticipant) return;
-        const newState = !isVideoOff;
-        await localParticipant.setCameraEnabled(!newState);
-        setIsVideoOff(newState);
-    };
-
-    useEffect(() => {
-        if (localParticipant) {
-            setIsMuted(!localParticipant.isMicrophoneEnabled);
-            setIsVideoOff(!localParticipant.isCameraEnabled);
-        }
-    }, [localParticipant]);
+    // [STABILIZATION]: User story now requires mic/camera ON by default.
+    // Removed force-disarm logic to allow immediate interaction.
 
     return (
         <>
@@ -573,7 +553,7 @@ function CustomControls({ onClose }: { onClose: () => void }) {
                 variant={isMuted ? "destructive" : "secondary"}
                 size="icon"
                 className="rounded-full h-10 w-10"
-                onClick={toggleMic}
+                onClick={() => toggleMic()}
             >
                 {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
@@ -581,7 +561,8 @@ function CustomControls({ onClose }: { onClose: () => void }) {
                 variant={isVideoOff ? "destructive" : "secondary"}
                 size="icon"
                 className="rounded-full h-10 w-10"
-                onClick={toggleCam}
+                onClick={() => toggleCam()}
+
             >
                 {isVideoOff ? <CameraOff className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
             </Button>

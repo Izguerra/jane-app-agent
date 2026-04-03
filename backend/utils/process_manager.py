@@ -22,11 +22,27 @@ class ProcessManager:
             try:
                 with open(self.pid_file, "r") as f:
                     pid = int(f.read().strip())
+                if pid == os.getpid():
+                    # The PID in the file is our own PID (e.g., written by a shell wrapper)
+                    # We shouldn't kill ourselves.
+                    return
                 
                 # Check if process actually exists
                 os.kill(pid, 0)
-                logger.error(f"Process '{self.name}' is already running (PID {pid})")
-                sys.exit(1)
+                logger.warning(f"Process '{self.name}' is already running (PID {pid}). Attempting to kill it to prevent port conflicts...")
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    import time
+                    time.sleep(1) # Give it a moment to terminate
+                    # Check again, if still there, SIGKILL
+                    os.kill(pid, 0)
+                    logger.warning(f"Process '{self.name}' (PID {pid}) did not terminate. Sending SIGKILL...")
+                    os.kill(pid, signal.SIGKILL)
+                    time.sleep(0.5)
+                except OSError:
+                    pass # Process is already dead
+                
+                logger.info(f"Successfully purged stale process '{self.name}' (PID {pid}). Proceeding with startup.")
             except (OSError, ValueError):
                 # Process is dead or PID file is corrupted, safe to overwrite
                 logger.warning(f"Stale PID file found for '{self.name}', cleaning up...")

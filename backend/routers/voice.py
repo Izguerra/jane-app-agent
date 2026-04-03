@@ -29,6 +29,8 @@ class TokenRequest(BaseModel):
     mode: Optional[str] = "voice" # 'voice' or 'avatar'
     tavus_replica_id: Optional[str] = None
     tavus_persona_id: Optional[str] = None
+    anam_persona_id: Optional[str] = None
+    avatar_provider: Optional[str] = None
 
 async def _generate_token(
     room_name: str,
@@ -41,20 +43,21 @@ async def _generate_token(
     session_id: Optional[str] = None,
     mode: str = "voice",
     tavus_replica_id: Optional[str] = None,
-    tavus_persona_id: Optional[str] = None
+    tavus_persona_id: Optional[str] = None,
+    anam_persona_id: Optional[str] = None,
+    avatar_provider: Optional[str] = None
 ):
     print(f"DEBUG: _generate_token called with session_id={session_id}, mode={mode}")
     api_key = os.getenv("LIVEKIT_API_KEY")
     api_secret = os.getenv("LIVEKIT_API_SECRET")
     livekit_url = os.getenv("LIVEKIT_URL")
 
+    # Ensure Communication Log exists first to get a unique ID for the room
+    comm_id = generate_comm_id()
+    
     if not room_name:
-        if agent_id:
-            # CRITICAL FIX: Include mode in room name to prevent stale metadata
-            # from a prior avatar session killing the voice agent (or vice versa)
-            room_name = f"agent-session-{agent_id[:8]}-{mode}"
-        else:
-            room_name = f"room-{str(uuid.uuid4())[:8]}-{mode}"
+        # Use Communication ID for unique, trackable room names
+        room_name = f"agent-session-{comm_id}"
 
     if not api_key or not api_secret or not livekit_url:
         missing = []
@@ -95,7 +98,7 @@ async def _generate_token(
     
     # Determine Agent Dispatch Target based on Mode
     # Bypass broken main_agent.py and route natively to the specific workers
-    target_agent_name = "supaagent-avatar-v2.1" if mode == "avatar" else "supaagent-voice-v2.1"
+    target_agent_name = "avatar-agent" if mode == "avatar" else "voice-agent"
     
     print(f"DEBUG: [VOICE_TOKEN] Mode: {mode}, Target Agent: {target_agent_name}, Room: {room_name}")
     
@@ -105,6 +108,8 @@ async def _generate_token(
     # --- Resolve Settings ---
     # 1. Start with DB settings from the Workspace
     settings = get_settings(workspace.id).copy()
+    if agent_id:
+        settings["agent_id"] = agent_id
     
     # 2. Add DB settings from the specific Agent
     if agent_id:
@@ -128,6 +133,10 @@ async def _generate_token(
         settings["tavus_replica_id"] = tavus_replica_id
     if tavus_persona_id:
         settings["tavus_persona_id"] = tavus_persona_id
+    if anam_persona_id:
+        settings["anam_persona_id"] = anam_persona_id
+    if avatar_provider:
+        settings["avatar_provider"] = avatar_provider
 
     # 4. Handle separate voice for AI Avatar mode
     if mode == "avatar" and settings.get("avatar_voice_id"):
@@ -145,8 +154,7 @@ async def _generate_token(
     
     # Ensure Communication Log exists
     try:
-        # Create Communication record
-        comm_id = generate_comm_id()
+        # Using the comm_id generated at the top for consistency
         channel_type = "video_avatar" if mode == "avatar" else "phone_call"
         
         new_comm = Communication(

@@ -45,7 +45,7 @@ def flatten_agent(agent: Agent) -> Dict[str, Any]:
 @router.get("", response_model=List[AgentResponse])
 async def get_agents(
     request: Request, 
-    workspace_id: Optional[str] = Query(None, alias="workspace_id"),
+    workspace_id: Optional[str] = Query(None, alias="workspaceId"),
     db: Session = Depends(get_db), 
     user: AuthUser = Depends(get_current_user)
 ):
@@ -57,7 +57,7 @@ async def get_agents(
 async def get_agent(
     agent_id: str, 
     request: Request, 
-    workspace_id: Optional[str] = Query(None, alias="workspace_id"),
+    workspace_id: Optional[str] = Query(None, alias="workspaceId"),
     db: Session = Depends(get_db), 
     user: AuthUser = Depends(get_current_user)
 ):
@@ -71,7 +71,7 @@ async def get_agent(
 async def create_agent(
     agent_data: AgentCreate, 
     request: Request, 
-    workspace_id: Optional[str] = Query(None, alias="workspace_id"),
+    workspace_id: Optional[str] = Query(None, alias="workspaceId"),
     db: Session = Depends(get_db), 
     user: AuthUser = Depends(get_current_user)
 ):
@@ -105,12 +105,14 @@ async def create_agent(
     await broadcast_settings_change(wid)
     return flatten_agent(new_agent)
 
+from sqlalchemy.orm.attributes import flag_modified
+
 @router.put("/{agent_id}", response_model=AgentResponse)
 async def update_agent(
     agent_id: str, 
     agent_data: AgentUpdate, 
     request: Request, 
-    workspace_id: Optional[str] = Query(None, alias="workspace_id"),
+    workspace_id: Optional[str] = Query(None, alias="workspaceId"),
     db: Session = Depends(get_db), 
     user: AuthUser = Depends(get_current_user)
 ):
@@ -123,14 +125,14 @@ async def update_agent(
     update_dict = agent_data.model_dump(exclude_unset=True)
     
     current_settings = agent.settings if isinstance(agent.settings, dict) else (json.loads(agent.settings) if agent.settings else {})
+    # Create a fresh copy to guarantee dirty tracking even without flag_modified (extra safety)
+    new_settings = dict(current_settings)
     
     for key, value in update_dict.items():
         if key in base_fields:
             setattr(agent, key, value)
         elif key == "phone_number_id":
             # Update phone number assignment
-            # First, clear existing phone numbers for this agent if we want a 1:1, or just assign new one
-            # The original logic assigned the phone.agent_id
             phone = db.query(PhoneNumber).filter(PhoneNumber.id == value, PhoneNumber.workspace_id == wid).first()
             if phone:
                 phone.agent_id = agent.id
@@ -156,13 +158,14 @@ async def update_agent(
             if key == "personalLikes": snake_key = "personal_likes"
             if key == "personalDislikes": snake_key = "personal_dislikes"
             
-            current_settings[snake_key] = value
+            new_settings[snake_key] = value
             
             # Clean up old casing if it exists in the dict
             if snake_key != key:
-                current_settings.pop(key, None)
+                new_settings.pop(key, None)
             
-    agent.settings = current_settings
+    agent.settings = new_settings
+    flag_modified(agent, "settings")
     
     # Special logic for Vector Sync if soul changed
     if "soul" in update_dict and update_dict["soul"]:
@@ -182,7 +185,7 @@ async def update_agent(
 async def delete_agent(
     agent_id: str, 
     request: Request, 
-    workspace_id: Optional[str] = Query(None, alias="workspace_id"),
+    workspace_id: Optional[str] = Query(None, alias="workspaceId"),
     db: Session = Depends(get_db), 
     user: AuthUser = Depends(get_current_user)
 ):
@@ -191,8 +194,11 @@ async def delete_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    # Cleanup phone number assignments
+    # Manual cleanup for tables with foreign keys to agents.id
+    from backend.models_db import WorkerTask, PhoneNumber, Communication
+    db.query(WorkerTask).filter(WorkerTask.dispatched_by_agent_id == agent.id).update({"dispatched_by_agent_id": None})
     db.query(PhoneNumber).filter(PhoneNumber.agent_id == agent.id).update({"agent_id": None})
+    db.query(Communication).filter(Communication.agent_id == agent.id).update({"agent_id": None})
     
     db.delete(agent)
     db.commit()

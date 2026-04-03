@@ -69,8 +69,8 @@ class AgentCreate(BaseModel):
     avatarProvider: Optional[str] = None
     avatar_voice_id: Optional[str] = None
     avatarVoiceId: Optional[str] = None
-    use_tavus_avatar: bool = False
-    useTavusAvatar: bool = False
+    use_tavus_avatar: Optional[bool] = False
+    useTavusAvatar: Optional[bool] = False
 
     openClawInstanceId: Optional[str] = None
     open_claw_instance_id: Optional[str] = None

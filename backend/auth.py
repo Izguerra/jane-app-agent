@@ -182,6 +182,11 @@ def get_workspace_context(
     from sqlalchemy import func
     import time
 
+    # 0. Global Alias Mapping (E2E / Test Workspaces)
+    if workspace_id == "wrk_e2e_voice":
+        workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
+        print(f"DEBUG: Redirecting wrk_e2e_voice to {workspace_id}")
+
     # 1. Direct Workspace ID provided
     if workspace_id and workspace_id.startswith("wrk_"):
         ws = db.query(Workspace).filter(

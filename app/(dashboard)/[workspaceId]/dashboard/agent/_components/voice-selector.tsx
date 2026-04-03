@@ -36,6 +36,11 @@ export function VoiceSelector({ voiceId, onVoiceChange, disabled }: VoiceSelecto
             // Provider detection logic
             const grokVoices = ["ara", "eve", "leo", "rex", "sal"];
             const elevenVoices = ["Rachel", "Adam", "Bella", "Chris", "Emily", "Josh", "Leo", "Matilda", "Nicole", "Sam"];
+            const geminiVoices = ["Aoede", "Kore", "Puck", "Charon", "Fenrir"];
+
+            if (geminiVoices.includes(currentVoiceId)) {
+                throw new Error("Gemini Live voices are generated natively in real-time and cannot be previewed.");
+            }
 
             if (grokVoices.includes(currentVoiceId.toLowerCase())) provider = 'grok';
             else if (elevenVoices.includes(currentVoiceId) || (currentVoiceId === 'Leo' && !grokVoices.includes('leo'))) provider = 'elevenlabs';
@@ -100,6 +105,15 @@ export function VoiceSelector({ voiceId, onVoiceChange, disabled }: VoiceSelecto
                     <SelectItem value="nova">Nova (OpenAI)</SelectItem>
                     <SelectItem value="onyx">Onyx (OpenAI)</SelectItem>
                     <SelectItem value="fable">Fable (OpenAI)</SelectItem>
+
+                    {/* Gemini Live Voices */}
+                    <div className="border-t my-2" />
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Gemini Live</div>
+                    <SelectItem value="Aoede">Aoede (Gemini/Female)</SelectItem>
+                    <SelectItem value="Kore">Kore (Gemini/Female)</SelectItem>
+                    <SelectItem value="Puck">Puck (Gemini/Male)</SelectItem>
+                    <SelectItem value="Charon">Charon (Gemini/Male)</SelectItem>
+                    <SelectItem value="Fenrir">Fenrir (Gemini/Male)</SelectItem>
 
                     {/* Grok Voices */}
                     <div className="border-t my-2" />

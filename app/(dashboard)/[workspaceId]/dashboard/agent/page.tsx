@@ -241,8 +241,7 @@ export default function AgentsListPage() {
                                 <TableHead className="w-[50px]"></TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Phone Number</TableHead>
-                                <TableHead>Role</TableHead>
-                                <TableHead>Type</TableHead>
+                                <TableHead>Agent Type</TableHead>
                                 <TableHead>Created</TableHead>
                                 <TableHead>Description</TableHead>
                                 <TableHead>Status</TableHead>
@@ -252,7 +251,7 @@ export default function AgentsListPage() {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-24 text-center">
+                                    <TableCell colSpan={8} className="h-24 text-center">
                                         Loading...
                                     </TableCell>
                                 </TableRow>
@@ -284,20 +283,30 @@ export default function AgentsListPage() {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {agent.is_orchestrator ? (
-                                                <Badge variant="secondary" className="text-[10px]">Orchestrator</Badge>
-                                            ) : (
-                                                <span className="text-sm text-muted-foreground">Sub-Agent</span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {agent.agent_type === 'openclaw' ? (
-                                                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">OpenClaw</Badge>
-                                            ) : agent.agent_type === 'humanoid' || (agent as any).use_tavus_avatar || (agent as any).useTavusAvatar || (agent as any).settings?.use_tavus_avatar ? (
-                                                <Badge variant="outline" className="bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200">Humanoid</Badge>
-                                            ) : (
-                                                <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">Standard</Badge>
-                                            )}
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    {agent.agent_type === 'openclaw' ? (
+                                                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">OpenClaw</Badge>
+                                                    ) : agent.agent_type === 'humanoid' || (agent as any).use_tavus_avatar || (agent as any).useTavusAvatar || (agent as any).settings?.use_tavus_avatar ? (
+                                                        <Badge variant="outline" className="bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200">Humanoid</Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">Standard</Badge>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 px-0.5">
+                                                    {agent.agent_type === 'personal' ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                                                            <span className="text-[10px] font-medium text-blue-600 uppercase tracking-wider">Personal Assistant</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1">
+                                                            <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                                                            <span className="text-[10px] font-medium text-amber-600 uppercase tracking-wider">Business Intelligence</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground">
                                             {agent.created_at ? new Date(agent.created_at).toLocaleDateString() : "-"}

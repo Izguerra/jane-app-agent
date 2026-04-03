@@ -42,6 +42,12 @@ const VOICE_GENDERS: Record<string, 'male' | 'female' | 'neutral'> = {
     Matilda: 'female',
     Nicole: 'female',
     Sam: 'male',
+    // Gemini Live Voices
+    Aoede: 'female',
+    Kore: 'female',
+    Charon: 'male',
+    Fenrir: 'male',
+    Puck: 'male',
 };
 
 const DEPRECATED_AVATARS = ['Destiny', 'Steph - Selfie', 'Deprecated', '(Deprecated)'];
@@ -239,6 +245,14 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                     <SelectItem value="fable">Fable (Male)</SelectItem>
 
                                     <div className="border-t my-2" />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Gemini Live</div>
+                                    <SelectItem value="Aoede">Aoede (Female)</SelectItem>
+                                    <SelectItem value="Kore">Kore (Female)</SelectItem>
+                                    <SelectItem value="Puck">Puck (Male)</SelectItem>
+                                    <SelectItem value="Charon">Charon (Male)</SelectItem>
+                                    <SelectItem value="Fenrir">Fenrir (Male)</SelectItem>
+
+                                    <div className="border-t my-2" />
                                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">ElevenLabs</div>
                                     <SelectItem value="Rachel">Rachel (Female)</SelectItem>
                                     <SelectItem value="Adam">Adam (Male)</SelectItem>
@@ -265,6 +279,11 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                     }
                                     setIsLoadingPreview(true);
                                     try {
+                                        const isGemini = ['Aoede', 'Kore', 'Puck', 'Charon', 'Fenrir'].includes(formData.avatarVoiceId || '');
+                                        if (isGemini) {
+                                            throw new Error("Gemini Live voices are generated natively in real-time and cannot be previewed.");
+                                        }
+
                                         const res = await fetch('/api/voice/preview', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },

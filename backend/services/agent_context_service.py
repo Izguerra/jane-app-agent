@@ -243,7 +243,8 @@ class AgentContextService:
         identifier: str,
         channel: str = None,
         limit: int = 10,
-        hours: int = 72
+        hours: int = 72,
+        agent_id: str = None
     ) -> str:
         """
         Build a context section for voice/avatar system prompts.

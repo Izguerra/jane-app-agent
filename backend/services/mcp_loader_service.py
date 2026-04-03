@@ -21,6 +21,30 @@ class MCPLoaderService:
     }
 
     @staticmethod
+    async def _is_reachable(url: str, timeout: float = 2.0) -> bool:
+        """Quickly checks if a URL's host/port is reachable to avoid hanging."""
+        import urllib.parse
+        import socket
+        try:
+            parsed = urllib.parse.urlparse(url)
+            host = parsed.hostname
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+            
+            if not host: return False
+            
+            # Simple TCP connect check
+            fut = asyncio.open_connection(host, port)
+            try:
+                reader, writer = await asyncio.wait_for(fut, timeout=timeout)
+                writer.close()
+                await writer.wait_closed()
+                return True
+            except:
+                return False
+        except Exception:
+            return False
+
+    @staticmethod
     async def load_mcp_servers(workspace_id: str, enabled_skill_slugs: List[str] = None) -> tuple[List[Any], List[Any], List[Any]]:
         """
         Loads allowed active MCP servers for the given workspace and agent.
@@ -89,14 +113,18 @@ class MCPLoaderService:
                     headers=headers
                 )
                 
-                # Resilient Initialization with Retries and Timeout
+                # Resilient Initialization with Connectivity Check
+                if not await MCPLoaderService._is_reachable(srv.url):
+                    logger.warning(f"MCP Server '{srv.name}' URL {srv.url} is unreachable. Skipping.")
+                    continue
+
                 max_retries = 2
                 success = False
                 for attempt in range(max_retries):
                     try:
-                        # 15-second timeout per operation to prevent hanging the vital agent startup but allow slow browsers like Playwright to boot
-                        await asyncio.wait_for(mcp_instance.initialize(), timeout=15.0)
-                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=15.0)
+                        # 5-second timeout per operation to prevent hanging the vital agent startup
+                        await asyncio.wait_for(mcp_instance.initialize(), timeout=5.0)
+                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=5.0)
                         
                         mcp_tools.extend(tools)
                         mcp_instances.append(mcp_instance)
@@ -109,7 +137,7 @@ class MCPLoaderService:
                                 agno_mcp = MCPTools(
                                     transport="sse",
                                     server_params=SSEClientParams(url=srv.url, headers=headers),
-                                    timeout_seconds=15
+                                    timeout_seconds=3
                                 )
                                 agno_toolkits.append(agno_mcp)
                         except Exception as e:

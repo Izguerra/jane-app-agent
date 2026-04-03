@@ -6,6 +6,18 @@ class AgentManager:
     def __init__(self):
         self.orchestrator = AgentOrchestrator()
 
+    def _create_agent(self, settings: dict, workspace_id: str, team_id: str, tools: list = [], db: Optional[Session] = None, **kwargs):
+        """Legacy proxy to AgentFactory.create_agent used by voice routers and tests."""
+        from backend.agents.factory import AgentFactory
+        return AgentFactory.create_agent(
+            settings=settings,
+            workspace_id=workspace_id,
+            team_id=team_id,
+            tools=tools,
+            db=db,
+            **kwargs
+        )
+
     async def chat(self, message: str, team_id: str, workspace_id: str, history: list = [], stream: bool = False, 
                    agent_id: str = None, agent_config: dict = None, communication_id: str = None, 
                    db: Optional[Session] = None) -> str:

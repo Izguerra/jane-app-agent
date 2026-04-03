@@ -6,25 +6,27 @@ SupaAgent is a high-performance, real-time AI customer support platform that ena
 
 - **Multi-Channel Presence:** Unified AI logic for Web Widget, Phone Voice (Inbound/Outbound), Video Avatar, and WhatsApp.
 - **Voice Telephony (Telnyx):** Native integration for inbound and outbound calls with SIP bridging to LiveKit agents.
-- **Real-Time Streaming:** Near-zero latency interaction using FastAPI StreamingResponse and TextDecoder browser streaming.
-- **Gemini 3.0 Flash Integration:** Powered by Google's latest `gemini-3-flash-preview` for industry-leading response times and TTFT (Time-to-First-Token).
+- **Native Multimodal Pipeline:** Direct Audio-to-Audio (A2A) streaming with LiveKit 1.5.1 `AgentSession`, eliminating legacy STT/TTS bottlenecks.
+- **Gemini 3.1 Flash Live:** Powered by Google's latest multimodal live model for ultra-low latency conversational AI and native audio reasoning.
 - **Intelligent CRM Interaction:** Automatic customer resolution, sales deal tracking, and session management.
-- **Auto-Closure Logic:** Automated background scheduler that cleans up idle sessions after 2 minutes of inactivity.
-- **Voice & Video Avatar:** High-fidelity spoken interaction powered by LiveKit and Tavus replicas.
+- **Heartbeat Mechanism:** Prevents chatbot response stalls during long-running tool executions (e.g., flight searches, web browsing).
+- **Proactive Voice & Video Avatar:** High-fidelity real-time interaction powered by LiveKit and Anam/Tavus replicas.
 
 ## 🆕 Recent Updates
-- **Agent Stability:** Resolved 1-participant and 3rd-participant bugs by isolating connection scopes.
-- **Tool Context:** Complete refactor of backend tool mixins (Web Search, CRM, Calendar, Mailbox, and Workers) to ensure native `workspace_id` propagation for secure, multi-tenant API key resolution.
-- **LLM Configuration:** Ensured compatibility and stability with Google's latest `gemini-3-flash-preview` model via the LiveKit Google plugin.
-- **Worker Timeouts:** Added global 10-second `aiohttp` timeouts for resilient third-party API executions (e.g., Weather queries).
+- **Native Multimodal Migration (v3.0):** Completed transition of Voice and Avatar agents to the native LiveKit 1.5.1 `AgentSession` pipeline. Removed all `DummyTTS` hacks and custom bridges in favor of direct Gemini A2A routing.
+- **Chatbot Resiliency:** Implemented a persistent background heartbeat in the `AcknowledgementService` to maintain session responsiveness during heavy tool compute.
+- **Avatar Provider Stability:** Standardized Anam as the primary video provider with legacy Tavus support. Improved WebRTC track stabilization with intelligent 1.5s-2.0s post-join delays.
+- **E2E Verification Suite:** 100% pass rate on full end-to-end suite (`test_full_e2e.py`) verifying Voice, Avatar, and Tool connectivity across the multimodal pipeline.
+- **Gemini 3.1 Support:** Switched to the `v1alpha` API endpoint for `gemini-3.1-flash-live-preview` to support native multimodal modalities (`AUDIO`, `TEXT`).
+
 
 ## 🛠 Tech Stack
 
 - **Frontend:** Next.js, React, Tailwind CSS, shadcn/ui.
 - **Backend:** Python (FastAPI), SQLAlchemy, Uvicorn.
 - **Telephony:** Telnyx (PSTN), Asterisk (SIP Proxy/Bridge).
-- **AI/LLM:** Google Gemini 3.0 Flash.
-- **Real-time:** LiveKit (Voice/Video), Twilio (WhatsApp/SIP).
+- **AI/LLM:** Google Gemini 3.1 Flash Live (Multimodal).
+- **Real-time:** LiveKit 1.5.1+ (Voice/Video), Twilio (WhatsApp/SIP).
 - **Database:** **PostgreSQL ONLY** (Drizzle on Frontend / SQLAlchemy on Backend) — see critical note below.
 - **Payments:** Stripe integration.
 

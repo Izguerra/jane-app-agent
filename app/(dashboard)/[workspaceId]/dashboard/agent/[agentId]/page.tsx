@@ -49,6 +49,7 @@ export default function AgentWizardPage(props: PageProps) {
         name: "",
         voice_id: "alloy",  // Default voice
         language: "en",
+        avatarVoiceId: "", // Clear default to allow proper hydration from DB
         avatar: "HB",
         avatarUrl: "",
         avatarFile: null,
@@ -72,11 +73,11 @@ export default function AgentWizardPage(props: PageProps) {
         enabledSkillIds: [],
 
         // Step 1 additions: Avatar
-        anamPersonaId: "",
-        tavusReplicaId: "",
+        anamPersonaId: undefined,
+        tavusReplicaId: undefined,
         avatarProvider: undefined,
 
-        // Step 3: Behavior & Rules
+        // Step 2: Behavior & Rules
         soul: "",
         creativityLevel: 50,
         responseLength: 50,
@@ -87,7 +88,7 @@ export default function AgentWizardPage(props: PageProps) {
         slackWebhook: "",
         autoEscalate: false,
 
-        // Step 4: Integration & Deployment
+        // Step 3: Integration & Deployment
         deploymentChannel: "web_widget",
         accentColor: "#3B82F6",
         widgetIcon: "chat",
@@ -99,7 +100,6 @@ export default function AgentWizardPage(props: PageProps) {
         isActive: true,
         existingKbUrls: [],
         useTavusAvatar: false,
-        avatarVoiceId: "alloy",
         // Agent Type (default to business for existing agents)
         agentType: undefined,
     });
@@ -192,8 +192,8 @@ export default function AgentWizardPage(props: PageProps) {
                 // Map settings - check both root and settings object for compatibility
                 tavusReplicaId: agent.tavus_replica_id || agent.settings?.tavus_replica_id,
                 anamPersonaId: agent.anam_persona_id || agent.settings?.anam_persona_id,
-                avatarProvider: agent.avatar_provider || agent.settings?.avatar_provider || (agent.tavus_replica_id ? 'tavus' : (agent.anam_persona_id ? 'anam' : undefined)),
-                avatarVoiceId: agent.avatar_voice_id || agent.settings?.avatar_voice_id || "alloy",
+                avatarProvider: agent.avatar_provider || agent.settings?.avatar_provider || (agent.anam_persona_id || agent.settings?.anam_persona_id ? 'anam' : (agent.tavus_replica_id || agent.settings?.tavus_replica_id ? 'tavus' : undefined)),
+                avatarVoiceId: agent.avatar_voice_id || agent.settings?.avatar_voice_id,
                 useTavusAvatar: agent.use_tavus_avatar !== undefined
                     ? agent.use_tavus_avatar
                     : (agent.settings?.use_tavus_avatar !== undefined
@@ -399,7 +399,7 @@ export default function AgentWizardPage(props: PageProps) {
                 whitelisted_domains: formData.whitelistedDomains,
             };
 
-            const response = await fetch(isNew ? "/api/agents" : `/api/agents/${agentId}`, {
+            const response = await fetch(isNew ? `/api/agents?workspaceId=${workspaceId}` : `/api/agents/${agentId}?workspaceId=${workspaceId}`, {
                 method: isNew ? "POST" : "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data),
@@ -415,7 +415,7 @@ export default function AgentWizardPage(props: PageProps) {
             // Precisely mutate the singular agent key to trigger revalidation
             await mutate(`/api/agents/${agentId}?workspaceId=${workspaceId}`);
             // Also mutate the plural key just in case other pages need it
-            await mutate(`/api/agents?workspace_id=${workspaceId}`);
+            await mutate(`/api/agents?workspaceId=${workspaceId}`);
 
             // Clear uploaded files from state to prevent duplicates on subsequent saves
             setFormData(prev => ({

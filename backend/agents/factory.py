@@ -47,9 +47,15 @@ class AgentFactory:
         instructions = [
             f"CURRENT DATE AND TIME: {current_datetime}.",
             f"AGENT SOUL:\n{settings.get('soul', '')}" if settings.get('soul') else "",
+            f"BASE INSTRUCTIONS:\n{settings.get('prompt_template', '')}" if settings.get('prompt_template') else "",
             gatekeeper_instruction,
+            f"PERSONALITY & TONE:\n{personality_prompt}" if personality_prompt else "",
             "Always be polite, professional, and empathetic.",
         ]
+
+        if enabled_skills:
+            skills_text = "\n".join([f"- {s.name} ({s.slug}): {s.instructions}" for s in enabled_skills])
+            instructions.append(f"AGENT SKILLS & CAPABILITIES:\n{skills_text}")
         
         # Model Selection
         openai_api_key = os.getenv("OPENAI_API_KEY")

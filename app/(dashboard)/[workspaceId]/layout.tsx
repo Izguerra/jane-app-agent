@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
-import { Users, Settings, Shield, Activity, Menu, Building2, Plug, Bot, BarChart3, MessageSquare, Database, LogOut, Calendar, Briefcase, Target, Box } from 'lucide-react';
+import { Users, Settings, Shield, Activity, Menu, Building2, Plug, Bot, BarChart3, MessageSquare, Database, LogOut, Calendar, Briefcase, Target, Box, RefreshCw } from 'lucide-react';
 
 import { Logo } from '@/components/logo';
 import { useRouter } from 'next/navigation';
@@ -141,7 +141,26 @@ export default function DashboardLayout({ children, params: paramsPromise }: Lay
                             ))}
                         </nav>
 
-                        <div className="p-4 border-t bg-white">
+                        <div className="p-4 border-t bg-white flex flex-col gap-2">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                                        await fetch(`${apiUrl}/system/cleanup-zombies`, { method: 'POST' });
+                                        alert("Zombie processes and empty LiveKit rooms successfully cleaned up!");
+                                    } catch (e) {
+                                        alert("Failed to clean up zombies. Ensure backend is running.");
+                                        console.error(e);
+                                    }
+                                }}
+                            >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Clear Zombies
+                            </Button>
                             <Button
                                 variant="ghost"
                                 className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"

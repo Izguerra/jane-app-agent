@@ -109,7 +109,9 @@ load_dotenv(dotenv_path=_ENV_PATH)
 
 _db_logger.info(f"Loaded .env from: {_ENV_PATH} (exists={_ENV_PATH.exists()})")
 
-# ── POSTGRESQL ONLY — NO SQLITE FALLBACK ──
+# ── POSTGRESQL ENFORCEMENT ──
+# Note: SQLite is ONLY permitted during unit/integration tests for speed and isolation.
+# In all other environments (dev, staging, prod), PostgreSQL is strictly REQUIRED.
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     DATABASE_URL = os.getenv("POSTGRES_URL")
@@ -121,11 +123,13 @@ if not DATABASE_URL:
         "PostgreSQL is REQUIRED. Do NOT use SQLite. If PostgreSQL is down, fix PostgreSQL."
     )
 
-# Hard-block any SQLite URL that somehow got configured
-if "sqlite" in DATABASE_URL.lower():
+# Hard-block SQLite unless we are explicitly in a test environment (pytest)
+import sys
+is_pytest = "pytest" in sys.modules or any("pytest" in arg for arg in sys.argv)
+if "sqlite" in DATABASE_URL.lower() and not is_pytest:
     raise ValueError(
         f"FATAL: SQLite database URL detected: {DATABASE_URL}\n"
-        "This application REQUIRES PostgreSQL. SQLite is NOT supported.\n"
+        "This application REQUIRES PostgreSQL in non-test environments. SQLite is NOT supported.\n"
         "Fix your DATABASE_URL in .env to point to a PostgreSQL instance."
     )
 
@@ -143,12 +147,17 @@ _db_host = DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'
 print(f"[database] PostgreSQL connected: {_db_host}")
 _db_logger.info(f"PostgreSQL engine configured: {_db_host}")
 
-# Create engine — always PostgreSQL with connection pooling
+# Create engine — always PostgreSQL with connection pooling (unless testing with SQLite)
 engine_kwargs = {
     "pool_pre_ping": True,
-    "pool_size": 5,
-    "max_overflow": 10
 }
+
+# These kwargs are only supported by PostgreSQL/MySQL dialects in SQLAlchemy
+if "sqlite" not in DATABASE_URL.lower():
+    engine_kwargs.update({
+        "pool_size": 5,
+        "max_overflow": 10
+    })
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

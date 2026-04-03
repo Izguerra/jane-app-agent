@@ -491,7 +491,9 @@ export default function AdminSettingsPage() {
                                                         <span className="text-lg">
                                                             {integration.provider === 'slack' ? '💬' :
                                                                 integration.provider === 'stripe' ? '💳' :
-                                                                    integration.provider === 'hubspot' ? '🔶' : '📧'}
+                                                                    integration.provider === 'hubspot' ? '🔶' :
+                                                                        integration.provider === 'telnyx' ? '📞' :
+                                                                            integration.provider === 'livekit' ? '🎙️' : '📧'}
                                                         </span>
                                                     </div>
                                                     <div className="flex-1">

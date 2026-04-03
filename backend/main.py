@@ -48,7 +48,8 @@ from backend.routers import (
     appointments,
     deals,
     outbound,
-    skills
+    skills,
+    system
 )
 
 app = FastAPI()
@@ -163,6 +164,7 @@ app.include_router(settings.router)
 app.include_router(settings.router, prefix="/agent")
 app.include_router(customers.router)
 app.include_router(stripe_webhooks.router)
+app.include_router(system.router)
 app.include_router(workspaces.router)
 app.include_router(admin_analytics.router)
 app.include_router(admin_settings.router)
@@ -212,6 +214,14 @@ async def startup_event():
         logger.info("Health Worker started")
     except Exception as e:
         logger.error(f"Failed to start Health Worker: {e}")
+
+    # Start Watchdog Agent (Monitor)
+    try:
+        from backend.workers.watchdog_worker import run_watchdog_worker
+        asyncio.create_task(run_watchdog_worker())
+        logger.info("Watchdog Agent started")
+    except Exception as e:
+        logger.error(f"Failed to start Watchdog Agent: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():

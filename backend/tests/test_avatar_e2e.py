@@ -20,8 +20,7 @@ LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 
 # Use ID from existing script or known valid default
-TAVUS_PERSONA_ID = "p7fb0be3" 
-TAVUS_REPLICA_ID = "r79e1c033f" 
+ANAM_PERSONA_ID = "pers_3396c97a-9771-460d-8ea6-1076f8279148" 
 
 ROOM_NAME = f"e2e-avatar-{os.urandom(4).hex()}"
 
@@ -72,8 +71,7 @@ async def test_avatar_e2e():
         # 1. Generate User Token
         metadata = {
             "mode": "avatar",
-            "tavusReplicaId": TAVUS_REPLICA_ID,
-            "tavusPersonaId": TAVUS_PERSONA_ID,
+            "anamPersonaId": ANAM_PERSONA_ID,
             "voiceId": "alloy", # OpenAI Voice to test restoration
             "instructions": "You are a test avatar.",
             "workspace_id": "wrk_e2e_test"
@@ -85,7 +83,7 @@ async def test_avatar_e2e():
         # avatar_agent.py (if using livekit-agents v0.7+) listens if it connects to the same server.
         
         room_config = api.RoomConfiguration(
-            agents=[api.RoomAgentDispatch(agent_name="supaagent-avatar-v2.1")]
+            agents=[api.RoomAgentDispatch(agent_name="avatar-agent")]
         )
 
         grant = api.VideoGrants(room_join=True, room=ROOM_NAME)
