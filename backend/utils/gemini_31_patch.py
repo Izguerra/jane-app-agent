@@ -66,7 +66,6 @@ def patch_realtime_session(realtime_model) -> bool:
     def patched_session_factory():
         session = original_session_factory()
         _patch_session_generate_reply(session)
-        _patch_session_build_config(session)
         return session
 
     realtime_model.session = patched_session_factory
@@ -140,21 +139,3 @@ def _patch_session_generate_reply(session):
 
     session.generate_reply = patched_generate_reply
     logger.debug("Patched generate_reply on session instance.")
-
-
-def _patch_session_build_config(session):
-    """
-    Patches _build_connect_config to add history_config for Gemini 3.1.
-    
-    Gemini 3.1 requires initial_history_in_client_content=True in the
-    history_config for send_client_content to work during initial context seeding.
-    """
-    from google.genai import types
-
-    def patched_build_config():
-        config = original_build_config()
-        # We disabled the history_config patch as it was suspected to trigger 1011 errors.
-        return config
-
-    session._build_connect_config = patched_build_config
-    logger.debug("Patched _build_connect_config on session instance.")

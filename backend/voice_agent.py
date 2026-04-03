@@ -238,7 +238,8 @@ async def entrypoint(ctx):
         raise
     finally:
         if agent:
-            agent.stop()
+            logger.info("Entrypoint finally: Stopping agent...")
+            await agent.stop()
         
         # Ensure deps is available for cleanup
         try:
