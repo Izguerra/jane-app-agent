@@ -97,7 +97,7 @@ async def entrypoint(ctx):
         
         # 1. CONNECTION
         from livekit.rtc import ConnectionState
-        from livekit.agents.voice import AutoSubscribe
+        from livekit.agents import AutoSubscribe
         
         if ctx.room.connection_state != ConnectionState.CONN_CONNECTED:
             await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
@@ -222,7 +222,8 @@ async def entrypoint(ctx):
         raise
     finally:
         if agent:
-            agent.stop()
+            logger.info("Entrypoint finally: Stopping agent...")
+            await agent.stop()
         
         # Ensure deps is available for cleanup
         try:
@@ -247,7 +248,8 @@ if __name__ == "__main__":
                 entrypoint_fnc=entrypoint, 
                 prewarm_fnc=prewarm, 
                 agent_name="avatar-agent",
-                multiprocessing_context="forkserver"
+                multiprocessing_context="forkserver",
+                port=8082
             )
         )
     finally:

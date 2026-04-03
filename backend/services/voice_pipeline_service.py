@@ -55,7 +55,8 @@ class VoicePipelineService:
                 elif any(v in v_lower for v in ["kore", "aoede", "nova", "shimmer", "alloy", "female", "girl", "woman"]):
                     gemini_voice = "Aoede"
             
-            logger.info(f"Initializing Gemini 3.1 Flash Live with voice: {gemini_voice}")
+            logger.info(f"🚀 Initializing Gemini 3.1 Flash Live (A2A) with voice: {gemini_voice}")
+            logger.info(f"   Model: gemini-3.1-flash-live-preview, API Version: v1alpha")
             
             model = google_plugin.realtime.RealtimeModel(
                 model="gemini-3.1-flash-live-preview",
@@ -64,11 +65,14 @@ class VoicePipelineService:
                 instructions=prompt,
                 modalities=["AUDIO", "TEXT"],
                 voice=gemini_voice,
-                thinking_config=types.ThinkingConfig(thinking_level="MINIMAL")
             )
+            logger.info("✅ Gemini RealtimeModel instance created.")
             return model
+        except ImportError as ie:
+            logger.error(f"❌ Missing dependency for Gemini Realtime: {ie}. Ensure google-genai is installed.")
+            return None
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini RealtimeModel: {e}", exc_info=True)
+            logger.error(f"❌ Failed to initialize Gemini RealtimeModel: {e}", exc_info=True)
             return None
 
     @staticmethod
