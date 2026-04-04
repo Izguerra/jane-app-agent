@@ -107,7 +107,7 @@ async def entrypoint(ctx):
         from livekit.rtc import ConnectionState
         
         if ctx.room.connection_state != ConnectionState.CONN_CONNECTED:
-            await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+            await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
             logger.info("✅ Agent connected to room")
 
         # Explicitly log when participants join
@@ -220,6 +220,12 @@ async def entrypoint(ctx):
         
         await agent.start(ctx.room)
         await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+        
+        # FIX: Ensure audio track is published before saying the welcome message
+        # This prevents the "silent greeting" if the participant joins slowly.
+        logger.info("Waiting for track publication...")
+        await asyncio.sleep(1.0) 
+        
         logger.info("✅ Agent active and listening.")
         
         welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")

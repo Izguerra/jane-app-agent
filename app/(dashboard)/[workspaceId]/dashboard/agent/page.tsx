@@ -178,7 +178,7 @@ export default function AgentsListPage() {
                                 <DropdownMenuLabel>Choose Agent Type</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild>
-                                    <Link href={`/${workspaceId}/dashboard/agent/new`} className="cursor-pointer">
+                                    <Link href={`/${workspaceId}/dashboard/agent/new`} className="cursor-pointer" prefetch={false}>
                                         <div className="flex flex-col">
                                             <span className="font-semibold">Standard Agent</span>
                                             <span className="text-[10px] text-muted-foreground whitespace-normal leading-tight">
@@ -189,7 +189,7 @@ export default function AgentsListPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild>
-                                    <Link href={`/${workspaceId}/dashboard/agent/new?type=humanoid`} className="cursor-pointer bg-fuchsia-50/50">
+                                    <Link href={`/${workspaceId}/dashboard/agent/new?type=humanoid`} className="cursor-pointer bg-fuchsia-50/50" prefetch={false}>
                                         <div className="flex flex-col">
                                             <span className="font-semibold text-fuchsia-700 underline decoration-fuchsia-300 decoration-2 underline-offset-4">Multimodal Humanoid Agent</span>
                                             <span className="text-[10px] text-fuchsia-600/70 whitespace-normal leading-tight">
@@ -200,7 +200,7 @@ export default function AgentsListPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild>
-                                    <Link href={`/${workspaceId}/dashboard/agent/open-claw/new`} className="cursor-pointer bg-indigo-50/50">
+                                    <Link href={`/${workspaceId}/dashboard/agent/open-claw/new`} className="cursor-pointer bg-indigo-50/50" prefetch={false}>
                                         <div className="flex flex-col">
                                             <span className="font-semibold text-indigo-700">OpenClaw Browser Agent</span>
                                             <span className="text-[10px] text-indigo-600/70 whitespace-normal leading-tight">
@@ -334,7 +334,7 @@ export default function AgentsListPage() {
                                                             agent.agent_type === 'openclaw'
                                                                 ? `/${workspaceId}/dashboard/agent/open-claw/${agent.id}`
                                                                 : `/${workspaceId}/dashboard/agent/${agent.id}`
-                                                        }>
+                                                        } prefetch={false}>
                                                             Manage Agent
                                                         </Link>
                                                     </DropdownMenuItem>

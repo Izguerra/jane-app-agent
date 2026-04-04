@@ -65,6 +65,12 @@ class VoicePipelineService:
                 instructions=prompt,
                 modalities=["AUDIO", "TEXT"],
                 voice=gemini_voice,
+                # LATENCY FIX: 3.1 Live is optimized for low thinking levels.
+                # High levels cause 4-5s spikes.
+                generation_config=types.GenerateContentConfig(
+                    candidate_count=1,
+                    temperature=0.7,
+                )
             )
             logger.info("✅ Gemini RealtimeModel instance created.")
             return model

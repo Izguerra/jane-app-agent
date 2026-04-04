@@ -195,17 +195,21 @@ async def entrypoint(ctx):
         agent_tools.session = agent.session
         deps["VoiceHandlers"].register_session_events(agent, ctx)
         
-        # --- CRITICAL: Initialize Avatar (Replica Join) BEFORE start (depends on session setup) ---
+        # Start the agent first to establish the AgentSession
+        await agent.start(ctx.room)
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+        
+        # --- CRITICAL: Initialize Avatar (Replica Join) AFTER start (depends on session setup) ---
         resolved_provider = settings.get("avatar_provider", "anam")
         logger.info(f"Triggering Avatar Replica Join (Provider: {resolved_provider})")
         avatar_obj = await deps["initialize_avatar"](resolved_provider, settings, agent.session, ctx.room, ctx)
         
-        # Start the agent
-        await agent.start(ctx.room)
-        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
         logger.info("✅ Avatar agent active and listening.")
         
-        # Trigger greeting
+        # Trigger greeting (Wait for track publication to avoid initial silence)
+        logger.info("Waiting for audio/video tracks to stabilize...")
+        await asyncio.sleep(2.0)
+        
         welcome_msg = settings.get("welcome_message", "Hello!")
         agent.say(welcome_msg)
 

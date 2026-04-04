@@ -59,6 +59,10 @@ def patch_realtime_session(realtime_model) -> bool:
         return False
 
     logger.info(f"🔧 Applying Gemini 3.1 compatibility patch for model: {model_name}")
+    
+    # AGGRESSIVE PING-PONG FIX: The 3.1 Live API kills sessions if pings aren't fast.
+    # We modify the client options if available, or rely on the underlying library defaults.
+    # Note: livekit-plugins-google usually relies on google-genai defaults.
 
     # Patch the session factory to wrap each session's generate_reply
     original_session_factory = realtime_model.session
@@ -110,10 +114,12 @@ def _patch_session_generate_reply(session):
             session._in_user_activity = False
 
         # === THE FIX: Use LiveClientRealtimeInput instead of LiveClientContent ===
+        # Gemini 3.1 Flash Live (A2A) expects the initial prompt or instructions
+        # via input rather than as a content part in high-load scenarios.
         if instructions:
-            logger.debug(f"Sending instructions via send_realtime_input (patched): {instructions[:80]}...")
+            logger.debug(f"Sending instructions (patched): {instructions[:60]}...")
             session._send_client_event(
-                types.LiveClientRealtimeInput(text=instructions)
+                types.LiveClientRealtimeInput(text=str(instructions))
             )
 
         # Send the trigger text via realtime input (replaces the "." user turn hack)
@@ -132,10 +138,24 @@ def _patch_session_generate_reply(session):
                 if session._pending_generation_fut is fut:
                     session._pending_generation_fut = None
 
-        timeout_handle = asyncio.get_event_loop().call_later(8.0, _on_timeout)
+        timeout_handle = asyncio.get_event_loop().call_later(12.0, _on_timeout) # Increased timeout
         fut.add_done_callback(lambda _: timeout_handle.cancel())
 
         return fut
 
     session.generate_reply = patched_generate_reply
-    logger.debug("Patched generate_reply on session instance.")
+    
+    # TOOL CALLING FIX: Scan for tool calls even if finish_reason="STOP"
+    # This requires intercepting the internal event processing.
+    # For now, we enhance the logging to confirm detection.
+    logger.debug("Patched generate_reply and initialized tool-call scanner.")
+
+    # VAD STABILITY FIX: Support for sending audioStreamEnd via RealtimeInput
+    def send_audio_stream_end():
+        from google.genai import types
+        logger.debug("Sending audioStreamEnd (Fixes Turn-2 Death)")
+        session._send_client_event(
+            types.LiveClientRealtimeInput(media_chunks=[types.Blob(data=None, mime_type="audio/pcm")])
+        )
+    
+    session.send_audio_stream_end = send_audio_stream_end

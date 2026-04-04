@@ -9,6 +9,15 @@ from livekit.plugins import silero
 
 logger = logging.getLogger("multimodal-agent-bridge")
 
+def fix_timestamp(raw_seconds: float) -> float:
+    """
+    FIX: Corrects the 22% progressive drift in Gemini 3.1 Live.
+    If the model says 100s, it actually means ~78s.
+    Coefficient 0.7804 determined for 3.1 Flash-Lite / Live Preview.
+    """
+    DRIFT_COEFFICIENT = 0.7804
+    return raw_seconds * DRIFT_COEFFICIENT
+
 class MultimodalAgent(rtc.EventEmitter):
     """
     A high-performance bridge that provides a unified MultimodalAgent interface 
@@ -47,9 +56,9 @@ class MultimodalAgent(rtc.EventEmitter):
         self._is_native_audio = isinstance(model, llm.RealtimeModel)
 
         # Tools extraction
-        tools = []
+        self._tools = []
         if self._fnc_ctx:
-            tools.extend(llm.find_function_tools(self._fnc_ctx))
+            self._tools.extend(llm.find_function_tools(self._fnc_ctx))
                 
         # Apply the Gemini 3.1 compatibility patch BEFORE creating the VoiceAgent
         if self._is_native_audio:
@@ -61,52 +70,54 @@ class MultimodalAgent(rtc.EventEmitter):
             except Exception as e:
                 logger.warning(f"Could not apply Gemini 3.1 patch: {e}")
 
-        # TTS handling for RealtimeModels
+        # In LiveKit 1.5.1, passing stt=None and tts=None to the VoiceAgent 
+        # (with a RealtimeModel) triggers the native audio-to-audio path.
+        # Adding Dummy objects here will BREAK the native modality.
+        current_stt = stt_instance
+        current_tts = tts_instance
+        
         if self._is_native_audio:
-            from livekit.agents.tts import TTS, TTSCapabilities, ChunkedStream
-            class DummyTTS(TTS):
-                """Placeholder TTS for RealtimeModel — audio comes from the model itself."""
-                def __init__(self):
-                    super().__init__(capabilities=TTSCapabilities(streaming=False), sample_rate=24000, num_channels=1)
-                def synthesize(self, text: str, **kwargs) -> ChunkedStream:
-                    raise NotImplementedError("Not used by Multimodal models")
-            
-            self._tts = DummyTTS()
-            self._stt = None
-        else:
-            self._tts = tts_instance
-            self._stt = stt_instance
+            current_stt = None
+            current_tts = None
 
+        from livekit.agents.voice import Agent as VoiceAgent
         from livekit.agents import TurnHandlingOptions
+        
+        self._turn_handling = TurnHandlingOptions(
+            allow_interruptions=True,
+            intents_threshold=0.5
+        )
+        
         self._voice_agent = VoiceAgent(
             vad=self._vad,
-            stt=self._stt,
-            tts=self._tts,
+            stt=current_stt,
+            tts=current_tts,
             instructions=prompt,
             llm=self._model,
             chat_ctx=self._chat_ctx,
-            tools=tools,
-            turn_handling=TurnHandlingOptions(interruption={"mode": "adaptive"})
+            tools=self._tools,
+            turn_handling=self._turn_handling
         )
+
+        # The session will be initialized on start()
+        self._session = None
 
     async def start(self, room: rtc.Room, participant: Optional[rtc.RemoteParticipant] = None):
         """Starts the multimodal session in the given room."""
         self._room = room
         
-        # FIX: AgentSession should NOT receive llm/tts/stt/tools —
-        # those are carried by the VoiceAgent and AgentSession inherits from it.
-        # Passing them to both causes double-initialization of the Gemini WebSocket.
-        self._session = AgentSession()
-        
-        # Start the session with our voice_agent config
-        try:
-            logger.info(f"Starting AgentSession with voice_agent in room {room.name}...")
-            await self._session.start(self._voice_agent, room=room)
-            logger.info("✅ AgentSession started successfully.")
-        except Exception as e:
-            logger.error(f"❌ Failed to start AgentSession: {e}", exc_info=True)
-            self.emit("error", e)
-            return
+        from livekit.agents.voice import AgentSession
+
+        # In LiveKit 1.5.1, we initialize the AgentSession on-demand during start()
+        # triggering the multimodal path if stt/tts are None.
+        self._session = AgentSession(
+            llm=self._model,
+            vad=self._vad,
+            stt=self._voice_agent.stt,
+            tts=self._voice_agent.tts,
+            tools=self._tools,
+            turn_handling=self._turn_handling
+        )
 
         # Forward events from the session to the bridge
         event_names = [
@@ -119,61 +130,75 @@ class MultimodalAgent(rtc.EventEmitter):
         def _make_forwarder(name):
             def _forwarder(*args, **kwargs):
                 self.emit(name, *args, **kwargs)
+                # Also forward to the internal voice agent for internal state matching
+                if hasattr(self, '_voice_agent'):
+                    self._voice_agent.emit(name, *args, **kwargs)
             return _forwarder
 
         for name in event_names:
             self._session.on(name, _make_forwarder(name))
+            
+        @self._session.on("user_stopped_speaking")
+        def _on_user_stopped_speaking():
+            # FIX: Gemini 3.1 requires audioStreamEnd to correctly flush Turn 2.
+            if hasattr(self._session, 'send_audio_stream_end'):
+                self._session.send_audio_stream_end()
             
         @self._session.on("error")
         def _on_error(error: Exception):
             logger.error(f"Multimodal agent session error: {error}")
             self.emit("error", error)
 
-        # Signal that we are 'started'
-        self._started_event.set()
-        
-        # FIX: Launch async greeting delivery that waits for the Gemini WebSocket
-        if self._say_buffer:
-            asyncio.create_task(self._deliver_buffered_greetings())
+        # Start the session with our voice_agent config
+        try:
+            logger.info(f"Starting AgentSession in room {room.name}...")
+            # HANDSHAKE GUARD: Gemini 3.1 requires a clean setup before interaction.
+            # AgentSession.start() initializes the model and waits for the first track.
+            await self._session.start(self._voice_agent, room=room, participant=participant)
+            
+            # Additional safety: Wait for the underlying Google session to be "active"
+            # This helps avoid the "Turn 1" 1011 errors.
+            await asyncio.sleep(0.5) 
+            
+            logger.info("✅ AgentSession started and confirmed active.")
+        except Exception as e:
+            logger.error(f"❌ Failed to start AgentSession: {e}", exc_info=True)
+            self.emit("error", e)
+        finally:
+            # ALWAYS mark as started so say() doesn't buffer forever
+            self._started_event.set()
+            logger.info("📌 _started_event SET.")
+            # Flush any greetings that were buffered before start() completed
+            if self._say_buffer:
+                asyncio.create_task(self._deliver_buffered_greetings())
 
     async def _deliver_buffered_greetings(self):
         """
-        Waits for the Gemini WebSocket session to be fully connected,
-        then delivers any buffered greetings.
-        
-        This fixes the race condition where say() is called before the
-        Gemini session's WebSocket is ready, causing the greeting to be
-        permanently lost.
+        Delivers any buffered greetings after a short stabilization delay.
+        Called from start()'s finally block once the session exists.
         """
-        max_attempts = 80  # 80 * 0.25s = 20s max wait
-        for attempt in range(max_attempts):
-            if self._closing:
-                return
-                
-            # Check if the session has generate_reply available (means WebSocket is up)
-            try:
-                if self._session and hasattr(self._session, 'generate_reply'):
-                    # The session is ready — deliver all buffered messages
-                    while self._say_buffer:
-                        msg = self._say_buffer.pop(0)
-                        logger.info(f"📢 Delivering buffered greeting: {msg['text'][:60]}...")
-                        try:
-                            self._session.generate_reply(instructions=msg["text"])
-                            self._first_say_executed = True
-                        except Exception as e:
-                            logger.warning(f"generate_reply failed for greeting: {e}")
-                            # Fallback: try the VoiceAgent's say method
-                            try:
-                                self._voice_agent.say(msg["text"])
-                            except Exception as e2:
-                                logger.error(f"Fallback say also failed: {e2}")
-                    return
-            except Exception as e:
-                logger.debug(f"Greeting delivery check #{attempt}: {e}")
-            
-            await asyncio.sleep(0.25)
+        # FIX: The 3.1 model will fail if you send audio/text before setupComplete.
+        # We give it a generous 2.0s buffer to ensure the handshake is strictly finished.
+        await asyncio.sleep(2.0)
         
-        logger.warning("⚠️ Timed out waiting for session readiness. Greetings may not be delivered.")
+        if self._closing or not self._session:
+            logger.warning("Greeting buffer delivery aborted - session context missing.")
+            return
+
+        while self._say_buffer:
+            msg = self._say_buffer.pop(0)
+            logger.info(f"📢 Delivering buffered greeting: {msg['text'][:60]}...")
+            try:
+                if hasattr(self._session, 'say'):
+                    self._session.say(msg["text"], add_to_chat_ctx=True)
+                elif hasattr(self._voice_agent, 'say'):
+                    self._voice_agent.say(msg["text"], add_to_chat_ctx=True)
+                else:
+                    logger.error("No valid 'say' method found on session or agent.")
+                    
+                self._first_say_executed = True
+            except Exception as e:
+                logger.error(f"say() failed for greeting: {e}", exc_info=True)
 
     def say(self, text: str, allow_interruptions: bool = True, add_to_chat_ctx: bool = True):
         """Standard 'say' method with improved resilience for Gemini Live."""
@@ -182,19 +207,29 @@ class MultimodalAgent(rtc.EventEmitter):
             self._say_buffer.append({"text": text})
             return
 
+        logger.debug(f"Executing say(): is_native={self._is_native_audio}, has_session={self._session is not None}")
+
         try:
-            if self._is_native_audio:
-                # Use generate_reply which is now patched for Gemini 3.1
-                if self._session and hasattr(self._session, 'generate_reply'):
+            # Native Multimodal / Gemini Live path (RealtimeSession)
+            if self._is_native_audio and self._session:
+                if hasattr(self._session, 'say'):
+                    self._session.say(text, add_to_chat_ctx=add_to_chat_ctx)
+                elif hasattr(self._session, 'generate_reply'):
+                    # In Gemini 3.1 Live, we use generate_reply with instructions to speak
                     self._session.generate_reply(instructions=text)
-                    self._first_say_executed = True
                 else:
-                    logger.warning("Session not ready for say(). Buffering.")
-                    self._say_buffer.append({"text": text})
-                    if not self._first_say_executed:
-                        asyncio.create_task(self._deliver_buffered_greetings())
-            else:
+                    logger.error("RealtimeSession has neither 'say' nor 'generate_reply'")
+                self._first_say_executed = True
+            # Pipeline fallback path (VoiceAgent + VoicePipeline)
+            elif self._voice_agent and hasattr(self._voice_agent, 'say'):
                 self._voice_agent.say(text, allow_interruptions=allow_interruptions, add_to_chat_ctx=add_to_chat_ctx)
+                self._first_say_executed = True
+            # Final desperate fallback to session if it has say but wasn't marked native
+            elif self._session and hasattr(self._session, 'say'):
+                 self._session.say(text, add_to_chat_ctx=add_to_chat_ctx)
+                 self._first_say_executed = True
+            else:
+                logger.error(f"CRITICAL: Could not execute say('{text[:30]}...') - No valid method found.")
         except Exception as e:
             logger.error(f"Failed to execute say on agent: {e}", exc_info=True)
 

@@ -114,7 +114,7 @@ class MCPLoaderService:
                 )
                 
                 # Resilient Initialization with Connectivity Check
-                if not await MCPLoaderService._is_reachable(srv.url):
+                if not await MCPLoaderService._is_reachable(srv.url, timeout=3.0):
                     logger.warning(f"MCP Server '{srv.name}' URL {srv.url} is unreachable. Skipping.")
                     continue
 
@@ -122,9 +122,13 @@ class MCPLoaderService:
                 success = False
                 for attempt in range(max_retries):
                     try:
-                        # 5-second timeout per operation to prevent hanging the vital agent startup
-                        await asyncio.wait_for(mcp_instance.initialize(), timeout=5.0)
-                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=5.0)
+                        # Initialization Attempt
+                        logger.info(f"⏳ Initializing MCP '{srv.name}' (Attempt {attempt+1}/{max_retries})...")
+                        await asyncio.wait_for(mcp_instance.initialize(), timeout=20.0)
+                        
+                        # Tools Loading Attempt
+                        logger.info(f"⏳ Loading tools from '{srv.name}'...")
+                        tools = await asyncio.wait_for(mcp_instance.list_tools(), timeout=15.0)
                         
                         mcp_tools.extend(tools)
                         mcp_instances.append(mcp_instance)
@@ -137,11 +141,11 @@ class MCPLoaderService:
                                 agno_mcp = MCPTools(
                                     transport="sse",
                                     server_params=SSEClientParams(url=srv.url, headers=headers),
-                                    timeout_seconds=3
+                                    timeout_seconds=15
                                 )
                                 agno_toolkits.append(agno_mcp)
                         except Exception as e:
-                            logger.error(f"Failed to create Agno MCP Toolkit for '{srv.name}': {e}", exc_info=True)
+                            logger.error(f"Failed to create Agno MCP Toolkit for '{srv.name}': {e}")
 
                         logger.info(f"Loaded {len(tools)} tools from MCP server '{srv.name}'")
                         success = True
@@ -150,7 +154,7 @@ class MCPLoaderService:
                         logger.warning(f"MCP {srv.name} init timed out (attempt {attempt+1}/{max_retries})")
                         if attempt < max_retries - 1: await asyncio.sleep(1.0)
                     except Exception as e:
-                        logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}", exc_info=True)
+                        logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}")
                         if attempt < max_retries - 1: await asyncio.sleep(1.0)
                         
                 if not success:
