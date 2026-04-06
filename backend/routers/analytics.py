@@ -16,6 +16,7 @@ class CommunicationLogResponse(BaseModel):
     direction: str
     status: str
     duration: int
+    channel: Optional[str] = None
     started_at: datetime
     # participant_identity removed as it's not in the new Communication model/schema yet
     # participant_identity: Optional[str] = None 
@@ -29,6 +30,7 @@ class CommunicationLogResponse(BaseModel):
             type=obj.type,
             direction=obj.direction,
             status=obj.status,
+            channel=obj.channel,
             duration=obj.duration or 0, # Handle None
             started_at=obj.started_at,
             # participant_identity=obj.participant_identity

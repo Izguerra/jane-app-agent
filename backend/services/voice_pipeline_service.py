@@ -55,30 +55,37 @@ class VoicePipelineService:
                 elif any(v in v_lower for v in ["kore", "aoede", "nova", "shimmer", "alloy", "female", "girl", "woman"]):
                     gemini_voice = "Aoede"
             
-            logger.info(f"🚀 Initializing Gemini 3.1 Flash Live (A2A) with voice: {gemini_voice}")
-            logger.info(f"   Model: gemini-3.1-flash-live-preview, API Version: v1alpha")
-            
-            model = google_plugin.realtime.RealtimeModel(
-                model="gemini-3.1-flash-live-preview",
-                api_key=gemini_key,
-                api_version="v1alpha",
-                instructions=prompt,
-                modalities=["AUDIO", "TEXT"],
-                voice=gemini_voice,
-                # LATENCY FIX: 3.1 Live is optimized for low thinking levels.
-                # High levels cause 4-5s spikes.
-                generation_config=types.GenerateContentConfig(
-                    candidate_count=1,
-                    temperature=0.7,
+            # Use Gemini 2.5 Flash Native Audio (stable with LiveKit 1.5.1)
+            # NOTE: gemini-3.1-flash-live-preview is INCOMPATIBLE with livekit-plugins-google==1.5.1
+            # See docs/GEMINI_MODEL_COMPATIBILITY.md for details and upstream tracking.
+            try:
+                logger.info(f"🚀 Initializing Gemini 2.5 Flash Native Audio (A2A) with voice: {gemini_voice}")
+                model = google_plugin.realtime.RealtimeModel(
+                    model="gemini-2.5-flash-native-audio-preview",
+                    api_key=gemini_key,
+                    instructions=prompt,
+                    modalities=["AUDIO"],
+                    voice=gemini_voice,
                 )
-            )
-            logger.info("✅ Gemini RealtimeModel instance created.")
-            return model
+                logger.info("✅ Gemini 2.5 Flash Native Audio model instance created.")
+                return model
+            except Exception as e:
+                logger.warning(f"⚠️ Gemini 2.5 initialization failed: {e}. Falling back to 2.0 Flash Exp.")
+                
+                model = google_plugin.realtime.RealtimeModel(
+                    model="gemini-2.0-flash-exp",
+                    api_key=gemini_key,
+                    instructions=prompt,
+                    modalities=["AUDIO"],
+                    voice=gemini_voice,
+                )
+                logger.info("✅ Gemini 2.0 Flash Exp model instance created (Fallback).")
+                return model
         except ImportError as ie:
             logger.error(f"❌ Missing dependency for Gemini Realtime: {ie}. Ensure google-genai is installed.")
             return None
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Gemini RealtimeModel: {e}", exc_info=True)
+            logger.error(f"❌ Critical Gemini initialization failure: {e}", exc_info=True)
             return None
 
     @staticmethod

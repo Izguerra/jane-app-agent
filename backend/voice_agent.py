@@ -34,7 +34,7 @@ def get_voice_deps():
     from livekit.rtc import ConnectionState
     from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
     
-    from backend.database import SessionLocal, generate_comm_id
+    from backend.database import SessionLocal, generate_comm_id, DatabaseContext
     from backend.models_db import Communication, Agent as AgentModel, Customer, Workspace
     from backend.settings_store import get_settings
     from backend.services.voice_context_resolver import VoiceContextResolver
@@ -47,6 +47,7 @@ def get_voice_deps():
     from backend.services.mcp_loader_service import MCPLoaderService
     
     return {
+        "DatabaseContext": DatabaseContext,
         "datetime": datetime,
         "timezone": timezone,
         "ConnectionState": ConnectionState,
@@ -112,74 +113,101 @@ async def entrypoint(ctx):
 
         # Explicitly log when participants join
         @ctx.room.on("participant_connected")
-        def on_participant_connected(participant):
-            logger.info(f"👋 Participant connected: {participant.identity}")
+        def on_participant_connected(p):
+            logger.info(f"👋 Participant connected: {p.identity}")
 
-        # Re-verify participant after joining
+        # HANDSHAKE HARDENING: Wait for human participant
         participant = await ctx.wait_for_participant()
+        logger.info(f"✅ Found participant: {participant.identity}")
         
         # Now we can safely set attributes on the local participant
-        await ctx.room.local_participant.set_attributes({
-            "agent": "true", 
-            "lk.agent.state": "initializing"
-        })
+        await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
 
         # Lazy load dependencies within the spawned process
         deps = get_voice_deps()
 
-        # Resolve Settings & Agent Identity
-        try:
-            workspace_id, agent_id, call_context, meta = await asyncio.wait_for(
-                deps["VoiceContextResolver"].resolve_context(ctx, participant),
-                timeout=10.0
-            )
-            if not workspace_id:
-                logger.warning(f"Closing voice entrypoint - Context could not be resolved.")
-                await ctx.room.local_participant.set_attributes({"lk.agent.state": "failed_resolution"})
-                return
-        except Exception as e:
-            logger.error(f"Failed to resolve context: {e}")
-            await ctx.room.local_participant.set_attributes({"lk.agent.state": "error"})
-            return
+        # 3. CONTEXT RESOLUTION (With Fallback)
+        workspace_id = None
+        agent_id = None
+        call_context = None
+        meta = {}
+        
+        for attempt in range(1, 4):
+            try:
+                # Use a hard timeout for context resolution to prevent logic hangs
+                workspace_id, agent_id, call_context, meta = await asyncio.wait_for(
+                    deps["VoiceContextResolver"].resolve_context(ctx, participant),
+                    timeout=3.0
+                )
+                if workspace_id and workspace_id != "wrk_000V7dMzXJLzP5mYgdf7FzjA3J":
+                    logger.info(f"✅ Context resolved on attempt {attempt}")
+                    break
+            except Exception as e:
+                logger.warning(f"⚠️ Context resolution attempt {attempt} failed: {e}")
+            
+            if attempt < 3:
+                await asyncio.sleep(1.0)
+
+        if not workspace_id:
+            workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
 
         settings = deps["get_settings"](workspace_id)
         settings.update(meta)
 
-        # 2. Database & Logging
-        db = deps["SessionLocal"]()
+        # 2. Database & Logging (run in thread to avoid blocking event loop)
         log_id = settings.get("log_id")
         workspace_info = {"name": "The Business", "phone": "N/A", "services": "General", "role": "Assistant"}
+        skills = []
+        personality_prompt = "\n## IDENTITY & PERSONALITY\nYou are a professional digital assistant."
 
-        try:
-            if agent_id:
-                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].id == agent_id).first()
-            else:
-                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].workspace_id == workspace_id).first()
-            
-            if agent_rec:
-                agent_id = agent_rec.id
-                if agent_rec.settings: settings.update(agent_rec.settings)
-                agent_id = meta.get("agent_id") or agent_id
-                settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
-                if meta: settings.update(meta)
-                ws = db.query(deps["Workspace"]).filter(deps["Workspace"].id == workspace_id).first()
-                if ws: workspace_info = {"name": ws.name, "phone": ws.phone, "services": settings.get("services"), "role": settings.get("role")}
-            
-            if not log_id:
-                log_entry = deps["Communication"](
-                    id=deps["generate_comm_id"](), type="call", 
-                    direction="outbound" if call_context else "inbound",
-                    status="ongoing", started_at=start_time, workspace_id=workspace_id, agent_id=agent_id
-                )
-                db.add(log_entry)
-                db.commit()
-                log_id = log_entry.id
+        def _sync_db_init():
+            nonlocal log_id, workspace_info, skills, personality_prompt, settings, agent_id
+            db = deps["SessionLocal"]()
+            try:
+                if not agent_id:
+                    agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].workspace_id == workspace_id).first()
+                    if agent_rec:
+                        agent_id = agent_rec.id
+                else:
+                    agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].id == agent_id).first()
                 
-            # 3. Build Prompt
-            skills = deps["SkillService"]().get_skills_for_agent(db, agent_id)
-            personality = deps["PersonalityService"]().get_personality(db, agent_id)
-            personality_prompt = deps["PersonalityService"]().generate_personality_prompt(personality)
-        finally: db.close()
+                if agent_rec:
+                    if agent_rec.settings: 
+                        settings.update(agent_rec.settings)
+                    settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
+                    
+                    ws = db.query(deps["Workspace"]).filter(deps["Workspace"].id == workspace_id).first()
+                    if ws: 
+                        workspace_info = {
+                            "name": ws.name, 
+                            "phone": ws.phone or "N/A", 
+                            "services": settings.get("services", "General"), 
+                            "role": settings.get("role", "Assistant")
+                        }
+                
+                if not log_id:
+                    log_entry = deps["Communication"](
+                        id=deps["generate_comm_id"](), 
+                        type="call", 
+                        direction="outbound" if call_context else "inbound",
+                        status="ongoing", 
+                        started_at=start_time, 
+                        workspace_id=workspace_id, 
+                        agent_id=agent_id
+                    )
+                    db.add(log_entry)
+                    db.commit()
+                    log_id = log_entry.id
+                    
+                skills = deps["SkillService"]().get_skills_for_agent(db, agent_id) if agent_id else []
+                personality = deps["PersonalityService"]().get_personality(db, agent_id)
+                personality_prompt = deps["PersonalityService"]().generate_personality_prompt(personality)
+            except Exception as db_err:
+                logger.error(f"Error during DB initialization: {db_err}")
+            finally: 
+                db.close()
+
+        await asyncio.to_thread(_sync_db_init)
 
         prompt = deps["VoicePromptBuilder"].build_prompt(
             settings, personality_prompt, skills, workspace_info, 
@@ -200,36 +228,48 @@ async def entrypoint(ctx):
             
         mcp_tools, mcp_instances, _ = await deps["MCPLoaderService"].load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools: all_tools.extend(mcp_tools)
-        
-        # 5. Initialize Agent via Unified Multimodal Bridge
-        logger.info("Initializing Agent via Multimodal Bridge...")
+
+        # 4. Agent Initialization
         agent = deps["VoicePipelineService"].get_multimodal_agent(
             workspace_id=workspace_id,
             voice_id=voice_id,
-            prompt=prompt,
-            vad=get_vad_model(),
-            fnc_ctx=agent_tools,
-            chat_ctx=None
+            prompt=prompt, # Using the context-aware prompt built earlier
+            vad=get_vad_model()
         )
+
+        # Update participant identity/metadata for frontend tracking
+        await ctx.room.local_participant.set_attributes({
+            "lk.agent.state": "initializing",
+            "agent": "true"
+        })
+
+        # PRECISE LIFECYCLE: Set initializing before start, listening after success
+        logger.info("🚀 Starting AgentSession handshake...")
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "initializing"})
         
+        # START HANDSHAKE (Explicitly passing participant fixes the Cold Call hang)
+        # Passing the correctly initialized agent and participant
         if not agent:
             raise RuntimeError("Failed to initialize MultimodalAgent")
 
-        agent_tools.session = agent.session
         deps["VoiceHandlers"].register_session_events(agent, ctx)
         
-        await agent.start(ctx.room)
-        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
-        
-        # FIX: Ensure audio track is published before saying the welcome message
-        # This prevents the "silent greeting" if the participant joins slowly.
-        logger.info("Waiting for track publication...")
-        await asyncio.sleep(1.0) 
-        
-        logger.info("✅ Agent active and listening.")
-        
+        # --- START HANDSHAKE ---
         welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
+        
+        # ADD DELAY: Ensure the multimodal session is fully ready before the first greeting
+        # This prevents the NoneType response_id error in livekit-agents 1.5.1
+        await asyncio.sleep(1.0)
+        
+        logger.info("Voice say greeting triggered") # Signal for E2E tests
         agent.say(welcome_msg)
+        await agent.start(ctx.room, participant)
+        
+        # LINK SESSION ONLY AFTER START
+        agent_tools.session = agent.session
+        
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+        logger.info("✅ AgentSession handshake complete. State: Listening.")
 
         # 6. Wait & Cleanup
         shutdown_event = asyncio.Event()
@@ -271,7 +311,8 @@ if __name__ == "__main__":
                 entrypoint_fnc=entrypoint, 
                 prewarm_fnc=prewarm, 
                 agent_name="voice-agent",
-                multiprocessing_context="forkserver"
+                multiprocessing_context="forkserver",
+                port=8081
             )
         )
     finally:

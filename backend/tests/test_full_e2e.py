@@ -39,6 +39,7 @@ LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 # Avatar provider IDs (Tavus / Anam defaults)
 TAVUS_PERSONA_ID = "p7fb0be3"
 TAVUS_REPLICA_ID = "r79e1c033f"
+ANAM_PERSONA_ID = "071b0286-4cce-4808-bee2-e642f1062de3"
 
 # Timeouts
 AGENT_JOIN_TIMEOUT = 45  # seconds for agent worker to join
@@ -249,7 +250,7 @@ def _create_avatar_token(room_name: str, workspace_id: str, agent_id: str = None
     metadata = {
         "mode": "avatar",
         "avatarProvider": "anam",
-        "anamPersonaId": os.getenv("ANAM_PERSONA_ID", "persona-e2e-placeholder"),
+        "anamPersonaId": ANAM_PERSONA_ID,
         "voiceId": "Nova", # Nova is the preferred Anam voice
         "instructions": "You are a test avatar for E2E verification.",
         "workspace_id": workspace_id,

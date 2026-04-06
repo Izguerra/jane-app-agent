@@ -461,3 +461,40 @@ export const workerTasksRelations = relations(workerTasks, ({ one }) => ({
     references: [workerTemplates.id],
   }),
 }));
+
+export const skills = pgTable('skills', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  slug: varchar('slug', { length: 100 }).notNull().unique(),
+  category: varchar('category', { length: 50 }),
+  instructions: text('instructions'),
+  allowedTools: json('allowed_tools').$type<string[]>(),
+  isSystem: pgBoolean('is_system').default(false),
+  workspaceId: varchar('workspace_id', { length: 50 }).references(() => workspaces.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const agentSkills = pgTable('agent_skills', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  agentId: varchar('agent_id', { length: 50 }).notNull().references(() => agents.id),
+  skillId: varchar('skill_id', { length: 50 }).notNull().references(() => skills.id),
+  workspaceId: varchar('workspace_id', { length: 50 }).references(() => workspaces.id),
+  enabled: pgBoolean('enabled').default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export const agentPersonalities = pgTable('agent_personalities', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  agentId: varchar('agent_id', { length: 50 }).notNull().references(() => agents.id),
+  workspaceId: varchar('workspace_id', { length: 50 }).references(() => workspaces.id),
+  communicationStyle: text('communication_style'),
+  coreValues: text('core_values'),
+  toneGuide: text('tone_guide'),
+  goodExamples: text('good_examples'),
+  badExamples: text('bad_examples'),
+  brandVoice: json('brand_voice'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

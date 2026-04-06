@@ -25,10 +25,16 @@ SupaAgent is a high-performance, real-time AI customer support platform that ena
 - **Frontend:** Next.js, React, Tailwind CSS, shadcn/ui.
 - **Backend:** Python (FastAPI), SQLAlchemy, Uvicorn.
 - **Telephony:** Telnyx (PSTN), Asterisk (SIP Proxy/Bridge).
-- **AI/LLM:** Google Gemini 3.1 Flash Live (Multimodal).
+- **AI/LLM:** Google Gemini 2.5 Flash Native Audio (Multimodal) — see compatibility note below.
 - **Real-time:** LiveKit 1.5.1+ (Voice/Video), Twilio (WhatsApp/SIP).
 - **Database:** **PostgreSQL ONLY** (Drizzle on Frontend / SQLAlchemy on Backend) — see critical note below.
 - **Payments:** Stripe integration.
+
+> ⚠️ **IMPORTANT: Gemini Model Compatibility**
+>
+> `gemini-3.1-flash-live-preview` is **currently incompatible** with `livekit-plugins-google==1.5.1`. Using it will cause silent agent failures — the agent connects but never speaks or processes audio.
+>
+> **Use `gemini-2.5-flash-native-audio-preview` until the upstream fix ships.** See [`docs/GEMINI_MODEL_COMPATIBILITY.md`](docs/GEMINI_MODEL_COMPATIBILITY.md) for full details, upstream issue tracking, and migration instructions.
 
 > ⚠️ **CRITICAL: PostgreSQL is the ONLY supported database**
 >

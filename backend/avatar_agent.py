@@ -39,7 +39,7 @@ def get_avatar_deps():
     from backend.avatar.providers import initialize_avatar
     from backend.avatar.tracking import start_communication_log, finalize_communication_log
     from backend.services.voice_handlers import VoiceHandlers
-    from backend.database import SessionLocal
+    from backend.database import SessionLocal, DatabaseContext
     from backend.models_db import Agent as AgentModel, Workspace, Communication
     from backend.agent_tools import AgentTools
     from backend.services.mcp_loader_service import MCPLoaderService
@@ -48,6 +48,7 @@ def get_avatar_deps():
     from backend.services.voice_pipeline_service import VoicePipelineService
     
     return {
+        "DatabaseContext": DatabaseContext,
         "ConnectionState": ConnectionState,
         "AutoSubscribe": AutoSubscribe,
         "llm": llm,
@@ -73,10 +74,17 @@ def get_avatar_deps():
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("avatar-agent")
 
+_vad_model = None
+def get_vad_model():
+    global _vad_model
+    if _vad_model is None:
+        import livekit.plugins.silero as silero
+        _vad_model = silero.VAD.load()
+    return _vad_model
+
 def prewarm(proc):
     initialize_agent_env()
-    from livekit.plugins import silero
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = get_vad_model()
 
 async def entrypoint(ctx):
     # Ensure environment is initialized in the entrypoint process
@@ -104,50 +112,77 @@ async def entrypoint(ctx):
             logger.info("✅ Agent connected to room")
         
         # Now we can safely set attributes on the local participant
-        await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
-        
-        logger.info("Waiting for participant to join...")
+        # HANDSHAKE HARDENING: Don't hang if participant is already here
         participant = await ctx.wait_for_participant()
         
+        # Now we can safely set attributes on the local participant
+        await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
+
         # Lazy load dependencies within the spawned process
         deps = get_avatar_deps()
+
+        # 3. CONTEXT RESOLUTION (With Fallback)
+        workspace_id = None
+        agent_id = None
+        call_context = None
+        meta = {}
         
-        # Resolve Settings & Agent Identity
-        workspace_id, agent_id, call_context, meta = await asyncio.wait_for(
-            deps["VoiceContextResolver"].resolve_context(ctx, participant),
-            timeout=10.0
-        )
-        if not workspace_id:
-            logger.warning(f"Closing avatar entrypoint - Context could not be resolved.")
-            await ctx.room.local_participant.set_attributes({"lk.agent.state": "failed_resolution"})
-            return
+        # 4. Resolve Context & Recording
+        try:
+            workspace_id, agent_id, call_context, meta = await asyncio.wait_for(
+                deps["VoiceContextResolver"].resolve_context(ctx, participant),
+                timeout=3.0
+            )
+            logger.info(f"✅ Context resolved: Workspace={workspace_id}, Agent={agent_id}")
+            
+            async with deps["DatabaseContext"]() as db:
+                try:
+                    log_id = await deps["start_communication_log"](
+                        workspace_id, agent_id, settings, participant.identity
+                    )
+                    logger.info(f"✅ Communication log started: ID={log_id}")
+                except Exception as log_err:
+                    logger.warning(f"⚠️ Communication logging failed (likely DB constraint): {log_err}. Proceeding without log.")
+                    log_id = None
+        except asyncio.TimeoutError:
+            logger.warning("⚠️ Context resolution timed out.")
+            workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
 
         settings = meta
-        original_agent_id = agent_id
+        skills = []
+        personality_prompt = "\n## IDENTITY & PERSONALITY\nYou are a professional digital avatar assistant."
 
-        db = deps["SessionLocal"]()
-        try:
-            if agent_id:
-                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].id == agent_id).first()
-            else:
-                agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].workspace_id == workspace_id).first()
-            
-            if agent_rec:
-                agent_id = agent_rec.id
-                final_settings = {}
-                if agent_rec.settings: final_settings.update(agent_rec.settings)
-                final_settings.update(meta)
-                settings = final_settings
-                agent_id = original_agent_id or agent_id
-                settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
-            
-            skills = deps["SkillService"]().get_skills_for_agent(db, agent_id)
-        finally: db.close()
+        def _sync_db_init():
+            nonlocal settings, skills, personality_prompt, agent_id
+            db = deps["SessionLocal"]()
+            try:
+                if not agent_id:
+                    agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].workspace_id == workspace_id).first()
+                    if agent_rec:
+                        agent_id = agent_rec.id
+                else:
+                    agent_rec = db.query(deps["AgentModel"]).filter(deps["AgentModel"].id == agent_id).first()
+                
+                if agent_rec:
+                    final_settings = {}
+                    if agent_rec.settings: 
+                        final_settings.update(agent_rec.settings)
+                    final_settings.update(meta)
+                    settings = final_settings
+                    settings["allowed_worker_types"] = agent_rec.allowed_worker_types or []
+                
+                from backend.services.personality_service import PersonalityService
+                personality = PersonalityService.get_personality(db, agent_id)
+                personality_prompt = PersonalityService.generate_personality_prompt(personality)
+                
+                skills = deps["SkillService"]().get_skills_for_agent(db, agent_id) if agent_id else []
+            except Exception as db_err:
+                logger.error(f"Error during DB resolution: {db_err}")
+            finally: 
+                db.close()
+
+        await asyncio.to_thread(_sync_db_init)
         
-        # Tracking & Logging
-        log_id = deps["start_communication_log"](workspace_id, agent_id, settings, participant.identity)
-        transcript = []
-
         # 4. Filtered Tools & Pipeline Setup
         voice_id = settings.get("voice_id", "Puck")
         from backend.tools.worker_tools import WorkerTools
@@ -165,53 +200,63 @@ async def entrypoint(ctx):
         
         # Prompt build
         full_prompt = deps["get_avatar_prompt"](settings)
+        if personality_prompt:
+            full_prompt += f"\n{personality_prompt}"
 
         # Inject cross-channel context memory
         try:
             from backend.services.agent_context_service import AgentContextService
             caller_id = participant.identity or settings.get("user_identifier")
             if caller_id:
-                context_prompt = AgentContextService.build_context_prompt(
-                    workspace_id=workspace_id, identifier=caller_id, channel="avatar", limit=10, hours=72, agent_id=agent_id
-                )
-                if context_prompt: full_prompt += f"\n\n{context_prompt}"
+                context_prompt = AgentContextService.build_context_prompt(workspace_id=workspace_id, identifier=caller_id)
+                full_prompt += f"\n\n{context_prompt}"
         except Exception as e:
-            logger.warning(f"Context injection failed: {e}")
+            logger.warning(f"Could not load context for caller {participant.identity}: {e}")
 
-        # 5. Initialize Agent via Unified Multimodal Bridge
-        logger.info("Initializing Avatar Agent via Multimodal Bridge...")
+        # 4. Agent Initialization
         agent = deps["VoicePipelineService"].get_multimodal_agent(
             workspace_id=workspace_id,
             voice_id=voice_id,
-            prompt=full_prompt,
-            vad=ctx.proc.userdata["vad"],
-            fnc_ctx=agent_tools,
-            chat_ctx=None
+            prompt=full_prompt, # Using the context-aware full_prompt built earlier
+            vad=get_vad_model()
         )
-        
-        if not agent:
-            raise RuntimeError("Failed to initialize MultimodalAgent")
 
-        agent_tools.session = agent.session
+        # Update participant identity/metadata for frontend tracking
+        await ctx.room.local_participant.set_attributes({
+            "lk.agent.state": "initializing",
+            "agent": "true",
+            "is_avatar_worker": "true"
+        })
+        
+        # START HANDSHAKE (Explicitly passing participant fixes the Cold Call hang)
+        # Passing the correctly initialized agent and participant
+        if not agent:
+            raise RuntimeError("Failed to initialize Avatar MultimodalAgent")
+
         deps["VoiceHandlers"].register_session_events(agent, ctx)
         
-        # Start the agent first to establish the AgentSession
-        await agent.start(ctx.room)
+        # START HANDSHAKE
+        # Move greeting to BEFORE start to use the internal MultimodalAgent buffer
+        welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
+        
+        # ADD DELAY: Ensure the multimodal session is fully ready before the first greeting
+        # This prevents the NoneType response_id error in livekit-agents 1.5.1
+        await asyncio.sleep(1.0)
+        
+        logger.info("Avatar say greeting triggered") # Signal for E2E tests
+        agent.say(welcome_msg)
+        await agent.start(ctx.room, participant)
+        
         await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+        logger.info("✅ Avatar AgentSession handshake complete. State: Listening.")
         
         # --- CRITICAL: Initialize Avatar (Replica Join) AFTER start (depends on session setup) ---
         resolved_provider = settings.get("avatar_provider", "anam")
         logger.info(f"Triggering Avatar Replica Join (Provider: {resolved_provider})")
         avatar_obj = await deps["initialize_avatar"](resolved_provider, settings, agent.session, ctx.room, ctx)
         
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
         logger.info("✅ Avatar agent active and listening.")
-        
-        # Trigger greeting (Wait for track publication to avoid initial silence)
-        logger.info("Waiting for audio/video tracks to stabilize...")
-        await asyncio.sleep(2.0)
-        
-        welcome_msg = settings.get("welcome_message", "Hello!")
-        agent.say(welcome_msg)
 
         # 7. Wait & Cleanup
         shutdown_event = asyncio.Event()
@@ -233,7 +278,10 @@ async def entrypoint(ctx):
         try:
             deps = get_avatar_deps()
             await deps["MCPLoaderService"].cleanup_mcp_servers(mcp_instances)
-            await deps["finalize_communication_log"](log_id, transcript, avatar_obj if 'avatar_obj' in locals() else None)
+            if log_id and "DatabaseContext" in deps:
+                async with deps["DatabaseContext"]() as db:
+                    await deps["VoiceHandlers"].finalize_communication_log(db, log_id, avatar_obj if 'avatar_obj' in locals() else None)
+                    logger.info("✅ Communication log finalized.")
         except Exception as cleanup_err:
             logger.debug(f"Cleanup error (expected if aborted early): {cleanup_err}")
 

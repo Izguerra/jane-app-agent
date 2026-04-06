@@ -18,6 +18,25 @@ class AgentManager:
             **kwargs
         )
 
+    @staticmethod
+    def _detect_context_needs(message: str) -> dict:
+        """
+        Fast heuristic to determine if a message needs specific tool contexts.
+        Used for Clawdbot optimization (Fast-Path).
+        """
+        msg = message.lower()
+        
+        # Simple keywords for context detection
+        needs = {
+            "shopify": any(kw in msg for kw in ["order", "shipping", "track", "buy", "product"]),
+            "calendar": any(kw in msg for kw in ["book", "appointment", "schedule", "meeting", "calendar"]),
+            "crm": any(kw in msg for kw in ["customer", "lead", "contact", "history", "notes", "previous"]),
+            "kb": any(kw in msg for kw in ["how", "what", "where", "can you", "services", "hours", "price"]),
+            "phone": any(kw in msg for kw in ["call", "phone", "number"])
+        }
+        
+        return needs
+
     async def chat(self, message: str, team_id: str, workspace_id: str, history: list = [], stream: bool = False, 
                    agent_id: str = None, agent_config: dict = None, communication_id: str = None, 
                    db: Optional[Session] = None) -> str:

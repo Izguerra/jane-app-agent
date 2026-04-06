@@ -14,40 +14,61 @@ class VoiceContextResolver:
     async def resolve_context(ctx, participant):
         """
         Resolves workspace_id, agent_id, and call_context based on room and participant data.
+        Cumulatively merges settings from room and participant metadata.
         """
         workspace_id = None
         agent_id = None
         call_context = None
         settings = {}
 
-        # 1. Try room metadata
+        # 1. Room Metadata
         if ctx.room.metadata:
             try:
                 room_settings = json.loads(ctx.room.metadata)
-                workspace_id = room_settings.get("workspace_id")
-                agent_id = room_settings.get("agent_id")
+                settings.update(room_settings)
+                workspace_id = settings.get("workspace_id")
+                agent_id = settings.get("agent_id")
                 if workspace_id:
                     logger.info(f"Resolved workspace_id={workspace_id} from ROOM metadata")
-                    settings = room_settings
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse room metadata: {e}")
 
-        # 2. Strategy 1 & 1b: Room Name (Outbound / Inbound)
+        # 2. Participant Metadata (Always merge, even if workspace_id already found)
+        if participant.metadata:
+            try:
+                p_meta = json.loads(participant.metadata)
+                settings.update(p_meta)
+                # Update IDs if present in participant metadata (overrides room)
+                if p_meta.get("workspace_id"): workspace_id = p_meta.get("workspace_id")
+                if p_meta.get("agent_id"): agent_id = p_meta.get("agent_id")
+                if p_meta.get("call_context"): call_context = p_meta.get("call_context")
+                logger.info("Merged settings from PARTICIPANT metadata")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse participant metadata: {e}")
+
+        # 3. Strategy: Room Name (Fallback for IDs)
         if not workspace_id:
             workspace_id, agent_id, call_context = await VoiceContextResolver._resolve_from_room_name(ctx.room.name)
 
-        # 3. Strategy 2: SIP Attributes
+        # 4. Strategy: SIP Attributes (Fallback for Workspace)
         if not workspace_id:
             workspace_id = await VoiceContextResolver._resolve_from_sip(participant)
 
-        # 4. Strategy 3: Participant Metadata
-        if not workspace_id and participant.metadata:
-            workspace_id, agent_id, call_context, settings = VoiceContextResolver._resolve_from_participant_metadata(participant)
-
-        # 5. Fallback
+        # 5. Full Fallback
         if not workspace_id:
-            logger.warning("FALLBACK: No workspace_id resolved. Using default.")
+            logger.warning("FALLBACK: No workspace_id resolved. Using default workspace.")
             workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
+        
+        # Ensure workspace_id and agent_id are in settings for downstream services
+        settings["workspace_id"] = workspace_id
+        if agent_id:
+            settings["agent_id"] = agent_id
+        if call_context:
+            settings["call_context"] = call_context
+
+        # Final sync from settings to IDs
+        agent_id = settings.get("agent_id")
+        call_context = settings.get("call_context")
 
         return workspace_id, agent_id, call_context, settings
 
@@ -102,21 +123,26 @@ class VoiceContextResolver:
                     workspace_id = comm_record.workspace_id
                     agent_id = comm_record.agent_id
 
-            # Dashboard / Browser Preview-style room name
-            # Example: wrk_000V7dMzXJLzP5mYgdf7FzjA3J_dashboard_agent_agnt_000VCR...
-            elif "wrk_" in room_name and "agnt_" in room_name:
+            elif "wrk_" in room_name:
                 parts = room_name.split("_")
                 # Find the part starting with wrk_ (usually the first, but be robust)
                 workspace_part = next((p for p in parts if p.startswith("wrk")), None)
                 if workspace_part:
-                    workspace_id = "wrk_" + workspace_part[3:] if not workspace_part.startswith("wrk_") else workspace_part
+                    # Handle both "wrk_" and "wrk" prefixes
+                    if workspace_part.startswith("wrk_"):
+                        workspace_id = workspace_part
+                    elif workspace_part.startswith("wrk"):
+                        workspace_id = "wrk_" + workspace_part[3:]
                 
-                # Find the part starting with agnt_
+                # Check for agent ID in room name
                 agent_part = next((p for p in parts if p.startswith("agnt")), None)
                 if agent_part:
-                    agent_id = "agnt_" + agent_part[5:] if not agent_part.startswith("agnt_") else agent_part
+                    if agent_part.startswith("agnt_"):
+                        agent_id = agent_part
+                    elif agent_part.startswith("agnt"):
+                        agent_id = "agnt_" + agent_part[4:]
                 
-                logger.info(f"Resolved from DASHBOARD room name: workspace_id={workspace_id}, agent_id={agent_id}")
+                logger.info(f"Resolved from DASHBOARD/GENERIC room name: workspace_id={workspace_id}, agent_id={agent_id}")
         except Exception as e:
             logger.error(f"Room name resolution error: {e}")
         finally:

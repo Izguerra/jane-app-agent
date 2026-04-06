@@ -559,7 +559,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             >
                 <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center overflow-hidden border border-white/20">
-                        {formData.useTavusAvatar && formData.avatarUrl && !headerImgError ? (
+                        {formData.useTavusAvatar && formData.avatarUrl && formData.avatarUrl.startsWith('http') && !headerImgError ? (
                             (formData.avatarUrl.toLowerCase().includes('.mp4') || formData.avatarUrl.toLowerCase().includes('video') || formData.avatarUrl.toLowerCase().includes('idling')) ? (
                                 <video
                                     src={formData.avatarUrl}
@@ -570,12 +570,11 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                     playsInline
                                     onError={async () => {
                                         console.warn("Header video failed to load: " + formData.avatarUrl);
-                                        // Attempt to refresh if it looks like an Anam URL (often has anam in name or cloudflarestorage)
+                                        // Attempt to refresh if it looks like an Anam URL
                                         if (formData.avatarUrl?.includes('anam') || formData.avatarUrl?.includes('cloudflarestorage')) {
-                                            console.log("Attempting to refresh expired Anam URL...");
                                             try {
                                                 const idToUse = agentId || (formData as any).id;
-                                                const res = idToUse ? await fetch(`/api/agents/${idToUse}`) : null;
+                                                const res = idToUse ? await fetch(`/api/agents/${idToUse}?workspaceId=${workspaceId}`) : null;
                                                 if (res && res.ok) {
                                                     const refreshedData = await res.json();
                                                     if (refreshedData.avatarUrl !== formData.avatarUrl && setFormData) {
@@ -1117,9 +1116,9 @@ function VoiceStatusDisplay({ name }: { name: string }) {
     useEffect(() => {
         if (state === 'connecting' && String(connectionState).toLowerCase() === 'connected') {
             const timeout = setTimeout(() => {
-                console.error("⏰ [STUCK DETECTION] Agent joined room but never started after 30s. Possible silent crash.");
+                console.error("⏰ [STUCK DETECTION] Agent joined room but never started after 45s. Possible cold start or silent crash.");
                 setAgentStuck(true);
-            }, 30000);
+            }, 45000);
             return () => clearTimeout(timeout);
         } else {
             setAgentStuck(false);
@@ -1361,7 +1360,17 @@ function ParticipantLogger() {
     
     useEffect(() => {
         const total = remoteParticipants.length + (localParticipant ? 1 : 0);
-        console.log(`🚀 [PARTICIPANT COUNT] Total participants in room: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
+        console.log(`🚀 [PARTICIPANT COUNT] Total: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
+        
+        // Log individual identities to help identify "ghost" participants
+        remoteParticipants.forEach(p => {
+            const isAgent = p.attributes?.agent === 'true';
+            const state = p.attributes?.['lk.agent.state'] || 'unknown';
+            console.log(`👥 Remote: ${p.identity} (Agent: ${isAgent}, State: ${state}, Sid: ${p.sid})`);
+        });
+        if (localParticipant) {
+            console.log(`👤 Local: ${localParticipant.identity} (Sid: ${localParticipant.sid})`);
+        }
     }, [remoteParticipants.length, localParticipant]);
     
     return null;

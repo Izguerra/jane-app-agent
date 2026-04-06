@@ -150,11 +150,17 @@ class MCPLoaderService:
                         logger.info(f"Loaded {len(tools)} tools from MCP server '{srv.name}'")
                         success = True
                         break
-                    except asyncio.TimeoutError:
-                        logger.warning(f"MCP {srv.name} init timed out (attempt {attempt+1}/{max_retries})")
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        logger.warning(f"MCP {srv.name} init timed out or cancelled (attempt {attempt+1}/{max_retries})")
                         if attempt < max_retries - 1: await asyncio.sleep(1.0)
-                    except Exception as e:
-                        logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {e}")
+                    except BaseException as be:
+                        # Handle ExceptionGroups which can occur with TaskGroups in newer Python
+                        msg = f"{be}"
+                        if "TaskGroup" in msg:
+                            logger.error(f"MCP {srv.name} critical TaskGroup error: {msg}. Check if server is running at {srv.url}")
+                        else:
+                            logger.warning(f"MCP {srv.name} init failed (attempt {attempt+1}/{max_retries}): {msg}")
+                        
                         if attempt < max_retries - 1: await asyncio.sleep(1.0)
                         
                 if not success:

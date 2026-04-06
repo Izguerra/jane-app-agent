@@ -5,7 +5,8 @@ export async function GET(
     { params }: { params: Promise<{ workspaceId: string; path: string[] }> }
 ) {
     const { workspaceId, path } = await params;
-    const backendUrl = `http://localhost:8000/api/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
+    const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const backendUrl = `${BACKEND_URL}/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
 
     try {
         const response = await fetch(backendUrl, {
@@ -30,7 +31,8 @@ export async function POST(
     { params }: { params: Promise<{ workspaceId: string; path: string[] }> }
 ) {
     const { workspaceId, path } = await params;
-    const backendUrl = `http://localhost:8000/api/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
+    const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const backendUrl = `${BACKEND_URL}/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
 
     try {
         const contentType = request.headers.get('content-type') || '';
@@ -71,7 +73,8 @@ export async function PUT(
     { params }: { params: Promise<{ workspaceId: string; path: string[] }> }
 ) {
     const { workspaceId, path } = await params;
-    const backendUrl = `http://localhost:8000/api/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
+    const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const backendUrl = `${BACKEND_URL}/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
 
     try {
         const body = await request.json();
@@ -99,7 +102,8 @@ export async function DELETE(
     { params }: { params: Promise<{ workspaceId: string; path: string[] }> }
 ) {
     const { workspaceId, path } = await params;
-    const backendUrl = `http://localhost:8000/api/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
+    const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
+    const backendUrl = `${BACKEND_URL}/workspaces/${workspaceId}/knowledge-base/${path.join('/')}`;
 
     try {
         const response = await fetch(backendUrl, {

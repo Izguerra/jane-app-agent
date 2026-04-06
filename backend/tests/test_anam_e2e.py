@@ -20,7 +20,7 @@ LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 
 # Use ID from Anam API response
-ANAM_PERSONA_ID = "edf6fdcb-acab-44b8-b974-ded72665ee26" 
+ANAM_PERSONA_ID = "071b0286-4cce-4808-bee2-e642f1062de3" 
 
 
 ROOM_NAME = f"e2e-avatar-{os.urandom(4).hex()}"

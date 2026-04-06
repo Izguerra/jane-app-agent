@@ -6,8 +6,9 @@ const nextConfig: NextConfig = {
         const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8000';
         return [
             {
-                source: '/api/:path*',
-                destination: `${BACKEND_URL}/:path*`, // Proxy API requests
+                // Proxy all API requests except for migrated native routes
+                source: '/api/:path((?!agents|skills|public|diagnostic).*)',
+                destination: `${BACKEND_URL}/:path*`,
             },
             {
                 source: '/webhooks/:path*',

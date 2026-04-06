@@ -35,7 +35,7 @@ def generate_test_token():
             "teamId": "org_000V7dMzThAVrPNF3XBlRXq4MO",
             "role": "supaagent_admin"
         },
-        "exp": datetime.utcnow() + timedelta(hours=1)
+        "exp": datetime.now(timezone.utc) + timedelta(hours=1)
     }
     return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
 

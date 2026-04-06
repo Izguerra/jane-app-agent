@@ -93,7 +93,7 @@ export default function AgentsListPage() {
         if (!agentToDelete) return;
 
         try {
-            const res = await fetch(`/api/agents/${agentToDelete.id}`, {
+            const res = await fetch(`/api/agents/${agentToDelete.id}?workspaceId=${workspaceId}`, {
                 method: "DELETE"
             });
 
@@ -110,7 +110,7 @@ export default function AgentsListPage() {
 
     const handleToggleStatus = async (agent: Agent) => {
         try {
-            const res = await fetch(`/api/agents/${agent.id}`, {
+            const res = await fetch(`/api/agents/${agent.id}?workspaceId=${workspaceId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ is_active: !agent.is_active })

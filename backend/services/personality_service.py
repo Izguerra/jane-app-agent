@@ -5,8 +5,18 @@ from backend.lib.id_service import IdService
 
 class PersonalityService:
     @staticmethod
-    def get_personality(db: Session, agent_id: str) -> Optional[AgentPersonality]:
-        return db.query(AgentPersonality).filter(AgentPersonality.agent_id == agent_id).first()
+    def get_personality(db: Session, agent_id: str) -> AgentPersonality:
+        personality = db.query(AgentPersonality).filter(AgentPersonality.agent_id == agent_id).first()
+        if not personality:
+            # Return a "Standard Assistant" fallback instead of None
+            return AgentPersonality(
+                agent_id=agent_id,
+                communication_style="Professional, warm, and highly efficient. You sound like a knowledgeable digital assistant.",
+                core_values="Helpfulness, clarity, and proactive problem solving.",
+                tone_guide="Clear and concise naturally-spoken English. Avoid robotic or overly formal phrasing.",
+                brand_voice="A trusted, helpful advisor who gets things done."
+            )
+        return personality
 
     @staticmethod
     def save_personality(db: Session, agent_id: str, workspace_id: str, data: dict) -> AgentPersonality:

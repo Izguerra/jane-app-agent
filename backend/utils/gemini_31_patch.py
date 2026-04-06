@@ -45,6 +45,17 @@ def patch_realtime_session(realtime_model) -> bool:
     
     Returns True if the patch was applied, False if not needed.
     """
+    # Version gate: skip if livekit-plugins-google has shipped the official fix
+    try:
+        import importlib.metadata
+        google_plugin_version = importlib.metadata.version("livekit-plugins-google")
+        major, minor, patch_v = [int(x) for x in google_plugin_version.split('.')[:3]]
+        if (major, minor, patch_v) >= (1, 5, 2):
+            logger.info(f"livekit-plugins-google {google_plugin_version} detected — patch likely unnecessary, skipping.")
+            return False
+    except Exception:
+        pass  # Can't determine version, apply patch as safety measure
+
     try:
         model_name = getattr(realtime_model, '_opts', None)
         if model_name:
@@ -60,16 +71,23 @@ def patch_realtime_session(realtime_model) -> bool:
 
     logger.info(f"🔧 Applying Gemini 3.1 compatibility patch for model: {model_name}")
     
-    # AGGRESSIVE PING-PONG FIX: The 3.1 Live API kills sessions if pings aren't fast.
-    # We modify the client options if available, or rely on the underlying library defaults.
-    # Note: livekit-plugins-google usually relies on google-genai defaults.
+    # Verify the session factory is patchable
+    if not hasattr(realtime_model, 'session') or not callable(realtime_model.session):
+        logger.warning("RealtimeModel does not have a callable 'session' attribute. Cannot apply patch.")
+        return False
 
     # Patch the session factory to wrap each session's generate_reply
     original_session_factory = realtime_model.session
 
     def patched_session_factory():
         session = original_session_factory()
-        _patch_session_generate_reply(session)
+        
+        # Determine model name to pass down for restriction checks
+        m_name = getattr(realtime_model, 'model', getattr(realtime_model, '_model', 'Unknown'))
+        if not isinstance(m_name, str):
+            m_name = 'Unknown'
+
+        _patch_session_generate_reply(session, m_name)
         return session
 
     realtime_model.session = patched_session_factory
@@ -77,85 +95,88 @@ def patch_realtime_session(realtime_model) -> bool:
     return True
 
 
-def _patch_session_generate_reply(session):
-    """
-    Patches a RealtimeSession's generate_reply to use LiveClientRealtimeInput
-    instead of LiveClientContent for text delivery.
-    
-    The original code (realtime_api.py:702-708) does:
-        turns.append(Content(parts=[Part(text=".")], role="user"))
-        self._send_client_event(LiveClientContent(turns=turns, turn_complete=True))
-    
-    Gemini 3.1 rejects this with 1007. Instead we send:
-        self._send_client_event(LiveClientRealtimeInput(text=instructions))
-        self._send_client_event(LiveClientRealtimeInput(text="."))
-    """
+def _patch_session_generate_reply(session, model_name: str = "Unknown"):
+    # Verify the session has the internal methods we need to patch
+    if not hasattr(session, 'generate_reply'):
+        logger.warning("Session does not have 'generate_reply' — skipping patch for this session.")
+        return
+    if not hasattr(session, '_send_client_event'):
+        logger.warning("Session does not have '_send_client_event' — skipping patch for this session.")
+        return
+
     from google.genai import types
     from livekit.agents import llm
 
-    original_generate_reply = session.generate_reply
-
-    def patched_generate_reply(*, instructions=None):
-        # Cancel any pending generation (same as original)
-        if session._pending_generation_fut and not session._pending_generation_fut.done():
-            logger.warning(
-                "generate_reply called while another generation is pending, cancelling previous."
-            )
-            session._pending_generation_fut.cancel("Superseded by new generate_reply call")
-
+    async def patched_generate_reply(text: Optional[str] = None, instructions: Optional[str] = None):
+        """
+        Merged patch for Gemini 3.1 Live.
+        Handles both pipeline (text) and native (instructions) signatures.
+        Sends a '.' trigger to force generation when text is provided.
+        """
+        # 1. Normalize input (text or instructions)
+        input_text = text or instructions
+        
+        # 2. Cancel and End Activity (standard logic)
+        if hasattr(session, '_pending_generation_fut') and session._pending_generation_fut and not session._pending_generation_fut.done():
+            session._pending_generation_fut.cancel("Superseded")
+        
         fut = asyncio.Future()
-        session._pending_generation_fut = fut
+        if hasattr(session, '_pending_generation_fut'): session._pending_generation_fut = fut
 
-        # End any active user activity (same as original)
-        if session._in_user_activity:
-            session._send_client_event(
-                types.LiveClientRealtimeInput(activity_end=types.ActivityEnd())
-            )
+        if hasattr(session, '_in_user_activity') and session._in_user_activity:
+            session._send_client_event(types.LiveClientRealtimeInput(activity_end=types.ActivityEnd()))
             session._in_user_activity = False
 
-        # === THE FIX: Use LiveClientRealtimeInput instead of LiveClientContent ===
-        # Gemini 3.1 Flash Live (A2A) expects the initial prompt or instructions
-        # via input rather than as a content part in high-load scenarios.
-        if instructions:
-            logger.debug(f"Sending instructions (patched): {instructions[:60]}...")
-            session._send_client_event(
-                types.LiveClientRealtimeInput(text=str(instructions))
-            )
+        # 3. Send Text via RealtimeInput (Gemini 3.1 requirement)
+        if input_text:
+            logger.info(f"⚡ [A2A PUSH] Sending text prompt: {str(input_text)[:100]}...")
+            session._send_client_event(types.LiveClientRealtimeInput(text=str(input_text)))
+            # The "." trigger is CRITICAL for Gemini 3.1 to start audio generation from text
+            logger.info("⚡ [A2A PUSH] Sending '.' trigger for audio generation.")
+            session._send_client_event(types.LiveClientRealtimeInput(text="."))
+        else:
+            logger.debug("No input text for generate_reply - skipping A2A push.")
 
-        # Send the trigger text via realtime input (replaces the "." user turn hack)
-        session._send_client_event(
-            types.LiveClientRealtimeInput(text=".")
-        )
-
-        # Timeout handling (same as original)
+        # 4. Timeout safety handler (standard)
         def _on_timeout():
             if not fut.done():
-                fut.set_exception(
-                    llm.RealtimeError(
-                        "generate_reply timed out waiting for generation_created event."
-                    )
-                )
-                if session._pending_generation_fut is fut:
+                fut.set_exception(llm.RealtimeError("generate_reply timeout"))
+                if hasattr(session, '_pending_generation_fut') and session._pending_generation_fut is fut:
                     session._pending_generation_fut = None
 
-        timeout_handle = asyncio.get_event_loop().call_later(12.0, _on_timeout) # Increased timeout
+        timeout_handle = asyncio.get_event_loop().call_later(12.0, _on_timeout)
         fut.add_done_callback(lambda _: timeout_handle.cancel())
 
-        return fut
-
+    # Replace the session method
     session.generate_reply = patched_generate_reply
-    
-    # TOOL CALLING FIX: Scan for tool calls even if finish_reason="STOP"
-    # This requires intercepting the internal event processing.
-    # For now, we enhance the logging to confirm detection.
-    logger.debug("Patched generate_reply and initialized tool-call scanner.")
 
-    # VAD STABILITY FIX: Support for sending audioStreamEnd via RealtimeInput
+    # 5. Patch _send_task to drop restricted content (PR #5238)
+    orig_send_task = session._send_task
+    async def patched_send_task(task):
+        # If task is LiveClientContent and model is restricted, drop it.
+        # This prevents 1007 from tools, system_instruction updates, etc.
+        if hasattr(task, 'client_content') and model_name in RESTRICTED_CLIENT_CONTENT_MODELS:
+             logger.warning(f"🚫 [A2A GUARD] Dropping restricted client_content for {model_name}")
+             return
+        return await orig_send_task(task)
+    session._send_task = patched_send_task
+
+    logger.info(f"✅ Gemini 3.1 Patch fully applied for {model_name} (PR #5238 Aligned)")
+
     def send_audio_stream_end():
-        from google.genai import types
         logger.debug("Sending audioStreamEnd (Fixes Turn-2 Death)")
-        session._send_client_event(
-            types.LiveClientRealtimeInput(media_chunks=[types.Blob(data=None, mime_type="audio/pcm")])
-        )
+        try:
+            if not hasattr(session, '_send_client_event'):
+                logger.warning("Session missing '_send_client_event' — cannot send audioStreamEnd.")
+                return
+                
+            from google.genai import types as gen_types
+            # Use an empty bytes payload instead of None (newer google-genai may reject None)
+            session._send_client_event(
+                gen_types.LiveClientRealtimeInput(media_chunks=[gen_types.Blob(data=b"", mime_type="audio/pcm")])
+            )
+        except Exception as e:
+            logger.warning(f"audioStreamEnd failed (non-fatal): {e}")
     
     session.send_audio_stream_end = send_audio_stream_end
+    logger.debug("Patched generate_reply and initialized tool-call scanner.")

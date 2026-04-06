@@ -231,39 +231,13 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                     <SelectValue placeholder="Select a voice" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">OpenAI</div>
-                                    <SelectItem value="alloy">Alloy (Female)</SelectItem>
-                                    <SelectItem value="echo">Echo (Male)</SelectItem>
-                                    <SelectItem value="shimmer">Shimmer (Female)</SelectItem>
-                                    <SelectItem value="ash">Ash (Male)</SelectItem>
-                                    <SelectItem value="ballad">Ballad (Neutral)</SelectItem>
-                                    <SelectItem value="coral">Coral (Female)</SelectItem>
-                                    <SelectItem value="sage">Sage (Female)</SelectItem>
-                                    <SelectItem value="verse">Verse (Male)</SelectItem>
-                                    <SelectItem value="nova">Nova (Female)</SelectItem>
-                                    <SelectItem value="onyx">Onyx (Male)</SelectItem>
-                                    <SelectItem value="fable">Fable (Male)</SelectItem>
-
-                                    <div className="border-t my-2" />
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Gemini Live</div>
+                                    {/* Gemini Live Voices Only */}
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Gemini Live (Native Audio)</div>
                                     <SelectItem value="Aoede">Aoede (Female)</SelectItem>
                                     <SelectItem value="Kore">Kore (Female)</SelectItem>
                                     <SelectItem value="Puck">Puck (Male)</SelectItem>
                                     <SelectItem value="Charon">Charon (Male)</SelectItem>
                                     <SelectItem value="Fenrir">Fenrir (Male)</SelectItem>
-
-                                    <div className="border-t my-2" />
-                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">ElevenLabs</div>
-                                    <SelectItem value="Rachel">Rachel (Female)</SelectItem>
-                                    <SelectItem value="Adam">Adam (Male)</SelectItem>
-                                    <SelectItem value="Bella">Bella (Female)</SelectItem>
-                                    <SelectItem value="Chris">Chris (Male)</SelectItem>
-                                    <SelectItem value="Emily">Emily (Female)</SelectItem>
-                                    <SelectItem value="Josh">Josh (Male)</SelectItem>
-                                    <SelectItem value="Leo">Leo (Male)</SelectItem>
-                                    <SelectItem value="Matilda">Matilda (Female)</SelectItem>
-                                    <SelectItem value="Nicole">Nicole (Female)</SelectItem>
-                                    <SelectItem value="Sam">Sam (Male)</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -284,6 +258,7 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                             throw new Error("Gemini Live voices are generated natively in real-time and cannot be previewed.");
                                         }
 
+                                        /* 
                                         const res = await fetch('/api/voice/preview', {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
@@ -298,6 +273,8 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                         audio.onended = () => setIsPlaying(false);
                                         await audio.play();
                                         setIsPlaying(true);
+                                        */
+                                        throw new Error("Preview currently only supported for standard voices (OpenAI/ElevenLabs) which are temporarily disabled.");
                                     } catch (e: any) {
                                         toast.error(e.message);
                                     } finally {
@@ -389,18 +366,18 @@ function AvatarCard({ avatar, isSelected, onSelect }: { avatar: any, isSelected:
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className="aspect-[3/4] bg-slate-100 relative overflow-hidden">
-                {isVisible && avatar.thumbnail_video_url ? (
+                {isVisible && avatar.thumbnail_video_url && avatar.thumbnail_video_url.startsWith('http') ? (
                     <video
                         ref={videoRef}
                         src={`${avatar.thumbnail_video_url}#t=0.1`}
-                        poster={avatar.thumbnail_image_url}
+                        poster={avatar.thumbnail_image_url && avatar.thumbnail_image_url.startsWith('http') ? avatar.thumbnail_image_url : undefined}
                         className="object-cover w-full h-full bg-slate-200"
                         loop
                         muted
                         playsInline
                         preload="metadata"
                     />
-                ) : isVisible && avatar.thumbnail_image_url ? (
+                ) : isVisible && avatar.thumbnail_image_url && avatar.thumbnail_image_url.startsWith('http') ? (
                     <img
                         src={avatar.thumbnail_image_url}
                         alt={avatar.name}

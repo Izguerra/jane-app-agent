@@ -45,6 +45,8 @@ def main():
     print("🧹 Cleaning up old processes...")
     kill_process_on_port(8000) # Backend
     kill_process_on_port(3000) # Frontend
+    kill_process_on_port(8081) # Voice Agent
+    kill_process_on_port(8082) # Avatar Agent
     kill_agents()
     
     # 2. Wait for sockets to clear

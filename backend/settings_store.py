@@ -1,5 +1,7 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
+import time
+import threading
 
 # Handle both import contexts (uvicorn vs direct execution)
 try:
@@ -22,10 +24,23 @@ DEFAULT_SETTINGS = {
     "allowed_worker_types": ["weather-worker", "flight-tracker", "map-worker", "web-search", "advanced-browsing"]
 }
 
-def get_settings(workspace_id: int = None) -> Dict[str, Any]:
+# TTL-based settings cache: prevents stale settings in long-running voice/avatar workers
+# while still reducing DB load for rapid successive HTTP requests.
+_settings_cache: Dict[str, tuple] = {}  # {workspace_id: (timestamp, settings_dict)}
+_settings_cache_lock = threading.Lock()
+_SETTINGS_TTL = 60  # seconds
+
+def get_settings(workspace_id: str = None) -> Dict[str, Any]:
     if workspace_id is None:
         # Fallback for development/demo if absolutely necessary
         workspace_id = "ws_default"
+    
+    # TTL cache check — return cached result if fresh enough
+    with _settings_cache_lock:
+        if workspace_id in _settings_cache:
+            cached_time, cached_result = _settings_cache[workspace_id]
+            if time.time() - cached_time < _SETTINGS_TTL:
+                return cached_result.copy()  # Return a copy to avoid mutation
         
     db = SessionLocal()
     
@@ -95,7 +110,7 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
         # Parse settings JSON
         extended_settings = settings.settings or {}
         
-        return {
+        result = {
             "agent_id": settings.id,
             "name": settings.name,
             "voice_id": settings.voice_id,
@@ -133,11 +148,25 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
             "allowed_worker_types": settings.allowed_worker_types or [],
             "soul": settings.soul
         }
+        
+        # Store in TTL cache
+        with _settings_cache_lock:
+            _settings_cache[workspace_id] = (time.time(), result)
+        
+        return result
     except Exception as e:
         print(f"Error fetching settings: {e}")
         return DEFAULT_SETTINGS
     finally:
         db.close()
+
+def invalidate_settings_cache(workspace_id: str = None):
+    """Invalidate the TTL cache for a workspace, or all workspaces."""
+    with _settings_cache_lock:
+        if workspace_id:
+            _settings_cache.pop(workspace_id, None)
+        else:
+            _settings_cache.clear()
 
 def save_settings(new_settings: Dict[str, Any], workspace_id: int = None):
     if workspace_id is None:
@@ -173,6 +202,8 @@ def save_settings(new_settings: Dict[str, Any], workspace_id: int = None):
             settings.soul = new_settings["soul"]
             
         db.commit()
+        # Invalidate settings cache so voice/avatar workers pick up changes immediately
+        invalidate_settings_cache(workspace_id)
     except Exception as e:
         print(f"Error saving settings: {e}")
         db.rollback()

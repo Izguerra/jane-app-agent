@@ -60,15 +60,17 @@ class MultimodalAgent(rtc.EventEmitter):
         if self._fnc_ctx:
             self._tools.extend(llm.find_function_tools(self._fnc_ctx))
                 
-        # Apply the Gemini 3.1 compatibility patch BEFORE creating the VoiceAgent
-        if self._is_native_audio:
-            try:
-                from backend.utils.gemini_31_patch import patch_realtime_session
-                patch_applied = patch_realtime_session(self._model)
-                if patch_applied:
-                    logger.info("🔧 Gemini 3.1 compatibility patch active.")
-            except Exception as e:
-                logger.warning(f"Could not apply Gemini 3.1 patch: {e}")
+        # Gemini 3.1 compatibility patch — DISABLED while using gemini-2.5-flash-native-audio-preview
+        # The patch is only needed for gemini-3.1-flash-live-preview, which is currently
+        # incompatible with livekit-plugins-google==1.5.1. See docs/GEMINI_MODEL_COMPATIBILITY.md
+        # if self._is_native_audio:
+        #     try:
+        #         from backend.utils.gemini_31_patch import patch_realtime_session
+        #         patch_applied = patch_realtime_session(self._model)
+        #         if patch_applied:
+        #             logger.info("🔧 Gemini 3.1 compatibility patch active.")
+        #     except Exception as e:
+        #         logger.warning(f"Could not apply Gemini 3.1 patch: {e}")
 
         # In LiveKit 1.5.1, passing stt=None and tts=None to the VoiceAgent 
         # (with a RealtimeModel) triggers the native audio-to-audio path.
@@ -152,9 +154,14 @@ class MultimodalAgent(rtc.EventEmitter):
         # Start the session with our voice_agent config
         try:
             logger.info(f"Starting AgentSession in room {room.name}...")
-            # HANDSHAKE GUARD: Gemini 3.1 requires a clean setup before interaction.
             # AgentSession.start() initializes the model and waits for the first track.
-            await self._session.start(self._voice_agent, room=room, participant=participant)
+            # In 1.5.1, 'participant' is not a keyword argument for start(). 
+            # Subscriptions are handled by RoomIO via RoomOptions.
+            from livekit.agents.voice import room_io
+            room_options = room_io.RoomOptions(
+                participant_identity=participant.identity if participant else ""
+            )
+            await self._session.start(self._voice_agent, room=room, room_options=room_options)
             
             # Additional safety: Wait for the underlying Google session to be "active"
             # This helps avoid the "Turn 1" 1011 errors.
@@ -189,19 +196,17 @@ class MultimodalAgent(rtc.EventEmitter):
             msg = self._say_buffer.pop(0)
             logger.info(f"📢 Delivering buffered greeting: {msg['text'][:60]}...")
             try:
-                if hasattr(self._session, 'say'):
-                    self._session.say(msg["text"], add_to_chat_ctx=True)
-                elif hasattr(self._voice_agent, 'say'):
-                    self._voice_agent.say(msg["text"], add_to_chat_ctx=True)
-                else:
-                    logger.error("No valid 'say' method found on session or agent.")
-                    
-                self._first_say_executed = True
+                # Delegate back to the main say() method so it runs the A2A logic properly
+                self.say(msg["text"], add_to_chat_ctx=True)
             except Exception as e:
                 logger.error(f"say() failed for greeting: {e}", exc_info=True)
 
     def say(self, text: str, allow_interruptions: bool = True, add_to_chat_ctx: bool = True):
-        """Standard 'say' method with improved resilience for Gemini Live."""
+        """Standard 'say' method — uses AgentSession.say() directly."""
+        if not text or not text.strip():
+            logger.warning("say() called with empty text, ignoring.")
+            return
+
         if not self._started_event.is_set():
             logger.info(f"Session not yet ready, buffering greeting: {text[:60]}...")
             self._say_buffer.append({"text": text})
@@ -210,24 +215,16 @@ class MultimodalAgent(rtc.EventEmitter):
         logger.debug(f"Executing say(): is_native={self._is_native_audio}, has_session={self._session is not None}")
 
         try:
-            # Native Multimodal / Gemini Live path (RealtimeSession)
-            if self._is_native_audio and self._session:
-                if hasattr(self._session, 'say'):
-                    self._session.say(text, add_to_chat_ctx=add_to_chat_ctx)
-                elif hasattr(self._session, 'generate_reply'):
-                    # In Gemini 3.1 Live, we use generate_reply with instructions to speak
-                    self._session.generate_reply(instructions=text)
-                else:
-                    logger.error("RealtimeSession has neither 'say' nor 'generate_reply'")
+            # Primary path: AgentSession.say() handles both native multimodal and pipeline modes
+            if self._session and hasattr(self._session, 'say'):
+                self._session.say(text, add_to_chat_ctx=add_to_chat_ctx)
                 self._first_say_executed = True
-            # Pipeline fallback path (VoiceAgent + VoicePipeline)
+                logger.info(f"✅ say() delivered via AgentSession: {text[:60]}...")
+            # Fallback: VoiceAgent.say() for legacy compatibility
             elif self._voice_agent and hasattr(self._voice_agent, 'say'):
                 self._voice_agent.say(text, allow_interruptions=allow_interruptions, add_to_chat_ctx=add_to_chat_ctx)
                 self._first_say_executed = True
-            # Final desperate fallback to session if it has say but wasn't marked native
-            elif self._session and hasattr(self._session, 'say'):
-                 self._session.say(text, add_to_chat_ctx=add_to_chat_ctx)
-                 self._first_say_executed = True
+                logger.info(f"✅ say() delivered via VoiceAgent fallback: {text[:60]}...")
             else:
                 logger.error(f"CRITICAL: Could not execute say('{text[:30]}...') - No valid method found.")
         except Exception as e:

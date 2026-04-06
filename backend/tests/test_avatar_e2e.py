@@ -20,7 +20,7 @@ LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 
 # Use ID from existing script or known valid default
-ANAM_PERSONA_ID = "pers_3396c97a-9771-460d-8ea6-1076f8279148" 
+ANAM_PERSONA_ID = "071b0286-4cce-4808-bee2-e642f1062de3" 
 
 ROOM_NAME = f"e2e-avatar-{os.urandom(4).hex()}"
 
@@ -74,7 +74,8 @@ async def test_avatar_e2e():
             "anamPersonaId": ANAM_PERSONA_ID,
             "voiceId": "alloy", # OpenAI Voice to test restoration
             "instructions": "You are a test avatar.",
-            "workspace_id": "wrk_e2e_test"
+            "workspace_id": "wrk_000VAHZIJvJ9oiRT0OczrnjMug",
+            "agent_id": "agnt_e2e_test"
         }
 
         # Enable Auto-Dispatch by room name suffix or explicit dispatch?
@@ -116,6 +117,10 @@ async def test_avatar_e2e():
         
         agent_joined = False
         tavus_joined = False
+        # Check participant counts
+        # 3 Participants: User (Local), Worker (Remote Agent), and Anam/Tavus (Remote Avatar Provider)
+        participant_threshold = 3
+        
         conversation_id = None
         
         while time.time() - start_time < tavus_timeout:
@@ -135,8 +140,9 @@ async def test_avatar_e2e():
                 agent_joined = True
             
             if total >= 3:
-                print("\n✅ PHASE 2 PASS: Tavus replica joined (3 participants)")
+                print("\n✅ PHASE 2 PASS: Video provider participant joined (3 participants total)")
                 tavus_joined = True
+                success = True # Set success only if 3 participants
                 break
             
             # If agent hasn't joined within agent_timeout, fail early
