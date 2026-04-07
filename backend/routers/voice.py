@@ -170,140 +170,161 @@ async def _generate_token(
         )
         # Link to customer if possible
         if session_id and session_id.startswith("cust_"):
-             new_comm.customer_id = session_id
+    try:
+        # Original logic wrapped for better error reporting
+        api_key = os.getenv("LIVEKIT_API_KEY")
+        api_secret = os.getenv("LIVEKIT_API_SECRET")
+        livekit_url = os.getenv("LIVEKIT_URL")
+
+        if not api_key or not api_secret or not livekit_url:
+            print("ERROR: [VOICE_TOKEN] LiveKit environment variables missing")
+            raise HTTPException(status_code=503, detail="LiveKit not configured")
+
+        if not agent_id and not agent_config:
+            print("ERROR: [VOICE_TOKEN] agent_id or agent_config missing")
+            raise HTTPException(status_code=400, detail="Missing agent configuration")
+
+        workspace_id = get_workspace_context(db, current_user, workspace_id)
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            print(f"ERROR: [VOICE_TOKEN] Workspace {workspace_id} not found")
+            raise HTTPException(status_code=404, detail="Workspace not found")
+
+        # Create unique room name for this call
+        room_name = room_name or f"room_{workspace_id}_{int(time.time())}"
         
-        db.add(new_comm)
-        db.commit()
-        db.refresh(new_comm)
-        
-        settings["log_id"] = comm_id
-        settings["session_id"] = comm_id 
-        print(f"DEBUG: Created Communication {comm_id} for token generation ({channel_type})")
-        
-    except Exception as e:
-        print(f"ERROR: Failed to create Communication record in token gen: {e}")
+        # Identity logic
+        unique_identity = participant_name
         if session_id:
-            settings["session_id"] = session_id
-    
-    # --- ENRICHMENT ---
-    try:
-        from backend.services import get_agent_manager
-        agent_manager = get_agent_manager()
+            unique_identity = f"{participant_name}_{session_id}"
+        
+        # Build Metadata
+        settings = {}
+        if agent_config:
+            settings.update(agent_config)
+        
+        settings.update({
+            "workspace_id": workspace_id,
+            "agent_id": agent_id,
+            "mode": mode,
+            "tavus_replica_id": tavus_replica_id,
+            "tavus_persona_id": tavus_persona_id,
+            "user_identifier": current_user.email,
+            "user_name": current_user.full_name or current_user.email,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+
+        # --- LOGGING/CRM ---
         try:
-            from backend.services.crm_service import CRMService
-            crm = CRMService(db)
-            identifier = settings.get("user_email") or current_user.email or participant_name
-            crm.ensure_customer_from_interaction(
-                workspace_id=workspace.id,
-                identifier=identifier,
-                channel="voice",
-                name=participant_name if participant_name and "user" not in participant_name else None
+            from backend.services.voice_handlers import VoiceHandlers
+            comm_id = await VoiceHandlers.start_communication_log(
+                workspace_id=workspace_id,
+                agent_id=agent_id,
+                settings=settings,
+                participant_identity=unique_identity,
+                channel_type=mode
             )
+            settings["session_id"] = comm_id 
+            print(f"DEBUG: Created Communication {comm_id} for token generation ({mode})")
         except Exception as e:
-            print(f"DEBUG: CRM ensure failed in voice token: {e}")
+            print(f"ERROR: Failed to create Communication record in token gen: {e}")
+            if session_id:
+                settings["session_id"] = session_id
         
-        temp_agent = agent_manager._create_agent(settings, workspace_id=workspace.id, team_id=current_user.team_id, tools=[])
-        
-        if temp_agent.instructions:
-            full_system_prompt = "\n\n".join(temp_agent.instructions)
-            settings["prompt_template"] = full_system_prompt
-    except Exception as e:
-        import traceback
-        print(f"DEBUG: Failed to generate enriched prompt: {e}")
-        pass
-
-    # Create Room and explicitly dispatch agent
-    try:
-        print(f"DEBUG: [VOICE_TOKEN] Attempting to create room '{room_name}' and dispatch agent '{target_agent_name}'")
-        lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
-        room = await lkapi.room.create_room(api.CreateRoomRequest(
-            name=room_name,
-            empty_timeout=60,
-            max_participants=5 if mode == "avatar" else 3,
-            metadata=json.dumps(settings)
-        ))
-        print(f"DEBUG: [VOICE_TOKEN] Room creation response: {room.name if room else 'None'}")
-        
-        # EXPLICIT DISPATCH: Most reliable method per LiveKit docs
-        # This directly tells LiveKit to send the agent to the room
+        # --- ENRICHMENT ---
         try:
-            dispatch = await lkapi.agent_dispatch.create_dispatch(
-                api.CreateAgentDispatchRequest(
-                    room=room_name,
-                    agent_name=target_agent_name,
-                    metadata=json.dumps(settings)
+            from backend.services import get_agent_manager
+            agent_manager = get_agent_manager()
+            try:
+                from backend.services.crm_service import CRMService
+                crm = CRMService(db)
+                identifier = settings.get("user_email") or current_user.email or participant_name
+                crm.ensure_customer_from_interaction(
+                    workspace_id=workspace.id,
+                    identifier=identifier,
+                    channel="voice",
+                    name=participant_name if participant_name and "user" not in participant_name else None
                 )
-            )
-            print(f"DEBUG: [VOICE_TOKEN] Agent dispatched explicitly: {dispatch}")
-        except Exception as de:
-            print(f"DEBUG: [VOICE_TOKEN] Explicit dispatch warning (room_config will handle): {de}")
-        
-        await lkapi.aclose()
-    except Exception as e:
-        print(f"DEBUG: [VOICE_TOKEN] Room creation warning: {e}")
-        import traceback
-        traceback.print_exc()
-        
-    # --- TAVUS INJECTION ---
-    tavus_replica_id = settings.get("tavus_replica_id") or settings.get("tavusReplicaId")
-    use_tavus_avatar = settings.get("use_tavus_avatar", False) or settings.get("useTavusAvatar", False)
-    tavus_persona_id = settings.get("tavus_persona_id") or settings.get("tavusPersonaId")
-    
-    # [DEPRECATED] Manual Tavus creation is now handled by avatar_agent.py using livekit-plugins-tavus
-    # if mode == "avatar" and tavus_replica_id:
-    #     print(f"DEBUG: Triggering Tavus connection for replica {tavus_replica_id}")
-    #     from backend.services.tavus_service import TavusService
-    #     import asyncio
-        
-    #     # Create a token for Tavus
-    #     tavus_identity = f"tavus-{str(uuid.uuid4())[:8]}"
-    #     tavus_grant = api.VideoGrants(room_join=True, room=room_name, can_subscribe=True, can_publish=True)
-    #     tavus_token = (api.AccessToken(api_key, api_secret)
-    #          .with_grants(tavus_grant)
-    #          .with_identity(tavus_identity)
-    #          .with_name("AI Avatar")
-    #          .to_jwt())
-             
-    #     # Call API (non-blocking if possible, but async here is fine)
-    #     tavUS = TavusService() # Uses env var
-    #     # Run in background to not block user token return
-    #     # actually, create_conversation is synchronous requests, but fast enough.
-    #     # We can fire and forget?
-    #     # Ideally await it to ensure it starts.
-        
-    #     # NOTE: Using a system prompt for Tavus context if supported
-    #     system_prompt = settings.get("prompt_template", "")[:500] # Truncate for safety
-        
-    #     # Ensure LiveKit URL is in WSS format for Tavus
-    #     tavus_livekit_url = livekit_url
-    #     if tavus_livekit_url.startswith("https://"):
-    #         tavus_livekit_url = tavus_livekit_url.replace("https://", "wss://")
-    #     elif tavus_livekit_url.startswith("http://"):
-    #         tavus_livekit_url = tavus_livekit_url.replace("http://", "ws://")
-        
-    #     # We don't await the result strictly for blocking, but we call it here.
-    #     resp = tavUS.create_conversation(
-    #         replica_id=tavus_replica_id,
-    #         livekit_url=tavus_livekit_url,
-    #         token=tavus_token,
-    #         system_prompt=system_prompt
-    #     )
-    #     if resp:
-    #         print(f"DEBUG: Tavus Conversation CREATED successfully: {resp.get('conversation_id')}")
-    #     else:
-    #         print(f"ERROR: Tavus Conversation FAILED to create. Check TAVUS_API_KEY and replica_id.")
+            except Exception as e:
+                print(f"DEBUG: CRM ensure failed in voice token: {e}")
+            
+            temp_agent = agent_manager._create_agent(settings, workspace_id=workspace.id, team_id=current_user.team_id, tools=[])
+            
+            if temp_agent.instructions:
+                full_system_prompt = "\n\n".join(temp_agent.instructions)
+                settings["prompt_template"] = full_system_prompt
+        except Exception as e:
+            print(f"DEBUG: Failed to generate enriched prompt: {e}")
 
-    token = (api.AccessToken(api_key, api_secret)
-             .with_grants(grant)
-             .with_identity(unique_identity)
-             .with_name(participant_name)
-             .with_room_config(room_config)
-             .with_metadata(json.dumps(settings)))
-    
-    return {
-        "token": token.to_jwt(),
-        "url": livekit_url
-    }
+        # Determine target agent name for explicit dispatching
+        target_agent_name = "voice-agent"
+        if mode == "avatar":
+            target_agent_name = "avatar-agent"
+
+        # Create Room and explicitly dispatch agent
+        try:
+            print(f"DEBUG: [VOICE_TOKEN] Attempting to create room '{room_name}' and dispatch agent '{target_agent_name}'")
+            lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
+            room = await lkapi.room.create_room(api.CreateRoomRequest(
+                name=room_name,
+                empty_timeout=60,
+                max_participants=5 if mode == "avatar" else 3,
+                metadata=json.dumps(settings)
+            ))
+            
+            try:
+                dispatch = await lkapi.agent_dispatch.create_dispatch(
+                    api.CreateAgentDispatchRequest(
+                        room=room_name,
+                        agent_name=target_agent_name,
+                        metadata=json.dumps(settings)
+                    )
+                )
+                print(f"DEBUG: [VOICE_TOKEN] Agent dispatched explicitly: {dispatch.id}")
+            except Exception as de:
+                print(f"DEBUG: [VOICE_TOKEN] Explicit dispatch warning: {de}")
+            
+            await lkapi.aclose()
+        except Exception as e:
+            print(f"DEBUG: [VOICE_TOKEN] Room creation failure/warning: {e}")
+
+        # Grants
+        grant = api.VideoGrants(
+            room_join=True,
+            room=room_name,
+            can_publish=True,
+            can_subscribe=True,
+            can_publish_data=True
+        )
+
+        # Build final room config for auto-dispatching (Fallback)
+        room_config = api.RoomConfiguration()
+        agent_config_obj = api.AgentConfig(
+            agent_name=target_agent_name,
+            metadata=json.dumps(settings)
+        )
+        room_config.agents.append(agent_config_obj)
+
+        token = (api.AccessToken(api_key, api_secret)
+                 .with_grants(grant)
+                 .with_identity(unique_identity)
+                 .with_name(participant_name)
+                 .with_room_config(room_config)
+                 .with_metadata(json.dumps(settings)))
+        
+        return {
+            "token": token.to_jwt(),
+            "url": livekit_url
+        }
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"CRITICAL ERROR IN _generate_token: {e}\n{error_trace}")
+        # Explicitly return 500 with details if in DEV, or generic if prod
+        if os.getenv("ENV") != "production":
+            raise HTTPException(status_code=500, detail=f"Token generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error during voice initialization")
 
 @router.get("/token")
 async def get_token_get(

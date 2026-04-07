@@ -55,28 +55,26 @@ class VoicePipelineService:
                 elif any(v in v_lower for v in ["kore", "aoede", "nova", "shimmer", "alloy", "female", "girl", "woman"]):
                     gemini_voice = "Aoede"
             
-            # Use Gemini 2.5 Flash Native Audio (stable with LiveKit 1.5.1)
-            # NOTE: gemini-3.1-flash-live-preview is INCOMPATIBLE with livekit-plugins-google==1.5.1
-            # See docs/GEMINI_MODEL_COMPATIBILITY.md for details and upstream tracking.
+            # Use Gemini 3.1 Flash Live (Native Audio A2A)
             try:
-                logger.info(f"🚀 Initializing Gemini 2.5 Flash Native Audio (A2A) with voice: {gemini_voice}")
+                logger.info(f"🚀 Initializing Gemini 3.1 Flash Live (A2A) with voice: {gemini_voice}")
                 model = google_plugin.realtime.RealtimeModel(
-                    model="gemini-2.5-flash-native-audio-preview",
+                    model="gemini-3.1-flash-live-preview",
                     api_key=gemini_key,
                     instructions=prompt,
-                    modalities=["AUDIO"],
                     voice=gemini_voice,
+                    enable_affective_dialog=True,
+                    proactivity=True,
                 )
-                logger.info("✅ Gemini 2.5 Flash Native Audio model instance created.")
+                logger.info("✅ Gemini 3.1 Flash Live model instance created.")
                 return model
             except Exception as e:
-                logger.warning(f"⚠️ Gemini 2.5 initialization failed: {e}. Falling back to 2.0 Flash Exp.")
+                logger.warning(f"⚠️ Gemini 3.1 initialization failed: {e}. Falling back to 2.0 Flash Exp.")
                 
                 model = google_plugin.realtime.RealtimeModel(
                     model="gemini-2.0-flash-exp",
                     api_key=gemini_key,
                     instructions=prompt,
-                    modalities=["AUDIO"],
                     voice=gemini_voice,
                 )
                 logger.info("✅ Gemini 2.0 Flash Exp model instance created (Fallback).")
@@ -101,14 +99,18 @@ class VoicePipelineService:
         
         if model:
             logger.info("✅ MultiPipeline: Creating native Gemini Live bridge.")
+            
+            gemini_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="gemini", env_fallback="GOOGLE_GEMINI_API_KEY")
+            if not gemini_key: gemini_key = os.getenv("GOOGLE_API_KEY")
+
+            # Map parameters to the new MultimodalAgent constructor
             return MultimodalAgent(
-                model=model,
+                model_id="gemini-3.1-flash-live-preview", # Force 3.1 for now
                 workspace_id=workspace_id,
                 voice_id=voice_id,
+                api_key=gemini_key,
                 prompt=prompt,
-                vad=vad,
                 fnc_ctx=fnc_ctx,
-                chat_ctx=chat_ctx
             )
             
         # 2. Fallback to standard STT/LLM/TTS Pipeline

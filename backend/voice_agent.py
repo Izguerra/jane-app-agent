@@ -146,7 +146,7 @@ async def entrypoint(ctx):
                 logger.warning(f"⚠️ Context resolution attempt {attempt} failed: {e}")
             
             if attempt < 3:
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.1)
 
         if not workspace_id:
             workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J"
@@ -243,33 +243,45 @@ async def entrypoint(ctx):
             "agent": "true"
         })
 
-        # PRECISE LIFECYCLE: Set initializing before start, listening after success
+        # START HANDSHAKE
         logger.info("🚀 Starting AgentSession handshake...")
         await ctx.room.local_participant.set_attributes({"lk.agent.state": "initializing"})
         
-        # START HANDSHAKE (Explicitly passing participant fixes the Cold Call hang)
-        # Passing the correctly initialized agent and participant
-        if not agent:
-            raise RuntimeError("Failed to initialize MultimodalAgent")
+        try:
+            # Pass correctly initialized agent and participant
+            if not agent:
+                raise RuntimeError("Failed to initialize MultimodalAgent")
 
-        deps["VoiceHandlers"].register_session_events(agent, ctx)
-        
-        # --- START HANDSHAKE ---
-        welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
-        
-        # ADD DELAY: Ensure the multimodal session is fully ready before the first greeting
-        # This prevents the NoneType response_id error in livekit-agents 1.5.1
-        await asyncio.sleep(1.0)
-        
-        logger.info("Voice say greeting triggered") # Signal for E2E tests
-        agent.say(welcome_msg)
-        await agent.start(ctx.room, participant)
-        
-        # LINK SESSION ONLY AFTER START
-        agent_tools.session = agent.session
-        
-        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
-        logger.info("✅ AgentSession handshake complete. State: Listening.")
+            deps["VoiceHandlers"].register_session_events(agent, ctx)
+            
+            # --- START HANDSHAKE ---
+            welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
+            
+            # Reduced delay for native audio path stability
+            await asyncio.sleep(0.5)
+            
+            logger.info("🚀 Starting agent session...")
+            # This calls MultimodalAgent.start
+            await agent.start(ctx.room, participant)
+            
+            logger.info("Voice say greeting triggered") # Signal for E2E tests
+            # Note: MultimodalAgent.say is async, but we can't await it if we want it to non-block?
+            # Actually, standard VoiceAgent.say is synchronous in the high-level API, 
+            # but MultimodalAgent.say is async.
+            await agent.say(welcome_msg)
+            
+            # LINK SESSION ONLY AFTER START
+            agent_tools.session = agent.session
+            
+            await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+            logger.info("✅ AgentSession handshake complete. State: Listening.")
+
+        except Exception as se:
+            logger.error(f"❌ CRITICAL HANDSHAKE FAILURE: {se}", exc_info=True)
+            await ctx.room.local_participant.set_attributes({"lk.agent.state": "error"})
+            # Give the system a moment to propagate the error state before exiting
+            await asyncio.sleep(1)
+            return
 
         # 6. Wait & Cleanup
         shutdown_event = asyncio.Event()
@@ -312,7 +324,7 @@ if __name__ == "__main__":
                 prewarm_fnc=prewarm, 
                 agent_name="voice-agent",
                 multiprocessing_context="forkserver",
-                port=8081
+                port=int(os.getenv("AGENT_PORT", "8081"))
             )
         )
     finally:

@@ -228,35 +228,47 @@ async def entrypoint(ctx):
             "is_avatar_worker": "true"
         })
         
-        # START HANDSHAKE (Explicitly passing participant fixes the Cold Call hang)
-        # Passing the correctly initialized agent and participant
-        if not agent:
-            raise RuntimeError("Failed to initialize Avatar MultimodalAgent")
-
-        deps["VoiceHandlers"].register_session_events(agent, ctx)
-        
         # START HANDSHAKE
-        # Move greeting to BEFORE start to use the internal MultimodalAgent buffer
-        welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
+        logger.info("🚀 Starting avatar agent session...")
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "initializing"})
         
-        # ADD DELAY: Ensure the multimodal session is fully ready before the first greeting
-        # This prevents the NoneType response_id error in livekit-agents 1.5.1
-        await asyncio.sleep(1.0)
-        
-        logger.info("Avatar say greeting triggered") # Signal for E2E tests
-        agent.say(welcome_msg)
-        await agent.start(ctx.room, participant)
-        
-        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
-        logger.info("✅ Avatar AgentSession handshake complete. State: Listening.")
-        
-        # --- CRITICAL: Initialize Avatar (Replica Join) AFTER start (depends on session setup) ---
-        resolved_provider = settings.get("avatar_provider", "anam")
-        logger.info(f"Triggering Avatar Replica Join (Provider: {resolved_provider})")
-        avatar_obj = await deps["initialize_avatar"](resolved_provider, settings, agent.session, ctx.room, ctx)
-        
-        await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
-        logger.info("✅ Avatar agent active and listening.")
+        try:
+            # Pass correctly initialized agent and participant
+            if not agent:
+                raise RuntimeError("Failed to initialize Avatar MultimodalAgent")
+
+            deps["VoiceHandlers"].register_session_events(agent, ctx)
+            
+            # START HANDSHAKE
+            welcome_msg = settings.get("welcome_message", "Hello! How can I help you?")
+            
+            # Reduced delay for native audio path stability
+            await asyncio.sleep(0.5)
+            
+            logger.info("Avatar say greeting triggered") # Signal for E2E tests
+            await agent.say(welcome_msg)
+            
+            logger.info("🚀 Starting agent session...")
+            # This calls MultimodalAgent.start
+            await agent.start(ctx.room, participant)
+            
+            await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+            logger.info("✅ Avatar AgentSession handshake complete. State: Listening.")
+            
+            # --- CRITICAL: Initialize Avatar (Replica Join) AFTER start (depends on session setup) ---
+            resolved_provider = settings.get("avatar_provider", "anam")
+            logger.info(f"Triggering Avatar Replica Join (Provider: {resolved_provider})")
+            avatar_obj = await deps["initialize_avatar"](resolved_provider, settings, agent.session, ctx.room, ctx)
+            
+            await ctx.room.local_participant.set_attributes({"lk.agent.state": "listening"})
+            logger.info("✅ Avatar agent active and listening.")
+
+        except Exception as se:
+            logger.error(f"❌ CRITICAL AVATAR HANDSHAKE FAILURE: {se}", exc_info=True)
+            await ctx.room.local_participant.set_attributes({"lk.agent.state": "error"})
+            # Give the system a moment to propagate the error state before exiting
+            await asyncio.sleep(1)
+            return
 
         # 7. Wait & Cleanup
         shutdown_event = asyncio.Event()
@@ -301,7 +313,7 @@ if __name__ == "__main__":
                 prewarm_fnc=prewarm, 
                 agent_name="avatar-agent",
                 multiprocessing_context="forkserver",
-                port=8082
+                port=int(os.getenv("AGENT_PORT", "8082"))
             )
         )
     finally:

@@ -27,7 +27,6 @@ import {
 import { AgentAudioVisualizerAura } from "@/components/agents-ui/agent-audio-visualizer-aura";
 
 import { Track } from "livekit-client";
-import "@livekit/components-styles";
 import { Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import dynamic from 'next/dynamic';

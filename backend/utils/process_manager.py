@@ -28,18 +28,28 @@ class ProcessManager:
                     return
                 
                 # Check if process actually exists
-                os.kill(pid, 0)
+                try:
+                    os.kill(pid, 0)
+                except (OSError, ProcessLookupError):
+                    # Process is already dead
+                    logger.debug(f"PID {pid} not found, stale PID file.")
+                    os.remove(self.pid_file)
+                    return
+
                 logger.warning(f"Process '{self.name}' is already running (PID {pid}). Attempting to kill it to prevent port conflicts...")
                 try:
                     os.kill(pid, signal.SIGTERM)
                     import time
                     time.sleep(1) # Give it a moment to terminate
                     # Check again, if still there, SIGKILL
-                    os.kill(pid, 0)
-                    logger.warning(f"Process '{self.name}' (PID {pid}) did not terminate. Sending SIGKILL...")
-                    os.kill(pid, signal.SIGKILL)
-                    time.sleep(0.5)
-                except OSError:
+                    try:
+                        os.kill(pid, 0)
+                        logger.warning(f"Process '{self.name}' (PID {pid}) did not terminate. Sending SIGKILL...")
+                        os.kill(pid, signal.SIGKILL)
+                        time.sleep(0.5)
+                    except (OSError, ProcessLookupError):
+                        pass # Process terminated after SIGTERM
+                except (OSError, ProcessLookupError):
                     pass # Process is already dead
                 
                 logger.info(f"Successfully purged stale process '{self.name}' (PID {pid}). Proceeding with startup.")

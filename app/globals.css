@@ -1,12 +1,8 @@
 @import "tailwindcss";
-/*
-  ---break---
-*/
-@custom-variant dark (&:is(.dark *));
-
+@import "./livekit-styles.css";
 @import "tw-animate-css";
 
-@variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --color-background: hsl(var(--background));
@@ -55,31 +51,7 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
-}
-
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
-
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
-  }
-}
-
-@layer utilities {
-  body {
-    font-family: "Manrope", Arial, Helvetica, sans-serif;
-  }
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 @layer base {
@@ -108,7 +80,7 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --radius: 0.6rem;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -167,132 +139,10 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
-    /* Modern Design Tokens - Dark Mode */
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    --gradient-success: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
-
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
-
     --glass-bg: rgba(17, 25, 40, 0.7);
     --glass-border: rgba(255, 255, 255, 0.125);
   }
 }
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
-/*
-  ---break---
-*/
-
-:root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(240 10% 3.9%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(240 10% 3.9%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(240 10% 3.9%);
-  --primary: hsl(240 5.9% 10%);
-  --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(240 4.8% 95.9%);
-  --secondary-foreground: hsl(240 5.9% 10%);
-  --muted: hsl(240 4.8% 95.9%);
-  --muted-foreground: hsl(240 3.8% 46.1%);
-  --accent: hsl(240 4.8% 95.9%);
-  --accent-foreground: hsl(240 5.9% 10%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(240 5.9% 90%);
-  --input: hsl(240 5.9% 90%);
-  --ring: hsl(240 10% 3.9%);
-  --chart-1: hsl(221.2 83.2% 53.3%);
-  --chart-2: hsl(212.3 95% 39.4%);
-  --chart-3: hsl(210.4 94.7% 24.9%);
-  --chart-4: hsl(198.6 88.7% 48.4%);
-  --chart-5: hsl(217.2 91.2% 59.8%);
-  --radius: 0.6rem;
-}
-
-/*
-  ---break---
-*/
-
-.dark {
-  --background: hsl(240 10% 3.9%);
-  --foreground: hsl(0 0% 98%);
-  --card: hsl(240 10% 3.9%);
-  --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(240 10% 3.9%);
-  --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(0 0% 98%);
-  --primary-foreground: hsl(240 5.9% 10%);
-  --secondary: hsl(240 3.7% 15.9%);
-  --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(240 3.7% 15.9%);
-  --muted-foreground: hsl(240 5% 64.9%);
-  --accent: hsl(240 3.7% 15.9%);
-  --accent-foreground: hsl(0 0% 98%);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(240 3.7% 15.9%);
-  --input: hsl(240 3.7% 15.9%);
-  --ring: hsl(240 4.9% 83.9%);
-  --chart-1: hsl(220 70% 50%);
-  --chart-2: hsl(160 60% 45%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(280 65% 60%);
-  --chart-5: hsl(340 75% 55%);
-}
-
-/*
-  ---break---
-*/
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
-/*
-  ---break---
-*/
 
 @layer base {
   * {
@@ -301,11 +151,11 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: "Manrope", Arial, Helvetica, sans-serif;
   }
 }
 
 @layer utilities {
-
   /* Glass-morphism */
   .glass {
     background: var(--glass-bg);
@@ -322,40 +172,18 @@
   }
 
   /* Modern Shadows */
-  .shadow-modern-sm {
-    box-shadow: var(--shadow-sm);
-  }
-
-  .shadow-modern-md {
-    box-shadow: var(--shadow-md);
-  }
-
-  .shadow-modern-lg {
-    box-shadow: var(--shadow-lg);
-  }
-
-  .shadow-modern-xl {
-    box-shadow: var(--shadow-xl);
-  }
+  .shadow-modern-sm { box-shadow: var(--shadow-sm); }
+  .shadow-modern-md { box-shadow: var(--shadow-md); }
+  .shadow-modern-lg { box-shadow: var(--shadow-lg); }
+  .shadow-modern-xl { box-shadow: var(--shadow-xl); }
 
   /* Gradient Backgrounds */
-  .bg-gradient-primary {
-    background: var(--gradient-primary);
-  }
+  .bg-gradient-primary { background: var(--gradient-primary); }
+  .bg-gradient-secondary { background: var(--gradient-secondary); }
+  .bg-gradient-accent { background: var(--gradient-accent); }
+  .bg-gradient-success { background: var(--gradient-success); }
 
-  .bg-gradient-secondary {
-    background: var(--gradient-secondary);
-  }
-
-  .bg-gradient-accent {
-    background: var(--gradient-accent);
-  }
-
-  .bg-gradient-success {
-    background: var(--gradient-success);
-  }
-
-  /* Modern Button Base - removed @apply */
+  /* Modern Components */
   .btn-modern {
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
@@ -364,13 +192,8 @@
     box-shadow: var(--shadow-md);
   }
 
-  .btn-modern:hover {
-    box-shadow: var(--shadow-lg);
-  }
-
-  .btn-modern:active {
-    transform: scale(0.95);
-  }
+  .btn-modern:hover { box-shadow: var(--shadow-lg); }
+  .btn-modern:active { transform: scale(0.95); }
 
   .btn-gradient {
     padding: 0.5rem 1rem;
@@ -387,11 +210,6 @@
     opacity: 0.9;
   }
 
-  .btn-gradient:active {
-    transform: scale(0.95);
-  }
-
-  /* Modern Card - removed @apply */
   .card-modern {
     border-radius: 0.75rem;
     border: 1px solid hsl(var(--border));
@@ -400,20 +218,8 @@
     transition: box-shadow 0.2s;
   }
 
-  .card-modern:hover {
-    box-shadow: var(--shadow-lg);
-  }
+  .card-modern:hover { box-shadow: var(--shadow-lg); }
 
-  .card-glass {
-    border-radius: 0.75rem;
-    background: var(--glass-bg);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--shadow-lg);
-  }
-
-  /* Modern Input - removed @apply */
   .input-modern {
     width: 100%;
     padding: 0.5rem 1rem;
@@ -429,19 +235,5 @@
   .input-modern:focus {
     border-color: hsl(var(--ring));
     box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
-  }
-}
-
-@layer base {
-  :root {
-    --neo-bg: #e0e5ec;
-    --neo-shadow-dark: #a3b1c6;
-    --neo-shadow-light: #ffffff;
-  }
-
-  .dark {
-    --neo-bg: #2b2d42;
-    --neo-shadow-dark: #1e202f;
-    --neo-shadow-light: #383b54;
   }
 }
