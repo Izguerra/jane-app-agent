@@ -131,14 +131,8 @@ async def on_startup():
     except Exception as e:
         print(f"Failed to start campaign processor: {e}")
         
-    # Start Session Cleanup Scheduler Processor
-    try:
-        from backend.services.scheduler_service import run_scheduler
-        import asyncio
-        asyncio.create_task(run_scheduler())
-        print("Started Active Session Cleanup Scheduler")
-    except Exception as e:
-        print(f"Failed to start session cleanup processor: {e}")
+    # Session Cleanup Scheduler is now started in the main startup_event to avoid duplication.
+    pass
 
 # Include routers
 app.include_router(chat.router)

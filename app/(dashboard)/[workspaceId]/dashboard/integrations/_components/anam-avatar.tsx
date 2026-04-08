@@ -79,7 +79,11 @@ export function AnamIntegration({ integrations, expanded, onToggleExpand }: Anam
         setLoading(true);
         try {
             const response = await fetch("/api/agent/integrations/anam", { method: "DELETE" });
-            if (!response.ok) throw new Error("Failed to disable integration");
+            if (!response.ok) {
+                const text = await response.text();
+                console.error(`Anam DELETE failed: ${response.status} ${text}`);
+                throw new Error("Failed to disable integration");
+            }
 
             toast.success("Anam.ai integration disabled");
             setIsConnected(false);

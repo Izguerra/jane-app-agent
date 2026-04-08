@@ -17,14 +17,15 @@ class VoicePipelineService:
         mistral_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="mistral", env_fallback="MISTRAL_API_KEY")
         openrouter_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="openrouter", env_fallback="OPENROUTER_API_KEY")
 
+        if openai_key:
+            return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=temperature, _strict_tool_schema=False)
+        
         if gemini_key:
             try:
                 from livekit.plugins import google as google_plugin
-                return google_plugin.LLM(model="gemini-3-flash-preview", api_key=gemini_key, temperature=temperature)
-            except: pass
-
-        if openai_key:
-            return openai.LLM(model="gpt-4o-mini", api_key=openai_key, temperature=temperature, _strict_tool_schema=False)
+                return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=temperature)
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini LLM (falling back...): {e}", exc_info=True)
         
         if mistral_key:
             return openai.LLM(model="mistral-large-latest", base_url="https://api.mistral.ai/v1", api_key=mistral_key)
@@ -46,7 +47,7 @@ class VoicePipelineService:
 
     @staticmethod
     def get_tts(workspace_id, voice_id, settings):
-        is_openai_voice = voice_id.lower() in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+        is_openai_voice = voice_id.lower() in ["alloy", "echo", "fable", "onyx", "nova", "shimmer", "sage", "ash", "coral", "verse"]
         if is_openai_voice:
             return openai.TTS(voice=voice_id)
         
@@ -69,16 +70,20 @@ class VoicePipelineService:
         xai_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="xai", env_fallback="XAI_API_KEY")
         if not xai_key: return None
 
-        from livekit.plugins.xai.realtime import RealtimeModel
-        from livekit.agents.multimodal import MultimodalAgent
-        import livekit.agents.vad as vad
+        try:
+            from livekit.plugins.xai.realtime import RealtimeModel
+            from livekit.agents.multimodal import MultimodalAgent
+            import livekit.agents.vad as vad
 
-        voice_map = {"Ara": "Ara", "Eve": "Eve", "Leo": "Leo", "Sal": "Sal", "Rex": "Rex"}
-        final_voice = voice_map.get(voice_id.title(), "Ara")
+            voice_map = {"Ara": "Ara", "Eve": "Eve", "Leo": "Leo", "Sal": "Sal", "Rex": "Rex"}
+            final_voice = voice_map.get(voice_id.title(), "Ara")
 
-        model = RealtimeModel(
-            instructions=prompt,
-            voice=final_voice,
-            turn_detection=vad.EOU(threshold=0.6, silence_threshold_ms=200)
-        )
-        return MultimodalAgent(model=model, fnc_ctx=tools)
+            model = RealtimeModel(
+                instructions=prompt,
+                voice=final_voice,
+                turn_detection=vad.EOU(threshold=0.6, silence_threshold_ms=200)
+            )
+            return MultimodalAgent(model=model, fnc_ctx=tools)
+        except ImportError:
+            logger.warning("MultimodalAgent or XAI Realtime API is not available in the current SDK version. Falling back to standard pipeline.")
+            return None

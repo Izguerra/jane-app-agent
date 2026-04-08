@@ -21,3 +21,12 @@ class AgentManager:
             communication_id=communication_id,
             db=db
         )
+
+    def _create_agent(self, settings: dict, workspace_id: str, team_id: str, tools: list = [], db: Optional[Session] = None):
+        """Internal helper for prompt enrichment used by voice/avatar routers."""
+        from .agents.factory import AgentFactory
+        return AgentFactory.create_agent(settings, workspace_id, team_id, tools=tools, db=db)
+
+    def create_agent(self, *args, **kwargs):
+        """Alias for _create_agent."""
+        return self._create_agent(*args, **kwargs)

@@ -175,15 +175,15 @@ class WebSearchTool:
 # Function Tool Wrapper for Agents SDK
 # =========================================================================
 
-# Global instance for function tool
-_web_search_tool = None
+# Global cache for function tools
+_web_search_tools = {}
 
-def get_web_search_tool() -> WebSearchTool:
-    """Get or create singleton WebSearchTool instance."""
-    global _web_search_tool
-    if _web_search_tool is None:
-        _web_search_tool = WebSearchTool()
-    return _web_search_tool
+def get_web_search_tool(workspace_id: Optional[str] = None) -> WebSearchTool:
+    """Get or create WebSearchTool instance for a workspace."""
+    global _web_search_tools
+    if workspace_id not in _web_search_tools:
+        _web_search_tools[workspace_id] = WebSearchTool(workspace_id)
+    return _web_search_tools[workspace_id]
 
 
 @function_tool
@@ -199,7 +199,7 @@ def web_search(query: str, max_results: int = 5, topic: str = "general") -> dict
     Returns:
         A dict with 'answer' (AI summary) and 'results' (list of sources)
     """
-    tool = get_web_search_tool()
+    tool = get_web_search_tool() # Without workspace_id, just uses env variables
     return tool.search(
         query=query,
         max_results=max_results,
@@ -225,7 +225,7 @@ def search_job_listings(
     Returns:
         A dict with job listing results from major job boards
     """
-    tool = get_web_search_tool()
+    tool = get_web_search_tool() # Without workspace_id, just uses env variables
     return tool.search_jobs(
         job_title=job_title,
         location=location,

@@ -14,6 +14,7 @@ project_root = os.path.dirname(current_dir)
 sys.path.insert(0, project_root)
 
 from backend.agent import AgentManager
+from backend.agents.factory import AgentFactory
 from backend.database import SessionLocal
 import json
 
@@ -66,13 +67,11 @@ def test_standard_agent_context():
     
     try:
         # Create agent instance
-        agent = manager._create_agent(
+        agent = AgentFactory.create_agent(
             settings=settings,
             workspace_id=workspace_id,
             team_id=team_id,
             tools=[],
-            current_customer=None,
-            customer_history_context=None
         )
         
         # Get the system prompt (instructions)
@@ -187,13 +186,11 @@ def test_openclaw_agent_context():
     
     try:
         # Create agent instance
-        agent = manager._create_agent(
+        agent = AgentFactory.create_agent(
             settings=settings,
             workspace_id=workspace_id,
             team_id=team_id,
             tools=[],
-            current_customer=None,
-            customer_history_context=None
         )
         
         # Get the system prompt (instructions)
@@ -278,7 +275,7 @@ def test_conversation_styles():
         }
         
         try:
-            agent = manager._create_agent(
+            agent = AgentFactory.create_agent(
                 settings=settings,
                 workspace_id="wrk_test",
                 team_id="team_test",
@@ -333,7 +330,7 @@ def test_proactive_followups():
         "prompt_template": "You are a helpful assistant."
     }
     
-    agent_true = manager._create_agent(
+    agent_true = AgentFactory.create_agent(
         settings=settings_true,
         workspace_id="wrk_test",
         team_id="team_test",
@@ -358,7 +355,7 @@ def test_proactive_followups():
         "prompt_template": "You are a helpful assistant."
     }
     
-    agent_false = manager._create_agent(
+    agent_false = AgentFactory.create_agent(
         settings=settings_false,
         workspace_id="wrk_test",
         team_id="team_test",

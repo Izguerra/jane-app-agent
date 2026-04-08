@@ -35,9 +35,8 @@ class CRMService:
     def get_customer_analytics(self, customer_id: str, workspace_id: str, period_type: str = "month", period_value: str = None):
         return CRMAnalyticsService.get_customer_analytics(self.db, customer_id, workspace_id, period_type, period_value)
 
-    def analyze_and_update_customer_status(self, customer_id: str, interaction_text: str, interaction_type: str = "chat"):
-        import asyncio
-        return asyncio.run(CRMInteractionService.analyze_and_update_status(self.db, customer_id, interaction_text, interaction_type))
+    async def analyze_and_update_customer_status(self, customer_id: str, interaction_text: str, interaction_type: str = "chat"):
+        return await CRMInteractionService.analyze_and_update_status(self.db, customer_id, interaction_text, interaction_type)
 
     def get_or_create_from_identifier(self, workspace_id: str, identifier: str, channel: str = "phone", name: str = None):
         return CRMCustomerOps.get_or_create_from_identifier(self.db, workspace_id, identifier, channel, name)

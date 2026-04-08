@@ -118,47 +118,102 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         setConnectionStatus('connected');
     }, []);
 
-    const handleEndCall = useCallback(() => {
-        intentionalDisconnect.current = true;
-        setToken("");
-        setUrl("");
-        setMode('chat');
-    }, []);
+    const handleEndCall = useCallback(async () => {
+        await toast.promise(
+            (async () => {
+                intentionalDisconnect.current = true;
+                setConnectionStatus('transitioning');
+                setToken("");
+                setUrl("");
+                setMode('chat');
+                
+                // Clean up server-side rooms
+                if (agentId && agentId !== 'new') {
+                    try {
+                        await fetch("/api/voice/cleanup-room", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ agent_id: agentId })
+                        });
+                    } catch (e) {
+                        console.warn("Room cleanup on end call failed (non-critical):", e);
+                    }
+                }
+                // Brief delay to allow UI to settle
+                await new Promise(r => setTimeout(r, 500));
+                setConnectionStatus('idle');
+            })(),
+            {
+                loading: "Ending call...",
+                success: "Call terminated",
+                error: "Failed to end call cleanly"
+            }
+        );
+    }, [agentId]);
 
     const handleModeSwitch = async (targetMode: 'chat' | 'voice' | 'avatar') => {
         if (mode === targetMode) return;
         
-        // If transitioning from an active session to another active session type
-        if ((mode === 'voice' || mode === 'avatar') && (targetMode === 'voice' || targetMode === 'avatar')) {
+        // CLEAN BREAK: Always go through chat first with server-side room cleanup
+        if (mode === 'voice' || mode === 'avatar') {
             await toast.promise(
                 new Promise(async (resolve) => {
+                    // 1. Mark as intentional disconnect to prevent reconnect logic
                     isSwitchingMode.current = true;
-                    setMode('chat'); // Drop to chat mode immediately to unmount Voice/Avatar components
-                    
-                    // Clear current token to trigger LiveKitRoom unmount within those components if they stick around
+                    intentionalDisconnect.current = true;
                     setConnectionStatus('transitioning');
+                    
+                    // 2. Drop to chat mode immediately to unmount LiveKitRoom
                     setToken("");
                     setUrl("");
+                    setMode('chat');
                     
-                    // Allow time for the backend and LiveKit to fully tear down the old session
-                    await new Promise(r => setTimeout(r, 2500));
+                    // 3. Server-side cleanup: explicitly delete old rooms
+                    if (agentId && agentId !== 'new') {
+                        try {
+                            await fetch("/api/voice/cleanup-room", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ agent_id: agentId })
+                            });
+                        } catch (e) {
+                            console.warn("Room cleanup request failed (non-critical):", e);
+                        }
+                    }
                     
-                    setMode(targetMode); // Finally switch to the new session mode
+                    // 4. Brief propagation delay for LiveKit to fully tear down
+                    await new Promise(r => setTimeout(r, 1000));
+                    
+                    // 5. Reset connection state
+                    reconnectAttempts.current = 0;
+                    setConnectionStatus('idle');
+                    isSwitchingMode.current = false;
+                    intentionalDisconnect.current = false;
+                    
                     resolve(true);
                 }),
                 {
-                    loading: `Shutting down current session...`,
-                    success: `Starting ${targetMode} mode`,
+                    loading: `Shutting down ${mode} session...`,
+                    success: targetMode === 'chat' ? 'Session ended' : `Starting ${targetMode} mode`,
                     error: 'Transition failed',
                 }
             );
+            
+            // 6. If target is not chat, switch to new mode (triggers token fetch)
+            if (targetMode !== 'chat') {
+                setMode(targetMode);
+            }
             return;
-        } else if (targetMode === 'voice' || targetMode === 'avatar') {
+        }
+        
+        // Simple switch from chat → voice/avatar
+        if (targetMode === 'voice' || targetMode === 'avatar') {
             toast.info(`Initializing ${targetMode} agent...`);
         }
         
         setMode(targetMode);
     };
+
 
     const handleRetry = useCallback(() => {
         reconnectAttempts.current = 0;
@@ -336,27 +391,17 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
     }, [mode]);
 
 
-    // Fetch Token on Voice Mode - Use pre-generated token if available
+    // Fetch Token on Voice Mode
     useEffect(() => {
         if (unavailable) return;
 
         if ((mode === 'voice' || mode === 'avatar') && !token) {
-            // Priority 1: Use pre-generated token from parent (after save)
-            // parent now generates tokens with correct mode if useTavusAvatar is set
-            if (voiceToken) {
-                // Determine if parent's token matches our current mode intent
-                // We don't have the mode in the tokenData object itself usually, 
-                // but we can assume if useTavusAvatar is true, we want avatar mode.
-                const parentMode = formData.useTavusAvatar ? 'avatar' : 'voice';
-                if (mode === parentMode) {
-                    setToken(voiceToken.token);
-                    setUrl(voiceToken.url);
-                    console.log(`DEBUG: Using pre-generated ${mode} token from save`);
-                    return;
-                }
-            }
+            // Note: We deliberately DO NOT reuse any pre-generated tokens from the parent.
+            // Why? Reusing a token bypasses the backend POST /api/voice/token endpoint. 
+            // The backend endpoint is responsible for explicitly dispatching the AI agent.
+            // If we reuse a token, the user enters the room but the agent is never dispatched.
+            // This guarantees a fresh dispatch on every call initialization.
 
-            // Priority 2: Fallback to on-demand fetch if no pre-generated token
             // This is for cases where user hasn't saved yet but wants to preview
             if (!agentId || agentId === 'new') {
                 setError("Please save the agent first to enable voice/video preview");
@@ -375,6 +420,23 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             setError("");
             (async () => {
                 try {
+                    // STABILITY FIX: Clean up any stale rooms from previous sessions
+                    // This prevents duplicate agent dispatch (one auto-dispatched + one explicit)
+                    // which causes the "3 participants → 2 participants" drop pattern
+                    if (agentId && agentId !== 'new') {
+                        try {
+                            await fetch("/api/voice/cleanup-room", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ agent_id: agentId })
+                            });
+                            // Brief delay for LiveKit to process the room deletion
+                            await new Promise(r => setTimeout(r, 500));
+                        } catch (cleanupErr) {
+                            console.warn("Pre-connection room cleanup failed (non-critical):", cleanupErr);
+                        }
+                    }
+
                     // Only send agent_id and workspace_id - let backend use saved DB data
                     const resp = await fetch("/api/voice/token", {
                         method: "POST",
@@ -871,6 +933,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                             )}
                             <RoomAudioRenderer />
                             {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
+                            <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -1213,9 +1276,42 @@ function VoiceControlPanel({ onClose, onDisconnect, isVideo }: { onClose: () => 
 }
 
 function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData: any; onClose: () => void; pipSize: 'sm' | 'md' | 'lg'; setPipSize: (s: 'sm' | 'md' | 'lg') => void }) {
-    const tracks = useTracks([Track.Source.Camera]);
-    // Filter for remote camera (the avatar)
-    const remoteTrack = tracks.find(t => t.participant.isLocal === false && t.source === Track.Source.Camera);
+    // Phase 21 Fix: Relaxing track source filter to include Unknown/ScreenShare 
+    // to catch tracks from providers that might not tag as 'Camera'
+    const tracks = useTracks([
+        Track.Source.Camera,
+        Track.Source.ScreenShare,
+        Track.Source.Unknown
+    ]);
+
+    // Filter for remote video track (the avatar)
+    const remoteTrack = tracks.find(t => 
+        (t as any).participant?.isLocal === false && 
+        ((t as any).source === Track.Source.Camera || (t as any).source === Track.Source.Unknown || (t as any).source === Track.Source.ScreenShare) &&
+        ((t as any).track?.kind === 'video' || (t as any).publication?.kind === 'video')
+    );
+
+    // Diagnostics for track subscription
+    useEffect(() => {
+        if (tracks.length > 0) {
+            console.log("DEBUG: [Phase 21] Tracks available in room:", tracks.map(t => ({
+                source: (t as any).source,
+                kind: (t as any).track?.kind || (t as any).publication?.kind,
+                participant: (t as any).participant?.identity,
+                isLocal: (t as any).participant?.isLocal,
+                isEnabled: (t as any).track?.isEnabled,
+                isSubscribed: (t as any).isSubscribed
+            })));
+        }
+        if (remoteTrack) {
+            console.log("DEBUG: [Phase 21] Identified Avatar RemoteTrack:", {
+                identity: (remoteTrack as any).participant?.identity,
+                source: (remoteTrack as any).source,
+                subscribed: (remoteTrack as any).isSubscribed
+            });
+        }
+    }, [tracks, remoteTrack]);
+
     // Filter for local camera (user preview)
     const localTrack = tracks.find(t => t.participant.isLocal === true && t.source === Track.Source.Camera);
     const [showCaptions, setShowCaptions] = useState(true);
@@ -1241,7 +1337,11 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
                     </Button>
                 </div>
             ) : remoteTrack ? (
-                <VideoTrack trackRef={remoteTrack} className="w-full h-full object-cover" />
+                <VideoTrack 
+                    key={`avatar-video-${(remoteTrack as any).participant?.identity || 'agent'}-${(remoteTrack as any).track?.sid || (remoteTrack as any).publication?.trackSid || 'loading'}`}
+                    trackRef={remoteTrack} 
+                    className="w-full h-full object-cover"
+                />
             ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 animate-pulse">
                     <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mb-4 text-blue-600">
@@ -1301,4 +1401,16 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
             </div>
         </div>
     );
+}
+
+function ParticipantLogger() {
+    const remoteParticipants = useParticipants();
+    const { localParticipant } = useLocalParticipant();
+    
+    useEffect(() => {
+        const total = remoteParticipants.length + (localParticipant ? 1 : 0);
+        console.log(`🚀 [PARTICIPANT COUNT] Total participants in room: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
+    }, [remoteParticipants.length, localParticipant]);
+    
+    return null;
 }

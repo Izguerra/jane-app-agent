@@ -203,37 +203,21 @@ def get_workspace_context(
             return cached_workspace_id
     
     # ALWAYS check if a workspace already exists for this team first
-    existing_workspaces = db.query(Workspace).filter(Workspace.team_id == id_to_check).all()
+    # Sort by created_at ASC to ensure the oldest (original) workspace is picked as primary.
+    existing_workspaces = db.query(Workspace).filter(Workspace.team_id == id_to_check).order_by(Workspace.created_at.asc()).all()
     
     if existing_workspaces:
-        # If multiple workspaces exist, prioritize the one with the most data
-        if len(existing_workspaces) == 1:
-            resolved_workspace_id = existing_workspaces[0].id
-            # Cache the result
-            _workspace_cache[id_to_check] = (resolved_workspace_id, current_time)
-            return resolved_workspace_id
-        
-        # Find the workspace with the most combined data (agents + customers + communications)
-        workspace_scores = []
-        for ws in existing_workspaces:
-            agent_count = db.query(func.count(Agent.id)).filter(Agent.workspace_id == ws.id).scalar() or 0
-            customer_count = db.query(func.count(Customer.id)).filter(Customer.workspace_id == ws.id).scalar() or 0
-            comm_count = db.query(func.count(Communication.id)).filter(Communication.workspace_id == ws.id).scalar() or 0
-            total_score = agent_count + customer_count + comm_count
-            workspace_scores.append((ws, total_score))
-        
-        # Sort by score descending and return the workspace with most data
-        workspace_scores.sort(key=lambda x: x[1], reverse=True)
-        primary_workspace = workspace_scores[0][0]
+        # If multiple workspaces exist, return the oldest one.
+        # This is fast and restores consistency with existing agents.
+        resolved_workspace_id = existing_workspaces[0].id
         
         # Cache the result
-        _workspace_cache[id_to_check] = (primary_workspace.id, current_time)
+        _workspace_cache[id_to_check] = (resolved_workspace_id, current_time)
         
-        # Log for debugging
-        print(f"DEBUG: Found {len(existing_workspaces)} workspaces for team {id_to_check}")
-        print(f"DEBUG: Selected primary workspace {primary_workspace.id} with score {workspace_scores[0][1]}")
+        if len(existing_workspaces) > 1:
+            print(f"DEBUG: Found {len(existing_workspaces)} workspaces for team {id_to_check}. Selected first: {resolved_workspace_id}")
         
-        return primary_workspace.id
+        return resolved_workspace_id
 
     # 3. Create only if none exists (Prevent Eager Duplication)
     new_ws = Workspace(
