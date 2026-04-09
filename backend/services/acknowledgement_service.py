@@ -128,6 +128,11 @@ async def stream_with_followup(
             async for chunk in response_generator:
                 is_tool_call = False
                 # Detect tool calls in Agno RunResponse (chunk)
+                if hasattr(chunk, 'tools') and chunk.tools:
+                    is_tool_call = True
+                if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                    is_tool_call = True
+
                 if chunk and hasattr(chunk, 'content') and chunk.content:
                     await chunk_queue.put(chunk.content)
                 elif is_tool_call:

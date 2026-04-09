@@ -9,7 +9,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
-import livekit.plugins.silero as silero
+# NOTE: livekit.plugins.silero is imported LAZILY inside get_vad_model() to prevent
+# macOS multiprocessing.spawn deadlocks (KqueueSelector + FFI race condition).
 
 # DNS bypass removed for stability - relying on system DNS.
 
@@ -37,6 +38,7 @@ _vad_model = None
 def get_vad_model():
     global _vad_model
     if _vad_model is None:
+        from livekit.plugins import silero  # Lazy import — safe for macOS spawn
         _vad_model = silero.VAD.load()
     return _vad_model
 

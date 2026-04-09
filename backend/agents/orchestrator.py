@@ -34,8 +34,11 @@ class AgentOrchestrator:
                 ).first()
             if not agent_rec:
                 agent_rec = ctx_db.query(AgentModel).filter(
-                    AgentModel.workspace_id == workspace_id
-                ).first()
+                    AgentModel.workspace_id == workspace_id,
+                    AgentModel.is_active == True
+                ).order_by(AgentModel.created_at.desc()).first()
+                if agent_rec:
+                    logger.info(f"Chatbot fallback resolved to agent: {agent_rec.name} ({agent_rec.id})")
             
             if agent_rec:
                 agent_id = agent_rec.id

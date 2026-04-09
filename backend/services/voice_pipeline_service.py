@@ -23,8 +23,10 @@ class VoicePipelineService:
                 from livekit.plugins import google as google_plugin
                 logger.info("Initializing Google Gemini 1.5 Flash LLM (Standard Pipeline)")
                 return google_plugin.LLM(model="gemini-1.5-flash", api_key=gemini_key, temperature=temperature)
+            except ImportError:
+                logger.warning("livekit-plugins-google not installed — falling through to OpenAI")
             except Exception as e:
-                logger.warning(f"Failed to initialize Gemini LLM: {e}")
+                logger.warning(f"Failed to initialize Gemini LLM: {e} — falling through to OpenAI")
 
         if openai_key:
             logger.info("Initializing OpenAI gpt-4o-mini LLM (Standard Pipeline)")
