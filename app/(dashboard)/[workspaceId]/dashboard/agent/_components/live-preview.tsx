@@ -940,7 +940,6 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                 </div>
                             )}
                             <RoomAudioRenderer />
-                            {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
                             <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
@@ -1043,7 +1042,7 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
 function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: () => void, showCaptions?: boolean, toggleCaptions?: () => void }) {
     const { localParticipant } = useLocalParticipant();
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(true);
+    const [isVideoOff, setIsVideoOff] = useState(false);
 
     const toggleMic = async () => {
         if (!localParticipant) return;
@@ -1059,10 +1058,34 @@ function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: ()
         setIsVideoOff(newState);
     };
 
+    const isInitializing = useRef(true);
+
     useEffect(() => {
         if (localParticipant) {
-            setIsMuted(!localParticipant.isMicrophoneEnabled);
-            setIsVideoOff(!localParticipant.isCameraEnabled);
+            // Only sync from participant if not in the first second of connection
+            // to avoid the transient 'disabled' state while tracks are publishing
+            if (!isInitializing.current) {
+                setIsMuted(!localParticipant.isMicrophoneEnabled);
+                setIsVideoOff(!localParticipant.isCameraEnabled);
+            }
+
+            // Auto-enable tracks on join if disabled
+            if (!localParticipant.isMicrophoneEnabled) {
+                localParticipant.setMicrophoneEnabled(true)
+                    .then(() => { if (isInitializing.current) setIsMuted(false); })
+                    .catch(e => console.warn("Auto-unmute failed:", e));
+            }
+            if (!localParticipant.isCameraEnabled) {
+                localParticipant.setCameraEnabled(true)
+                    .then(() => { if (isInitializing.current) setIsVideoOff(false); })
+                    .catch(e => console.warn("Auto-camera-on failed:", e));
+            }
+
+            // After a short delay, allow normal syncing
+            const timer = setTimeout(() => {
+                isInitializing.current = false;
+            }, 2000);
+            return () => clearTimeout(timer);
         }
     }, [localParticipant]);
 
