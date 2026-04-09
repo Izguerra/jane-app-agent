@@ -134,57 +134,55 @@ async def on_startup():
     # Session Cleanup Scheduler is now started in the main startup_event to avoid duplication.
     pass
 
-# Include routers
-app.include_router(chat.router)
-app.include_router(knowledge.router)
-app.include_router(knowledge_base.router)
-app.include_router(workspace.router)
+# Combined API Router for /api prefix
+from fastapi import APIRouter
+api_router = APIRouter(prefix="/api")
 
-app.include_router(agents.router)
-app.include_router(phone.router)
-app.include_router(analytics.router)
-app.include_router(voice.router)
-app.include_router(voice.router, prefix="/agent")
-app.include_router(integrations.router)
-app.include_router(integrations.router, prefix="/agent")
-app.include_router(auth.router)
-app.include_router(public_agent.router)
-app.include_router(webhooks.router)
-app.include_router(instagram.router)
-app.include_router(meta_webhooks.router)
-app.include_router(phone_numbers.router)
-app.include_router(phone_numbers.router, prefix="/agent")
-app.include_router(meta_auth.router)
-app.include_router(billing.router)
-app.include_router(communications.router)
-app.include_router(recordings.router)
-app.include_router(crm.router)
-app.include_router(settings.router)
-app.include_router(settings.router, prefix="/agent")
-app.include_router(customers.router)
-app.include_router(stripe_webhooks.router)
-app.include_router(workspaces.router)
-app.include_router(admin_analytics.router)
-app.include_router(admin_settings.router)
-app.include_router(appointments.router)
-app.include_router(deals.router)
-app.include_router(outbound.router)
-app.include_router(skills.router)
-app.include_router(skills.router, prefix="/agent")
+# Include all standard routers into the api_router
+api_router.include_router(chat.router)
+api_router.include_router(knowledge.router)
+api_router.include_router(knowledge_base.router)
+api_router.include_router(workspace.router)
+api_router.include_router(agents.router)
+api_router.include_router(phone.router)
+api_router.include_router(analytics.router)
+api_router.include_router(voice.router)
+api_router.include_router(voice.router, prefix="/agent")
+api_router.include_router(integrations.router)
+api_router.include_router(integrations.router, prefix="/agent")
+api_router.include_router(auth.router)
+api_router.include_router(public_agent.router)
+api_router.include_router(webhooks.router)
+api_router.include_router(instagram.router)
+api_router.include_router(meta_webhooks.router)
+api_router.include_router(phone_numbers.router)
+api_router.include_router(phone_numbers.router, prefix="/agent")
+api_router.include_router(meta_auth.router)
+api_router.include_router(billing.router)
+api_router.include_router(communications.router)
+api_router.include_router(recordings.router)
+api_router.include_router(crm.router)
+api_router.include_router(settings.router)
+api_router.include_router(settings.router, prefix="/agent")
+api_router.include_router(customers.router)
+api_router.include_router(stripe_webhooks.router)
+api_router.include_router(workspaces.router)
+api_router.include_router(admin_analytics.router)
+api_router.include_router(admin_settings.router)
+api_router.include_router(appointments.router)
+api_router.include_router(deals.router)
+api_router.include_router(outbound.router)
+api_router.include_router(skills.router)
+api_router.include_router(skills.router, prefix="/agent")
+api_router.include_router(campaigns.router)
+api_router.include_router(workers.router)
+api_router.include_router(workers.router, prefix="/agent")
+api_router.include_router(mcp_integrations.router)
+api_router.include_router(mcp_integrations.router, prefix="/agent")
+api_router.include_router(telnyx_router.router)
 
-from backend.routers import campaigns
-app.include_router(campaigns.router)
-
-from backend.routers import workers
-app.include_router(workers.router)
-app.include_router(workers.router, prefix="/agent")
-
-from backend.routers import mcp_integrations
-app.include_router(mcp_integrations.router)
-app.include_router(mcp_integrations.router, prefix="/agent")
-
-from backend.routers import telnyx as telnyx_router
-app.include_router(telnyx_router.router)
+# Register the combined router to the app
+app.include_router(api_router)
 
 # Worker Executor lifecycle
 from backend.workers import start_executor, stop_executor

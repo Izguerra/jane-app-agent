@@ -83,30 +83,32 @@ class AgentOrchestrator:
         except Exception as e:
             logger.warning(f"MCP loading failed (non-fatal, continuing without MCP tools): {e}")
         
-        # ── 6. Extract tools for Agno ──
-        all_potential_tools = []
-        import inspect
-        all_potential_tools.extend([m for _, m in inspect.getmembers(agent_tools)])
-        all_potential_tools.extend(mcp_tools)
-
+        # ── 6. Extract tools for Agno (Robust Extraction) ──
+        from livekit.agents import llm
+        
+        # Get all standard tools via LiveKit's discovery
+        lk_tools = llm.find_function_tools(agent_tools)
+        
+        # Start with MCP tools (which are already lk.FunctionTool wrappers)
+        all_lk_tools = lk_tools + mcp_tools
+        
         tools = []
-        for member in all_potential_tools:
-            name = getattr(member, "name", getattr(member, "__name__", "unknown_tool"))
-            if type(member).__name__ == "FunctionTool":
-                actual_method = getattr(member, "__wrapped__", getattr(member, "_func", None))
-                if actual_method and not name.startswith("_"):
-                    if hasattr(member, "_func") and inspect.ismethod(member._func):
-                        tools.append(member._func)
-                    else:
-                        tools.append(actual_method)
-            elif inspect.ismethod(member) and hasattr(member, "__llm_function__") and not name.startswith("_"):
-                tools.append(member)
+        for tool in all_lk_tools:
+            # For Agno, we need the raw callable with docstring.
+            # LiveKit FunctionTool wraps the original method/function.
+            actual_method = getattr(tool, "_func", None)
+            if actual_method:
+                # Append the bound method/function to Agno tools
+                tools.append(actual_method)
+                logger.debug(f"Added tool to Chatbot: {getattr(tool, 'name', 'unknown')}")
 
         # ── 7. Create agent with full context ──
         agent = AgentFactory.create_agent(
             settings, workspace_id, team_id, tools=tools, db=db,
             enabled_skills=skills, personality_prompt=personality_prompt
         )
+        # Enable observability for tool calls in chat mode
+        agent.show_tool_calls = True
         
         # ── 8. Build conversation context with cross-channel memory ──
         from agno.models.message import Message
