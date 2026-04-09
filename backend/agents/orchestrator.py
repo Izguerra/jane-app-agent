@@ -85,6 +85,7 @@ class AgentOrchestrator:
         
         # ── 6. Extract tools for Agno (Robust Extraction) ──
         from livekit.agents import llm
+        import inspect
         
         # Get all standard tools via LiveKit's discovery
         lk_tools = llm.find_function_tools(agent_tools)
@@ -92,39 +93,57 @@ class AgentOrchestrator:
         # Start with MCP tools (which are already lk.FunctionTool wrappers)
         all_lk_tools = lk_tools + mcp_tools
         
+        def create_agno_wrapper(func_name, agent_tools_instance, tool_obj):
+            """
+            Creates a clean Python function with 'self' stripped for Agno/Pydantic.
+            Bypasses LiveKit's @validate_call decorators to prevent missing 'self' errors.
+            """
+            actual_func = getattr(tool_obj, "_func", None)
+            if not actual_func:
+                return None
+                
+            # LiveKit wraps tools with Pydantic's @validate_call, which breaks 'self' binding.
+            # We drill down to the raw original function avoiding Pydantic entirely.
+            raw_func = getattr(actual_func, "__wrapped__", actual_func)
+            
+            sig = inspect.signature(raw_func)
+            new_params = [p for p in sig.parameters.values() if p.name != 'self']
+            new_sig = sig.replace(parameters=new_params)
+            
+            async def wrapper(*args, **kwargs):
+                # Pass the agent_tools instance directly as 'self'
+                try:
+                    return await raw_func(agent_tools_instance, *args, **kwargs)
+                except Exception as e:
+                    logger.error(f"Tool '{func_name}' failed: {e}")
+                    raise
+                
+            wrapper.__name__ = func_name
+            wrapper.__qualname__ = func_name
+            wrapper.__doc__ = raw_func.__doc__ or getattr(tool_obj, "description", "")
+            wrapper.__signature__ = new_sig
+            if hasattr(raw_func, "__annotations__"):
+                wrapper.__annotations__ = {k: v for k, v in raw_func.__annotations__.items() if k != "self"}
+            return wrapper
+        
         tools = []
         for tool in all_lk_tools:
-            tool_name = getattr(tool, "name", None)
-            actual_method = getattr(tool, "_func", None)
-            desc = getattr(tool, "description", "")
+            # CORRECT DISCOVERY: LiveKit stores tool name in tool.info.name
+            tool_name = getattr(tool.info, "name", None) if hasattr(tool, "info") else getattr(tool, "name", None)
             
-            # EXPLICIT AGNO MAPPINGS FOR PROBLEMATIC MIXIN TOOLS
-            print(f"DEBUG: Checking tool_name: {tool_name}")
-            
-            if tool_name in ("send_sms_notification", "send-sms-notification", "send_sms_notification_communication_mixin"):
-                async def send_sms_notification(phone_number: str, message: str) -> str:
-                    from backend.services.sms_service import send_sms
-                    success, error = send_sms(phone_number, message, agent_tools.workspace_id)
-                    return "SMS sent successfully." if success else f"Failed to send SMS: {error}"
-                send_sms_notification.__doc__ = desc
-                tools.append(send_sms_notification)
-                print("DEBUG: Appended pure SMS tool!")
-                continue
-                
-            elif tool_name in ("send_email_notification", "send-email-notification", "send_email_notification_communication_mixin"):
-                async def send_email_notification(email_address: str, subject: str, message: str) -> str:
-                    from backend.services.email_service import EmailService
-                    success, error = EmailService().send_email(to_email=email_address, subject=subject, html_content=f"<p>{message}</p>", workspace_id=agent_tools.workspace_id)
-                    return "Email sent successfully." if success else f"Failed to send email: {error}"
-                send_email_notification.__doc__ = desc
-                tools.append(send_email_notification)
-                print("DEBUG: Appended pure Email tool!")
-                continue
-            
-            # Fallback to the raw inner function (e.g., for MCP closures and others)
-            elif actual_method:
-                tools.append(actual_method)
-                logger.debug(f"Added standalone tool to Chatbot: {tool_name or 'unknown'}")
+            # Use the robust wrapper for all tools to ensure consistent behavior
+            # and clean Pydantic signatures for Agno.
+            if tool_name:
+                wrapped_tool = create_agno_wrapper(tool_name, agent_tools, tool)
+                if wrapped_tool:
+                    tools.append(wrapped_tool)
+                    logger.debug(f"Added wrapped tool to Chatbot: {tool_name}")
+                else:
+                    # Fallback for MCP tools which might not have _func
+                    actual_method = getattr(tool, "_func", None)
+                    if actual_method:
+                        tools.append(actual_method)
+                        logger.debug(f"Added standalone tool fallback to Chatbot: {tool_name}")
         # ── 7. Create agent with full context ──
         agent = AgentFactory.create_agent(
             settings, workspace_id, team_id, tools=tools, db=db,
