@@ -37,10 +37,10 @@ def format_phone_number(phone: str) -> str:
 
 def send_sms(to_number: str, message: str, workspace_id: int = None, force_whatsapp: bool = False) -> (bool, str):
     """
-    Send an SMS message using Twilio.
+    Send an SMS message using Twilio or Telnyx.
     
     Args:
-        to_number: The recipient's phone number
+        to_number: The recipient's phone number (any format — will be auto-formatted to E.164)
         message: The message body
         workspace_id: Workspace ID for credentials
         force_whatsapp: If True, treats this as a WhatsApp message regardless of other settings
@@ -51,6 +51,10 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
     if not workspace_id:
         logger.error("Cannot send SMS: workspace_id is required")
         return False, "workspace_id is required"
+    
+    # Format phone number to E.164 EARLY so ALL providers get a valid number
+    to_number = format_phone_number(to_number)
+    logger.info(f"Formatted 'to' number to E.164: {to_number}")
     
     account_sid = None
     auth_token = None
@@ -129,6 +133,7 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
                     from backend.services.telnyx_service import TelnyxService
                     telnyx_svc = TelnyxService()
                     try:
+                        # to_number is already E.164 formatted (done at top of function)
                         result = telnyx_svc.send_sms(
                             from_number=from_number,
                             to_number=to_number,

@@ -47,9 +47,24 @@ class AgentFactory:
         instructions = [
             f"CURRENT DATE AND TIME: {current_datetime}.",
             f"AGENT SOUL:\n{settings.get('soul', '')}" if settings.get('soul') else "",
+            personality_prompt if personality_prompt else "",
             gatekeeper_instruction,
             "Always be polite, professional, and empathetic.",
         ]
+        
+        # Inject skill instructions into the prompt (matching voice/avatar behavior)
+        if enabled_skills:
+            skill_block = "\n\nENRICHED SKILLS & CAPABILITIES:\nYou have been equipped with the following specialized skills:\n\n"
+            for skill in enabled_skills:
+                skill_block += f"### {skill.name} ({skill.slug})\n{skill.instructions}\n\n"
+            instructions.append(skill_block)
+        
+        # Add tool usage reminder for chat mode
+        instructions.append(
+            "TOOL USAGE: You have access to specialized tools. USE THEM to answer factual questions "
+            "(weather, time, flights, directions). Do NOT guess — always use the appropriate tool. "
+            "For SMS, always include the country code (+1 for North America)."
+        )
         
         # Model Selection
         openai_api_key = os.getenv("OPENAI_API_KEY")
