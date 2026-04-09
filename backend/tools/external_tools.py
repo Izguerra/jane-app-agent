@@ -95,97 +95,87 @@ class ExternalTools:
     @llm.function_tool(description="Get real-time status and schedule information for a specific flight.")
     async def get_flight_status(self, flight_number: str = None, origin: str = None, destination: str = None, airline: str = None, date: str = None, approx_time: str = None):
         """
-        Get status for a specific flight using AviationStack. 
+        Get status for a specific flight using FlightAware AeroAPI. 
         Supports Route-based schedule lookup with time filtering.
         """
         if not self.aviation_api_key:
             self.aviation_api_key = await IntegrationService.async_get_provider_key(
                 workspace_id=self.workspace_id, 
-                provider="aviationstack", 
-                env_fallback="AVIATION_STACK_API_KEY"
+                provider="aeroapi", 
+                env_fallback="AEROAPI_KEY"
             )
 
         print(f"DEBUG: get_flight_status called. F:{flight_number} O:{origin} D:{destination} T:{approx_time}. Key found: {bool(self.aviation_api_key)}")
         if not self.aviation_api_key:
-            return "AviationStack API key is not configured."
+            return "FlightAware AeroAPI key is not configured."
             
         try:
-            query_params = f"access_key={self.aviation_api_key}"
-            
-            if flight_number:
-                clean_flight_num = flight_number.replace(" ", "").upper()
-                query_params += f"&flight_iata={clean_flight_num}"
-            elif origin and destination:
-                query_params += f"&dep_iata={origin}&arr_iata={destination}"
-                if airline:
-                     query_params += f"&airline_iata={airline}"
-            else:
-                 return "Please provide either a Flight Number OR an Origin and Destination."
+            import aiohttp
+            headers = {"x-apikey": self.aviation_api_key}
+            base_url = "https://aeroapi.flightaware.com/aeroapi"
             
             async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                url = f"http://api.aviationstack.com/v1/flights?{query_params}"
-                async with session.get(url) as response:
-                    if response.status != 200:
-                         return f"Could not get flight info. Status: {response.status}"
+                if flight_number:
+                    # Flight number search (e.g., UAL100 or AC100)
+                    clean_flight_num = flight_number.replace(" ", "").upper()
+                    url = f"{base_url}/flights/{clean_flight_num}"
+                    async with session.get(url, headers=headers) as response:
+                        if response.status != 200:
+                             return f"Could not get flight info. Status: {response.status}"
+                        
+                        data = await response.json()
+                        results = data.get('flights', [])
+                        
+                elif origin and destination:
+                    # Route search
+                    from datetime import datetime, timedelta, timezone
+                    now = datetime.now(timezone.utc)
+                    end = now + timedelta(days=2) # 48 hour window
+                    start_str = now.strftime("%Y-%m-%d")
+                    end_str = end.strftime("%Y-%m-%d")
                     
-                    data = await response.json()
-                    results = data.get('data', [])
-                    
-                    if not results:
-                        return "No flights found matching criteria."
+                    url = f"{base_url}/schedules/{start_str}/{end_str}?origin={origin}&destination={destination}"
+                    async with session.get(url, headers=headers) as response:
+                        if response.status != 200:
+                             return f"Could not get flight schedules. Status: {response.status}"
+                        
+                        data = await response.json()
+                        results = data.get('scheduled', [])
+                else:
+                     return "Please provide either a Flight Number OR an Origin and Destination."
+                
+                if not results:
+                    return "No flights found matching criteria."
 
-                    # --- Time Filtering Logic ---
-                    if approx_time and not flight_number:
-                        # Simple filter: Filter results where departure time matches approx hour
-                        # Parsing "5pm" is hard without nlp, but Agent usually sends structured time if possible.
-                        # We'll rely on string matching or simplistic hour checks if approx_time is e.g. "17:00"
-                        filtered = []
-                        target_hour = None
-                        
-                        # Very naive parse
-                        try:
-                            if "pm" in approx_time.lower():
-                                target_hour = int(approx_time.lower().replace("pm", "").strip()) + 12
-                            elif "am" in approx_time.lower():
-                                target_hour = int(approx_time.lower().replace("am", "").strip())
-                            elif ":" in approx_time:
-                                target_hour = int(approx_time.split(":")[0])
-                                
-                            if target_hour is not None:
-                                for f in results:
-                                    dep_str = f.get('departure', {}).get('scheduled', '')
-                                    # dep_str format: 2024-05-20T17:20:00+00:00
-                                    if 'T' in dep_str:
-                                        f_hour = int(dep_str.split('T')[1].split(':')[0])
-                                        # Match within 2 hour window
-                                        if abs(f_hour - target_hour) <= 2:
-                                            filtered.append(f)
-                                results = filtered or results # Fallback to all if none match
-                        except:
-                            pass # Formatting error, return all
-
-                    # Limit and Format
-                    def get_dep_time(f):
-                        return f.get('departure', {}).get('scheduled', '9999-99-99')
-                    results.sort(key=get_dep_time)
+                # AeroAPI specific output formatting
+                output = []
+                limit = 1 if flight_number else 5
+                
+                for flight in results[:limit]:
+                    f_num = flight.get('ident', 'Unknown')
+                    status = "scheduled" if 'scheduled_out' in flight else "unknown"  
+                    if flight.get('actual_on'): status = "landed"
+                    elif flight.get('actual_off'): status = "in_air"
+                    elif flight.get('cancelled'): status = "cancelled"
+                    elif flight.get('delayed'): status = "delayed"
                     
-                    output = []
-                    limit = 1 if flight_number else 5 # Use 5 for schedule
+                    # Handle both dictionary forms and straight string forms of origin/dest
+                    dep_obj = flight.get('origin', {})
+                    arr_obj = flight.get('destination', {})
                     
-                    for flight in results[:limit]:
-                        f_num = flight.get('flight', {}).get('iata', 'Unknown')
-                        status = flight.get('flight_status', 'unknown')
-                        airline_name = flight.get('airline', {}).get('name', '')
-                        dep = flight.get('departure', {})
-                        arr = flight.get('arrival', {})
-                        
-                        dep_txt = f"{dep.get('airport')} ({dep.get('iata')}) at {dep.get('scheduled', '')}"
-                        arr_txt = f"{arr.get('airport')} ({arr.get('iata')}) at {arr.get('scheduled', '')}"
-                        
-                        output.append(f"✈️ {f_num} {airline_name}\n   Status: {status}\n   Departs: {dep_txt}\n   Arrives: {arr_txt}")
+                    dep_code = dep_obj.get('code_iata') if isinstance(dep_obj, dict) else dep_obj
+                    arr_code = arr_obj.get('code_iata') if isinstance(arr_obj, dict) else arr_obj
                     
-                    return "\n\n".join(output)
+                    dep_time = flight.get('scheduled_out', 'Unknown Time')
+                    arr_time = flight.get('scheduled_in', 'Unknown Time')
                     
+                    dep_txt = f"{dep_code} at {dep_time}"
+                    arr_txt = f"{arr_code} at {arr_time}"
+                    
+                    output.append(f"✈️ {f_num}\n   Status: {status}\n   Departs: {dep_txt}\n   Arrives: {arr_txt}")
+                
+                return "\n\n".join(output)
+                
         except Exception as e:
             return f"Error fetching flight status: {str(e)}"
 
@@ -252,7 +242,10 @@ class ExternalTools:
                 if mode not in ["driving", "walking", "bicycling", "transit"]:
                     mode = "driving"
                     
-                url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&key={self.google_maps_api_key}&departure_time=now&traffic_model=best_guess&mode={mode}"
+                import urllib.parse
+                safe_origin = urllib.parse.quote(origin)
+                safe_dest = urllib.parse.quote(destination)
+                url = f"https://maps.googleapis.com/maps/api/directions/json?origin={safe_origin}&destination={safe_dest}&key={self.google_maps_api_key}&departure_time=now&traffic_model=best_guess&mode={mode}"
                 async with session.get(url) as response:
                     print(f"DEBUG: Maps API Status: {response.status}")
                     

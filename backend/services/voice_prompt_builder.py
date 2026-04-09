@@ -67,8 +67,8 @@ class VoicePromptBuilder:
    - Sound human and conversational, not robotic.
 
 5. **PRONUNCIATION & FORMATTING (CRITICAL):**
-   - For phone numbers, postal codes, or ID strings, ALWAYS use dashes or spaces (e.g., "4 1 6 - 7 8 6 - 5 7 8 6").
-   - This ensures the text-to-speech engine pronounces individual characters correctly instead of reading them as a single large number.
+   - For phone numbers, postal codes, zip codes, airline codes (e.g., AC, LH), airport codes (e.g., YYZ, JFK, LHR), or ID strings, ALWAYS insert a space between EVERY single character (e.g., "L 9 T 0 E 2", "Y Y Z", "A C", "4 1 6 - 7 8 6 - 5 7 8 6").
+   - NEVER pronounce these codes as single spoken words. This ensures the text-to-speech engine pronounces individual characters correctly.
 
 """
 
