@@ -94,14 +94,37 @@ class AgentOrchestrator:
         
         tools = []
         for tool in all_lk_tools:
-            # For Agno, we need the raw callable with docstring.
-            # LiveKit FunctionTool wraps the original method/function.
+            tool_name = getattr(tool, "name", None)
             actual_method = getattr(tool, "_func", None)
-            if actual_method:
-                # Append the bound method/function to Agno tools
+            desc = getattr(tool, "description", "")
+            
+            # EXPLICIT AGNO MAPPINGS FOR PROBLEMATIC MIXIN TOOLS
+            print(f"DEBUG: Checking tool_name: {tool_name}")
+            
+            if tool_name in ("send_sms_notification", "send-sms-notification", "send_sms_notification_communication_mixin"):
+                async def send_sms_notification(phone_number: str, message: str) -> str:
+                    from backend.services.sms_service import send_sms
+                    success, error = send_sms(phone_number, message, agent_tools.workspace_id)
+                    return "SMS sent successfully." if success else f"Failed to send SMS: {error}"
+                send_sms_notification.__doc__ = desc
+                tools.append(send_sms_notification)
+                print("DEBUG: Appended pure SMS tool!")
+                continue
+                
+            elif tool_name in ("send_email_notification", "send-email-notification", "send_email_notification_communication_mixin"):
+                async def send_email_notification(email_address: str, subject: str, message: str) -> str:
+                    from backend.services.email_service import EmailService
+                    success, error = EmailService().send_email(to_email=email_address, subject=subject, html_content=f"<p>{message}</p>", workspace_id=agent_tools.workspace_id)
+                    return "Email sent successfully." if success else f"Failed to send email: {error}"
+                send_email_notification.__doc__ = desc
+                tools.append(send_email_notification)
+                print("DEBUG: Appended pure Email tool!")
+                continue
+            
+            # Fallback to the raw inner function (e.g., for MCP closures and others)
+            elif actual_method:
                 tools.append(actual_method)
-                logger.debug(f"Added tool to Chatbot: {getattr(tool, 'name', 'unknown')}")
-
+                logger.debug(f"Added standalone tool to Chatbot: {tool_name or 'unknown'}")
         # ── 7. Create agent with full context ──
         agent = AgentFactory.create_agent(
             settings, workspace_id, team_id, tools=tools, db=db,
