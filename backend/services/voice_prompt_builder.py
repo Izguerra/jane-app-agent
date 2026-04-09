@@ -66,7 +66,42 @@ class VoicePromptBuilder:
 4. **KEEP IT NATURAL:**
    - Sound human and conversational, not robotic.
 
+5. **PRONUNCIATION & FORMATTING (CRITICAL):**
+   - For phone numbers, postal codes, or ID strings, ALWAYS use dashes or spaces (e.g., "4 1 6 - 7 8 6 - 5 7 8 6").
+   - This ensures the text-to-speech engine pronounces individual characters correctly instead of reading them as a single large number.
+
 """
+
+    # This mapping connects skill slugs to their direct tool methods
+    SKILL_TO_DIRECT_TOOLS = {
+        "web-research": "`web_search`",
+        "weather-worker": "`get_weather`",
+        "sms-messaging": "`send_sms_notification`",
+        "email-worker": "`send_email_notification` or `run_task_now (with 'email-worker' slug)`",
+        "email-composer": "`send_email_notification` or `run_task_now (with 'email-worker' slug)`",
+        "map-worker": "`get_directions`",
+        "flight-tracker": "`get_flight_status`",
+        "advanced-browsing": "`web_search`",
+        "google-search": "`web_search`",
+        "lead-research": "`web_search` or `search_customers` or `get_current_time`",
+        "general-utility": "`get_current_time`"
+    }
+
+    @staticmethod
+    def get_allowed_tool_names(enabled_skills) -> list:
+        """Returns a clean list of Python method names allowed by the given skills."""
+        import re
+        allowed_methods = ["run_task_now"] # Base worker router is always allowed if workers are enabled
+        if enabled_skills:
+            for skill in enabled_skills:
+                raw_mapping = VoicePromptBuilder.SKILL_TO_DIRECT_TOOLS.get(skill.slug, "")
+                # Robust extraction: find ALL strings enclosed in backticks
+                matches = re.findall(r'`([^`]+)`', raw_mapping)
+                for method in matches:
+                    # Clean up the method name (remove spaces or parentheticals if they snuck in)
+                    clean_method = method.split()[0].strip()
+                    allowed_methods.append(clean_method)
+        return list(set(allowed_methods))
 
     @staticmethod
     def build_prompt(settings, personality_prompt, enabled_skills, workspace_info, current_datetime_str, client_location, agent_type="business", call_context=None):
@@ -74,43 +109,54 @@ class VoicePromptBuilder:
         is_personal = agent_type == "personal" or settings.get("agent_type") == "personal"
         base_template = PERSONAL_GATEKEEPER_INSTRUCTION if is_personal else BUSINESS_GATEKEEPER_INSTRUCTION
         
-        # 2. Build Tool List
+        # 2. Build Tool List (Dynamic)
         allowed_workers = settings.get("allowed_worker_types", [])
+        direct_tool_list = []
+        
         if enabled_skills:
-            allowed_workers = list(set(allowed_workers + [s.slug for s in enabled_skills]))
+            for skill in enabled_skills:
+                # Add to workers list
+                if skill.slug not in allowed_workers:
+                    allowed_workers.append(skill.slug)
+                # Add to direct tool usage list (Point 1 in prompt)
+                if skill.slug in VoicePromptBuilder.SKILL_TO_DIRECT_TOOLS:
+                    direct_tool_list.append(VoicePromptBuilder.SKILL_TO_DIRECT_TOOLS[skill.slug])
         
-        # Ensure standard communication workers are listed
-        for core_worker in ["sms-messaging", "email-worker"]:
-            if core_worker not in allowed_workers:
-                allowed_workers.append(core_worker)
-        
+        # Ensure standard essentials are included if not specified but needed
+        if is_personal:
+            # Personal agents usually have core tools enabled by default in prompt if not explicitly disabled
+            pass
+
         allowed_list_str = "\n".join([f"- {w}: {VoicePromptBuilder.WORKER_DESCRIPTIONS.get(w, w)}" for w in allowed_workers]) or "- None"
 
-        # 3. Format Template Safely (In Isolation)
+        # 3. Format Template Safely
         try:
             gatekeeper = base_template.format(
-                business_name=workspace_info.get("name", "The User" if is_personal else "The Business"),
-                services=workspace_info.get("services", "General Assistance" if is_personal else "Appointments, General Inquiries"),
-                role=workspace_info.get("role", "Personal Assistant" if is_personal else "AI Assistant"),
+                business_name=workspace_info.get("name", "Individual" if is_personal else "The Business"),
+                services=workspace_info.get("services", "General Utility" if is_personal else "Inquiries"),
+                role=workspace_info.get("role", "Assistant" if is_personal else "Support"),
                 allowed_worker_list=allowed_list_str
             )
         except Exception as e:
             logger.warning(f"Template formatting failed: {e}")
-            gatekeeper = base_template # Fallback to raw if formatting blows up
+            gatekeeper = base_template
 
-        # 4. Assemble Final Prompt
-        tool_usage = (
-            "\n\nTOOL USAGE & PERMISSIONS:\n"
-            "1. You have access to specialized tools. Use `get_weather`, `web_search`, `get_directions`, and `get_flight_status` directly when applicable.\n"
-            "2. Use `run_task_now` for all other specialized skills.\n"
-            "3. ALWAYS acknowledge the user BEFORE calling a tool."
-        )
+        # 4. Assemble Tool Usage (Dynamic based on selected capabilities)
+        tool_instr = "\n\n### 🛠️ TOOL USAGE & PERMISSIONS ###\n"
+        if direct_tool_list:
+            tool_instr += f"1. DIRECT TOOLS: You have immediate access to: {', '.join(list(set(direct_tool_list)))}. USE THEM whenever relevant.\n"
+        else:
+            tool_instr += "1. DIRECT TOOLS: No direct tools enabled. Rely on general conversation or workers.\n"
+            
+        tool_instr += "2. BACKGROUND WORKERS: Use `run_task_now` for specialized operations or background tasks.\n"
+        tool_instr += "3. MANDATORY: ALWAYS acknowledge the user BEFORE calling any tool.\n"
 
-        location_context = f"CURRENT ENVIRONMENT CONTEXT:\\n- User's Timezone: {settings.get('client_timezone', 'America/Toronto')}\\n- User's Estimated Location: {client_location}\\n" if client_location else ""
+        # 5. Build Environment Block
+        location_context = f"CURRENT ENVIRONMENT CONTEXT:\n- Reference Timezone: {settings.get('client_timezone', 'America/Toronto')} (Local Reference)\n- User Location: {client_location or 'Unknown'}\n"
         
         call_context_str = ""
         if call_context:
-            call_context_str = "\n\n### MISSION-CRITICAL CALL CONTEXT ###\n"
+            call_context_str = "\n### MISSION-CRITICAL CALL CONTEXT ###\n"
             call_context_str += f"REASON FOR CALL: {call_context.get('intent', 'General')}\n"
             if call_context.get('customer'):
                 cust = call_context.get('customer')
@@ -118,34 +164,25 @@ class VoicePromptBuilder:
             if call_context.get('appointment'):
                 appt = call_context.get('appointment')
                 call_context_str += f"APPOINTMENT: {appt.get('title')} on {appt.get('appointment_date')}\n"
-            if call_context.get('deal'):
-                deal = call_context.get('deal')
-                call_context_str += f"DEAL: {deal.get('title')} (Stage: {deal.get('stage')}, Value: {deal.get('value')})\n"
 
-        full_prompt = f"{VoicePromptBuilder.ACKNOWLEDGEMENT_RULES}\n{gatekeeper}\n\n"
-        full_prompt += f"CURRENT DATE AND TIME: {current_datetime_str}.\n\n"
-        full_prompt += f"{location_context}{call_context_str}\nRunning Mode: VOICE CONVERSATION.{tool_usage}\n\n"
+        # 6. Final Assemble
+        full_prompt = f"{VoicePromptBuilder.ACKNOWLEDGEMENT_RULES}\n\n{gatekeeper}\n\n"
+        full_prompt += f"YOUR REFERENCE TIME: {current_datetime_str}\n\n"
+        full_prompt += f"{location_context}{call_context_str}\n{tool_instr}\n"
         
-        # Add User Instructions (Personality & Template) - Concatenate rather than format!
-        full_prompt += "USER-SPECIFIED INSTRUCTIONS & PERSONA:\n"
+        full_prompt += "### USER-SPECIFIED PERSONA & RULES ###\n"
         if personality_prompt:
             full_prompt += f"{personality_prompt}\n\n"
-        
-        full_prompt += f"{settings.get('prompt_template', 'Follow the guidelines above.')}\n\n"
+        full_prompt += f"SOUL:\n{settings.get('soul', '')}\n\n"
+        full_prompt += f"INSTRUCTIONS:\n{settings.get('prompt_template', 'Follow behavioral guidelines.')}\n\n"
 
-        # 5. Add Enriched Skill Data
         if enabled_skills:
-            skill_info = "\n\nENRICHED SKILLS:\n"
+            skill_info = "### ENRICHED CAPABILITIES (SKILLS) ###\n"
             for skill in enabled_skills:
-                skill_info += f"### {skill.name} ({skill.slug})\n{skill.instructions}\n\n"
+                skill_info += f"#### {skill.name}\n{skill.instructions}\n\n"
             full_prompt += skill_info
 
-        # 6. Language requirements
-        lang = settings.get("language", "en")
-        lang_name = VoicePromptBuilder.LANGUAGE_NAMES.get(lang, lang)
-        if lang != "en":
-            full_prompt += f"\n\nCRITICAL LANGUAGE REQUIREMENT: Speak ONLY in {lang_name}."
-
-        full_prompt += f"\n\nIDENTITY INFO:\nRepresenting: {workspace_info.get('name')}\nPhone: {workspace_info.get('phone')}\n"
+        # Identity
+        full_prompt += f"\n---\nIDENTITY INFO:\n- Agent Name: {workspace_info.get('role', 'SupaAgent')}\n- Brand: {workspace_info.get('name')}\n- Reference Phone: {workspace_info.get('phone')}\n"
         
         return full_prompt

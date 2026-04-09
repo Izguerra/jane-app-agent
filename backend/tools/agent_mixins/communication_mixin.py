@@ -11,6 +11,7 @@ class CommunicationMixin:
             message: The message body to send.
         """
         if not phone_number or not message: return "Error: Missing info."
+        
         try:
             from backend.services.sms_service import send_sms
             success, error = send_sms(phone_number, message, self.workspace_id)
@@ -28,6 +29,7 @@ class CommunicationMixin:
             message: The body of the email (plain text).
         """
         if not email_address or not subject or not message: return "Error: Missing info."
+        
         try:
             from backend.services.email_service import EmailService
             service = EmailService()

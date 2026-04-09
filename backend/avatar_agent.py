@@ -3,6 +3,8 @@ import os
 import logging
 import asyncio
 import json
+from datetime import datetime
+import pytz
 from dotenv import load_dotenv
 from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions, cli, llm
@@ -129,16 +131,32 @@ async def entrypoint(ctx: JobContext):
         
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
         agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
-        all_tools = llm.find_function_tools(agent_tools)
+        raw_tools = llm.find_function_tools(agent_tools)
         
         # Inject MCP Tools (Granular Permission Check)
         mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools:
-            all_tools.extend(mcp_tools)
+            raw_tools.extend(mcp_tools)
+            
+        from backend.services.voice_prompt_builder import VoicePromptBuilder
+        allowed_tool_names = VoicePromptBuilder.get_allowed_tool_names(skills)
+        
+        all_tools = []
+        for tool in raw_tools:
+            tool_name = getattr(tool.info, "name", None) if hasattr(tool, "info") else getattr(tool, "name", None)
+            if tool_name and tool_name in allowed_tool_names:
+                all_tools.append(tool)
+            elif tool_name is None:
+                # Keep tools we can't inspect just in case (like edge MCP tools without generic info struct)
+                all_tools.append(tool)
         
         logger.info(f"Loaded {len(all_tools)} tools for avatar agent (Filtered by skills)")
         
-        # Prompt — include skills and personality (matching voice agent behavior)
+        # 3. Build Prompt with Local Workspace Reference Time
+        ref_tz_name = settings.get("client_timezone", "America/Toronto")
+        ref_tz = pytz.timezone(ref_tz_name)
+        ref_time_str = datetime.now(ref_tz).strftime("%A, %B %d, %Y at %I:%M %p")
+        
         db = SessionLocal()
         from backend.services.personality_service import PersonalityService
         from backend.services.voice_prompt_builder import VoicePromptBuilder
@@ -150,16 +168,15 @@ async def entrypoint(ctx: JobContext):
         
         # Extract agent type and telephony context for persona switching (matches voice_agent.py)
         agent_type = settings.get("agent_type", "business")
-        import json
         meta = json.loads(ctx.room.metadata) if ctx.room.metadata else {}
         call_context = meta.get("call_context")
         
-        logger.info(f"Building avatar prompt for Agent Type: {agent_type}, Call Context: {'Yes' if call_context else 'No'}")
+        logger.info(f"Building avatar prompt for Agent Type: {agent_type}, Ref Time ({ref_tz_name}): {ref_time_str}")
 
         full_prompt = VoicePromptBuilder.build_prompt(
             settings, personality_prompt, skills, 
             {"name": settings.get("name"), "phone": settings.get("phone"), "services": settings.get("services"), "role": settings.get("role")}, 
-            datetime.now().strftime("%A, %B %d, %Y at %I:%M %p"), 
+            ref_time_str,
             settings.get("client_location"),
             agent_type=agent_type,
             call_context=call_context

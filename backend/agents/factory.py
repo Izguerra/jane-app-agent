@@ -13,57 +13,36 @@ class AgentFactory:
     @staticmethod
     def create_agent(settings: dict, workspace_id: str, team_id: str, tools: list = [], current_customer=None, 
                      customer_history_context: str = None, enabled_skills: list = [], personality_prompt: str = None, 
-                     db: Optional[Session] = None) -> Agent:
+                     db: Optional[Session] = None, current_datetime: str = None) -> Agent:
         
-        current_datetime = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+        from backend.services.voice_prompt_builder import VoicePromptBuilder
+        
+        if not current_datetime:
+            import pytz
+            toronto_tz = pytz.timezone("America/Toronto")
+            current_datetime = datetime.now(toronto_tz).strftime("%A, %B %d, %Y at %I:%M %p")
+            
         p_business_name = settings.get("business_name", "The Business")
         p_services = settings.get("services", "General Inquiry")
         p_role = settings.get("name", "AI Assistant")
         agent_type = settings.get("agent_type", "business")
         
-        # Select Base Instruction
-        if agent_type == "personal":
-            gatekeeper_instruction = PERSONAL_ASSISTANT_INSTRUCTION.format(
-                owner_name=settings.get("owner_name", "User"),
-                location=settings.get("personal_location", "Not specified"),
-                timezone=settings.get("personal_timezone", "Not specified"),
-                favorite_foods=settings.get("favorite_foods", "Not specified"),
-                favorite_restaurants=settings.get("favorite_restaurants", "Not specified"),
-                favorite_music=settings.get("favorite_music", "Not specified"),
-                favorite_activities=settings.get("favorite_activities", "Not specified"),
-                other_interests=settings.get("other_interests", "Not specified"),
-                likes=settings.get("personal_likes", "Not specified"),
-                dislikes=settings.get("personal_dislikes", "Not specified"),
-                allowed_worker_list="- Full Access"
-            )
-        else:
-            gatekeeper_instruction = GATEKEEPER_INSTRUCTION.format(
-                business_name=p_business_name,
-                services=p_services,
-                role=p_role,
-                allowed_worker_list="\n".join([f"- {w}" for w in settings.get("allowed_worker_types", [])])
-            )
+        workspace_info = {
+            "name": p_business_name,
+            "phone": settings.get("phone", "N/A"),
+            "services": p_services,
+            "role": p_role
+        }
 
-        instructions = [
-            f"CURRENT DATE AND TIME: {current_datetime}.",
-            f"AGENT SOUL:\n{settings.get('soul', '')}" if settings.get('soul') else "",
-            personality_prompt if personality_prompt else "",
-            gatekeeper_instruction,
-            "Always be polite, professional, and empathetic.",
-        ]
-        
-        # Inject skill instructions into the prompt (matching voice/avatar behavior)
-        if enabled_skills:
-            skill_block = "\n\nENRICHED SKILLS & CAPABILITIES:\nYou have been equipped with the following specialized skills:\n\n"
-            for skill in enabled_skills:
-                skill_block += f"### {skill.name} ({skill.slug})\n{skill.instructions}\n\n"
-            instructions.append(skill_block)
-        
-        # Add tool usage reminder for chat mode
-        instructions.append(
-            "TOOL USAGE: You have access to specialized tools. USE THEM to answer factual questions "
-            "(weather, time, flights, directions). Do NOT guess — always use the appropriate tool. "
-            "For SMS, always include the country code (+1 for North America)."
+        # Use the Unified Prompt Builder (One Brain)
+        instructions = VoicePromptBuilder.build_prompt(
+            settings=settings,
+            personality_prompt=personality_prompt,
+            enabled_skills=enabled_skills,
+            workspace_info=workspace_info,
+            current_datetime_str=current_datetime,
+            client_location=settings.get("client_location"),
+            agent_type=agent_type
         )
         
         # Model Selection

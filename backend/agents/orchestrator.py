@@ -1,5 +1,8 @@
 from typing import Optional
 import logging
+from datetime import datetime
+import json
+import pytz
 from sqlalchemy.orm import Session
 from backend.agents.factory import AgentFactory
 
@@ -86,12 +89,14 @@ class AgentOrchestrator:
         # ── 6. Extract tools for Agno (Robust Extraction) ──
         from livekit.agents import llm
         import inspect
+        from backend.services.voice_prompt_builder import VoicePromptBuilder
         
         # Get all standard tools via LiveKit's discovery
         lk_tools = llm.find_function_tools(agent_tools)
         
         # Start with MCP tools (which are already lk.FunctionTool wrappers)
         all_lk_tools = lk_tools + mcp_tools
+        allowed_tool_names = VoicePromptBuilder.get_allowed_tool_names(skills)
         
         def create_agno_wrapper(func_name, agent_tools_instance, tool_obj):
             """
@@ -133,7 +138,7 @@ class AgentOrchestrator:
             
             # Use the robust wrapper for all tools to ensure consistent behavior
             # and clean Pydantic signatures for Agno.
-            if tool_name:
+            if tool_name and tool_name in allowed_tool_names:
                 wrapped_tool = create_agno_wrapper(tool_name, agent_tools, tool)
                 if wrapped_tool:
                     tools.append(wrapped_tool)
@@ -144,10 +149,18 @@ class AgentOrchestrator:
                     if actual_method:
                         tools.append(actual_method)
                         logger.debug(f"Added standalone tool fallback to Chatbot: {tool_name}")
-        # ── 7. Create agent with full context ──
+            elif tool_name:
+                logger.debug(f"Blocked tool from Chatbot (Not in active skills): {tool_name}")
+        # ── 7. Create agent with full context (including Local Workspace Reference Time) ──
+        ref_tz_name = settings.get("client_timezone", "America/Toronto")
+        ref_tz = pytz.timezone(ref_tz_name)
+        ref_time_str = datetime.now(ref_tz).strftime("%A, %B %d, %Y at %I:%M %p")
+        logger.info(f"Chatbot Ref Time ({ref_tz_name}): {ref_time_str}")
+
         agent = AgentFactory.create_agent(
             settings, workspace_id, team_id, tools=tools, db=db,
-            enabled_skills=skills, personality_prompt=personality_prompt
+            enabled_skills=skills, personality_prompt=personality_prompt,
+            current_datetime=ref_time_str
         )
         # Enable observability for tool calls in chat mode
         agent.show_tool_calls = True

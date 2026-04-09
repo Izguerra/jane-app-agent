@@ -22,14 +22,6 @@ class ExternalTools:
         """
         details = []
         if not self.weather_api_key:
-            self.weather_api_key = await IntegrationService.async_get_provider_key(
-                workspace_id=self.workspace_id, 
-                provider="openweathermap", 
-                env_fallback="OPENWEATHERMAP_API_KEY"
-            )
-
-        print(f"DEBUG: get_current_weather called for {location}, Date: {date}, Unit: {units}, Details: {details}. Key found: {bool(self.weather_api_key)}")
-        if not self.weather_api_key:
             return "Weather API key is not configured."
 
         # Convert simple units
@@ -110,7 +102,7 @@ class ExternalTools:
             self.aviation_api_key = await IntegrationService.async_get_provider_key(
                 workspace_id=self.workspace_id, 
                 provider="aviationstack", 
-                env_fallback="AVIATIONSTACK_API_KEY"
+                env_fallback="AVIATION_STACK_API_KEY"
             )
 
         print(f"DEBUG: get_flight_status called. F:{flight_number} O:{origin} D:{destination} T:{approx_time}. Key found: {bool(self.aviation_api_key)}")
@@ -196,6 +188,49 @@ class ExternalTools:
                     
         except Exception as e:
             return f"Error fetching flight status: {str(e)}"
+
+    @llm.function_tool(description="Get the current local date and time for a specific city or timezone. Use this for 100% accuracy when a user asks 'What time is it in [City]?'")
+    async def get_current_time(self, location: str):
+        """
+        Get exact current time for a location.
+        Args:
+            location: City name (e.g. 'London', 'Tokyo', 'Toronto') or Timezone (e.g. 'EST').
+        """
+        import pytz
+        from datetime import datetime
+        
+        # Simple mapping for common cities to ensure high-speed accuracy without web search
+        CITY_TZ_MAP = {
+            "toronto": "America/Toronto", "new york": "America/New_York", "nyc": "America/New_York",
+            "london": "Europe/London", "paris": "Europe/Paris", "berlin": "Europe/Berlin",
+            "tokyo": "Asia/Tokyo", "dubai": "Asia/Dubai", "sydney": "Australia/Sydney",
+            "los angeles": "America/Los_Angeles", "la": "America/Los_Angeles", "san francisco": "America/Los_Angeles",
+            "chicago": "America/Chicago", "miami": "America/New_York", "vancouver": "America/Vancouver",
+            "mexico city": "America/Mexico_City", "sao paulo": "America/Sao_Paulo", "cairo": "Africa/Cairo",
+            "johannesburg": "Africa/Johannesburg", "mumbai": "Asia/Kolkata", "delhi": "Asia/Kolkata",
+            "singapore": "Asia/Singapore", "hong kong": "Asia/Hong_Kong", "seoul": "Asia/Seoul"
+        }
+        
+        normalized_location = location.lower().strip()
+        tz_name = CITY_TZ_MAP.get(normalized_location)
+        
+        # If not in our common list, try to find it in pytz's full list (case-insensitive)
+        if not tz_name:
+            for tz in pytz.all_timezones:
+                if normalized_location in tz.lower():
+                    tz_name = tz
+                    break
+        
+        if not tz_name:
+            # Last fallback: Agent should use web_search if this fails
+            return f"I couldn't find a specific timezone for '{location}'. You might want to use web_search to find it."
+            
+        try:
+            tz = pytz.timezone(tz_name)
+            now = datetime.now(tz)
+            return f"The current time in {location} ({tz_name}) is {now.strftime('%A, %B %d, %Y at %I:%M %p')}."
+        except Exception as e:
+            return f"Error getting time for {location}: {str(e)}"
 
     @llm.function_tool(description="Get directions, distance, and travel time between two locations.")
     async def get_directions(self, origin: str, destination: str, mode: str = "driving"):

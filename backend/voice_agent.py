@@ -127,7 +127,11 @@ async def entrypoint(ctx: JobContext):
                 log_id = log_entry.id
         finally: db.close()
 
-        # 3. Build Prompt
+        # 3. Build Prompt with Local Workspace Reference Time
+        ref_tz_name = settings.get("client_timezone", "America/Toronto")
+        ref_tz = pytz.timezone(ref_tz_name)
+        ref_time_str = datetime.now(ref_tz).strftime("%A, %B %d, %Y at %I:%M %p")
+        
         db = SessionLocal()
         skills = SkillService().get_skills_for_agent(db, agent_id)
         logger.info(f"Fetched {len(skills)} skills for agent {agent_id}: {[s.slug for s in skills]}")
@@ -138,11 +142,11 @@ async def entrypoint(ctx: JobContext):
         # Extract agent type and telephony context for persona switching
         agent_type = settings.get("agent_type", "business")
         call_context = meta.get("call_context")
-        logger.info(f"Building prompt for Agent Type: {agent_type}, Call Context: {'Yes' if call_context else 'No'}")
+        logger.info(f"Building prompt for Agent Type: {agent_type}, Ref Time ({ref_tz_name}): {ref_time_str}")
 
         prompt = VoicePromptBuilder.build_prompt(
             settings, personality_prompt, skills, workspace_info, 
-            start_time.strftime("%A, %B %d, %Y at %I:%M %p"), settings.get("client_location"),
+            ref_time_str, settings.get("client_location"),
             agent_type=agent_type,
             call_context=call_context
         )
@@ -169,13 +173,23 @@ async def entrypoint(ctx: JobContext):
         from backend.tools.worker_tools import WorkerTools
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
         agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
-        all_tools = llm.find_function_tools(agent_tools)
+        raw_tools = llm.find_function_tools(agent_tools)
 
         # Inject MCP Tools (Granular Permission Check)
         enabled_slugs = [s.slug for s in skills]
         mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
         if mcp_tools:
-            all_tools.extend(mcp_tools)
+            raw_tools.extend(mcp_tools)
+            
+        allowed_tool_names = VoicePromptBuilder.get_allowed_tool_names(skills)
+        
+        all_tools = []
+        for tool in raw_tools:
+            tool_name = getattr(tool.info, "name", None) if hasattr(tool, "info") else getattr(tool, "name", None)
+            if tool_name and tool_name in allowed_tool_names:
+                all_tools.append(tool)
+            elif tool_name is None:
+                all_tools.append(tool)
         
         logger.info(f"Loading {len(all_tools)} tools for Voice Agent (Filtered by skills)")
         
