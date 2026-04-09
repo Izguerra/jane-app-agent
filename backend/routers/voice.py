@@ -95,7 +95,7 @@ async def _generate_token(
     
     # Determine Agent Dispatch Target based on Mode
     # Bypass broken main_agent.py and route natively to the specific workers
-    target_agent_name = "supaagent-avatar-v2.1" if mode == "avatar" else "supaagent-voice-v2.1"
+    target_agent_name = "supaagent-avatar-agent-v2" if mode == "avatar" else "supaagent-voice-agent-v2"
     
     print(f"DEBUG: [VOICE_TOKEN] Mode: {mode}, Target Agent: {target_agent_name}, Room: {room_name}")
     
@@ -123,6 +123,19 @@ async def _generate_token(
         settings.update(agent_config)
         print(f"DEBUG: Overriding token settings with provided agent_config (keys: {list(agent_config.keys())})")
 
+    # 2.5 Normalize camelCase keys from frontend to snake_case
+    _camel_to_snake = {
+        "avatarVoiceId": "avatar_voice_id",
+        "avatarProvider": "avatar_provider",
+        "anamPersonaId": "anam_persona_id",
+        "tavusReplicaId": "tavus_replica_id",
+        "tavusPersonaId": "tavus_persona_id",
+        "useTavusAvatar": "use_tavus_avatar",
+    }
+    for camel, snake in _camel_to_snake.items():
+        if camel in settings and snake not in settings:
+            settings[snake] = settings[camel]
+
     # 3. Handle explicit Tavus ID overrides (top-level)
     if tavus_replica_id:
         settings["tavus_replica_id"] = tavus_replica_id
@@ -130,9 +143,10 @@ async def _generate_token(
         settings["tavus_persona_id"] = tavus_persona_id
 
     # 4. Handle separate voice for AI Avatar mode
-    if mode == "avatar" and settings.get("avatar_voice_id"):
-        print(f"DEBUG: Overriding voice_id with avatar_voice_id: {settings['avatar_voice_id']}")
-        settings["voice_id"] = settings["avatar_voice_id"]
+    if mode == "avatar" and (settings.get("avatar_voice_id") or settings.get("avatarVoiceId")):
+        avatar_voice = settings.get("avatar_voice_id") or settings.get("avatarVoiceId")
+        print(f"DEBUG: Overriding voice_id with avatar_voice_id: {avatar_voice}")
+        settings["voice_id"] = avatar_voice
 
     # Auto-translate welcome message
     if settings.get("welcome_message") and settings.get("language"):

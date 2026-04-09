@@ -6,26 +6,13 @@ import json
 from dotenv import load_dotenv
 from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, WorkerOptions, cli, llm
-from livekit import rtc
 from livekit.plugins import deepgram
 
 # Explicit .env path for LiveKit subprocess safety (multiprocessing.spawn on macOS)
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(dotenv_path=os.path.join(_project_root, ".env"))
 
-# --- DNS BYPASS FIX ---
-import socket
-_orig_getaddrinfo = socket.getaddrinfo
-def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-    if host == "jane-clinic-app-tupihomh.livekit.cloud":
-        # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
-        # Returned as list of tuples (family, type, proto, canonname, sockaddr)
-        return [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.178.157', port)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.179.230', port))
-        ]
-    return _orig_getaddrinfo(host, port, family, type, proto, flags)
-socket.getaddrinfo = _patched_getaddrinfo
+# DNS bypass removed for stability - relying on system DNS.
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -42,6 +29,7 @@ from backend.database import SessionLocal
 from backend.agent_tools import AgentTools
 from backend.services.mcp_loader_service import MCPLoaderService
 from backend.services.skill_service import SkillService
+from backend.models_db import Agent as AgentModel, Workspace
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("avatar-agent")
@@ -51,18 +39,15 @@ def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
 async def entrypoint(ctx: JobContext):
-    # Setup process manager signals if it exists in global scope
-    if 'pm' in globals():
-        globals()['pm'].setup_signals(asyncio.get_event_loop())
-
     try:
         logger.info(f"Avatar Agent Entrypoint: Room {ctx.room.name}")
         
         if ctx.room.connection_state != ConnectionState.CONN_CONNECTED:
             await ctx.connect(auto_subscribe=AutoSubscribe.SUBSCRIBE_ALL)
         
-        await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "initializing"})
         participant = await ctx.wait_for_participant()
+        logger.info(f"Connecting avatar to human participant: {participant.identity}")
         
         # Resolve Settings & Agent Identity
         room_meta = json.loads(ctx.room.metadata) if ctx.room.metadata else {}
@@ -84,7 +69,10 @@ async def entrypoint(ctx: JobContext):
                 if agent_rec.settings: 
                     # Merge agent settings into current settings
                     settings.update(agent_rec.settings)
-                # Inject allowed_worker_types directly from the model into settings
+                # Inject top-level columns directly into settings
+                settings["voice_id"] = agent_rec.voice_id
+                settings["language"] = agent_rec.language
+                settings["soul"] = agent_rec.soul
                 settings["allowed_worker_types"] = agent_rec.allowed_worker_types
         finally:
             db.close()
@@ -93,10 +81,15 @@ async def entrypoint(ctx: JobContext):
         log_id = start_communication_log(workspace_id, agent_id, settings, participant.identity)
         transcript = []
 
-        # Pipeline Components — pass workspace_id for DB key retrieval
-        stt = deepgram.STT(model="nova-2")
-        llm_instance = get_llm(workspace_id=workspace_id)
-        tts_instance = get_tts(settings.get("voice_id", "Josh"), workspace_id=workspace_id)
+        # Pipeline Components — centralized via VoicePipelineService for key resolution consistency
+        from backend.services.voice_pipeline_service import VoicePipelineService
+        
+        stt = VoicePipelineService.get_stt(workspace_id)
+        llm_instance = VoicePipelineService.get_llm(workspace_id, settings)
+        
+        # Determine voice_id priority: avatar_voice_id -> avatarVoiceId (camelCase) -> voice_id -> default
+        active_voice_id = settings.get("avatar_voice_id") or settings.get("avatarVoiceId") or settings.get("voice_id") or "Josh"
+        tts_instance = VoicePipelineService.get_tts(workspace_id, active_voice_id, settings)
         vad = ctx.proc.userdata["vad"]
         
         logger.info(f"Avatar pipeline: LLM={type(llm_instance).__name__}, TTS={type(tts_instance).__name__}")
@@ -120,8 +113,18 @@ async def entrypoint(ctx: JobContext):
         
         logger.info(f"Loaded {len(all_tools)} tools for avatar agent (Filtered by skills)")
         
-        # Prompt
-        full_prompt = get_avatar_prompt(settings)
+        # Prompt — include skills and personality (matching voice agent behavior)
+        personality_prompt = None
+        try:
+            from backend.services.personality_service import PersonalityService
+            db = SessionLocal()
+            personality = PersonalityService().get_personality(db, agent_id)
+            personality_prompt = PersonalityService().generate_personality_prompt(personality)
+            db.close()
+        except Exception as e:
+            logger.warning(f"Personality load failed (non-fatal): {e}")
+        
+        full_prompt = get_avatar_prompt(settings, enabled_skills=skills, personality_prompt=personality_prompt)
         
         # Inject cross-channel context memory (Layer 2)
         try:
@@ -138,7 +141,10 @@ async def entrypoint(ctx: JobContext):
             logger.warning(f"Context injection failed (non-fatal): {e}")
         
         from livekit.agents.voice import AgentSession, Agent as livekit_Agent
-        session = AgentSession(vad=vad, stt=stt, llm=llm_instance, tts=tts_instance, tools=all_tools)
+        session = AgentSession(
+            vad=vad, stt=stt, llm=llm_instance, tts=tts_instance, 
+            tools=all_tools
+        )
         # Inject session back into agent_tools for filler logic
         agent_tools.session = session
 
@@ -147,21 +153,22 @@ async def entrypoint(ctx: JobContext):
         # Register voice event handlers (matches voice_agent.py for consistent state tracking)
         VoiceHandlers.register_session_events(session, ctx)
         
-        # 3. Start Agent Session first so tracks are published
-        logger.info("Starting AgentSession pipeline...")
-        await session.start(agent_logic, room=ctx.room)
+        # === CRITICAL: Per LiveKit docs, avatar.start() MUST be called BEFORE session.start() ===
+        # https://docs.livekit.io/agents/models/avatar/
+        # Step 3: Start the avatar session, passing in the AgentSession instance
+        # Step 4: Start the AgentSession
         
-        # Verify tracks for diagnostic purposes
-        for lp in ctx.room.local_participant.track_publications.values():
-            logger.info(f"Local track published: {lp.track.kind if lp.track else 'unknown'} (sid={lp.sid})")
-
-        # 4. Initialize Avatar (hooks into existing published tracks)
-        resolved_provider = settings.get("avatar_provider", "tavus")
+        # 3. Initialize Avatar FIRST (before session.start per LiveKit docs)
+        resolved_provider = settings.get("avatar_provider") or ("anam" if settings.get("anam_persona_id") or settings.get("anamPersonaId") else "tavus")
         logger.info(f"Avatar provider resolved: '{resolved_provider}', anam_persona_id={settings.get('anam_persona_id')}, tavus_replica_id={settings.get('tavus_replica_id')}")
         avatar = await initialize_avatar(resolved_provider, settings, session, ctx.room, ctx)
         
-        # 5. Brief delay for audio pipeline stabilization and Anam sync
-        await asyncio.sleep(1.2)
+        # 4. Start AgentSession AFTER avatar is initialized
+        logger.info("Starting Avatar AgentSession pipeline...")
+        await session.start(agent_logic, room=ctx.room)
+        
+        # 5. Brief delay for audio pipeline stabilization then greet
+        await asyncio.sleep(0.8)
         session.say(settings.get("welcome_message", "Hello!"), allow_interruptions=False)
         logger.info("Avatar agent fully started and greeted")
 
@@ -180,7 +187,6 @@ async def entrypoint(ctx: JobContext):
 
         await shutdown_event.wait()
         
-        from backend.services.mcp_loader_service import MCPLoaderService
         await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
         await finalize_communication_log(log_id, transcript, avatar)
         
@@ -198,7 +204,13 @@ if __name__ == "__main__":
     pm.write_lock()
     
     try:
-        cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-avatar-v2.1")))
+        # Prioritize LIVEKIT_AGENT_NAME then AGENT_NAME, default to the production-ready name
+        agent_name = os.getenv("LIVEKIT_AGENT_NAME", os.getenv("AGENT_NAME", "supaagent-avatar-agent-v2"))
+        
+        cli.run_app(WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            prewarm_fnc=prewarm,
+            agent_name=agent_name
+        ))
     finally:
         pm.cleanup()
-

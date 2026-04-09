@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
 import { getUser, getTeamForUser } from '@/lib/db/queries';
-import { SWRConfig } from 'swr';
+import { SWRProvider } from '@/components/providers/swr-provider';
 import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
@@ -56,17 +56,10 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-[100dvh] bg-gray-50" suppressHydrationWarning>
-        <SWRConfig
-          value={{
-            fallback: {
-              '/api/user': user,
-              '/api/team': team
-            }
-          }}
-        >
+        <SWRProvider user={user} team={team}>
           {children}
           <Toaster />
-        </SWRConfig>
+        </SWRProvider>
       </body>
     </html>
   );

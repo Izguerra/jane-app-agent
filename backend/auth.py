@@ -32,6 +32,14 @@ class AuthUser:
         self.role = role
         self.name = name
 
+    @property
+    def full_name(self) -> str:
+        return self.name or self.email or "Unknown User"
+
+    @full_name.setter
+    def full_name(self, value):
+        self.name = value
+
 from backend.database import get_db
 from sqlalchemy.orm import Session
 

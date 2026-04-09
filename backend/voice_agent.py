@@ -9,19 +9,7 @@ from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
 import livekit.plugins.silero as silero
 
-# DNS BYPASS FIX
-import socket
-_orig_getaddrinfo = socket.getaddrinfo
-def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-    if host == "jane-clinic-app-tupihomh.livekit.cloud":
-        # Hardcode successful resolution for known LiveKit IPs to bypass Mac DNS issues
-        # Returned as list of tuples (family, type, proto, canonname, sockaddr)
-        return [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.178.157', port)),
-            (socket.AF_INET, socket.SOCK_STREAM, 6, '', ('161.115.179.230', port))
-        ]
-    return _orig_getaddrinfo(host, port, family, type, proto, flags)
-socket.getaddrinfo = _patched_getaddrinfo
+# DNS bypass removed for stability - relying on system DNS.
 
 # Path Setup — explicit paths for LiveKit subprocess safety (multiprocessing.spawn)
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,10 +42,6 @@ def prewarm(proc: JobProcess):
     proc.userdata["vad"] = get_vad_model()
 
 async def entrypoint(ctx: JobContext):
-    # Setup process manager signals if it exists in the global scope
-    if 'pm' in globals():
-        globals()['pm'].setup_signals(asyncio.get_event_loop())
-        
     try:
         logger.info(f"Entrypoint started for room {ctx.room.name}")
         start_time = datetime.now(timezone.utc)
@@ -65,8 +49,9 @@ async def entrypoint(ctx: JobContext):
         if ctx.room.connection_state != ConnectionState.CONN_CONNECTED:
             await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
+        await ctx.room.local_participant.set_attributes({"lk.agent.state": "initializing"})
         participant = await ctx.wait_for_participant()
-        await ctx.room.local_participant.set_attributes({"agent": "true", "lk.agent.state": "initializing"})
+        logger.info(f"Connecting to human participant: {participant.identity}")
 
         # 1. Resolve Context
         workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
@@ -89,7 +74,10 @@ async def entrypoint(ctx: JobContext):
             if agent_rec:
                 agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)
-                # Inject allowed_worker_types directly from the model into settings
+                # Inject top-level columns directly into settings for the pipeline
+                settings["voice_id"] = agent_rec.voice_id
+                settings["language"] = agent_rec.language
+                settings["soul"] = agent_rec.soul
                 settings["allowed_worker_types"] = agent_rec.allowed_worker_types
                 # Query Workspace directly — Agent model has no 'workspace' relationship
                 ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
@@ -150,27 +138,22 @@ async def entrypoint(ctx: JobContext):
         
         logger.info(f"Loading {len(all_tools)} tools for Voice Agent (Filtered by skills)")
         
-        logger.info("Initializing AgentSession pipeline")
-        agent = await VoicePipelineService.get_multimodal_agent(workspace_id, voice_id, prompt, all_tools)
-        if agent:
-            logger.info("Starting Multimodal Agent")
-            await agent.start(ctx.room, participant)
-        else:
-            logger.info("Starting Standard AgentSession")
-            from livekit.agents.voice import AgentSession, Agent as VoiceAgent
-            session = AgentSession(
-                vad=get_vad_model(), stt=VoicePipelineService.get_stt(workspace_id),
-                llm=VoicePipelineService.get_llm(workspace_id, settings),
-                tts=VoicePipelineService.get_tts(workspace_id, voice_id, settings),
-                tools=all_tools
-            )
-            # Inject session back into agent_tools for filler logic
-            agent_tools.session = session
-            
-            VoiceHandlers.register_session_events(session, ctx)
-            await session.start(VoiceAgent(instructions=prompt), room=ctx.room)
-            await asyncio.sleep(0.8)
-            session.say(settings.get("welcome_message", "Hello! How can I help you?"))
+        logger.info("Initializing Stable AgentSession")
+        from livekit.agents.voice import AgentSession, Agent as VoiceAgent
+        session = AgentSession(
+            vad=get_vad_model(),
+            stt=VoicePipelineService.get_stt(workspace_id),
+            llm=VoicePipelineService.get_llm(workspace_id, settings),
+            tts=VoicePipelineService.get_tts(workspace_id, voice_id, settings),
+            tools=all_tools
+        )
+        # Inject session back into agent_tools for filler logic
+        agent_tools.session = session
+        
+        VoiceHandlers.register_session_events(session, ctx)
+        await session.start(VoiceAgent(instructions=prompt), room=ctx.room)
+        await asyncio.sleep(0.5)
+        session.say(settings.get("welcome_message", "Hello! How can I help you?"))
 
         # 5. Wait & Cleanup
         shutdown_event = asyncio.Event()
@@ -194,6 +177,13 @@ if __name__ == "__main__":
     pm.write_lock()
     
     try:
-        cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=os.getenv("AGENT_NAME", "supaagent-voice-v2.1")))
+        # Prioritize LIVEKIT_AGENT_NAME then AGENT_NAME, default to the production-ready name
+        agent_name = os.getenv("LIVEKIT_AGENT_NAME", os.getenv("AGENT_NAME", "supaagent-voice-agent-v2"))
+        
+        cli.run_app(WorkerOptions(
+            entrypoint_fnc=entrypoint, 
+            prewarm_fnc=prewarm,
+            agent_name=agent_name
+        ))
     finally:
         pm.cleanup()

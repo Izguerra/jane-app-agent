@@ -94,13 +94,7 @@ export default function DashboardLayout({ children, params: paramsPromise }: Lay
 
 
     return (
-        <>
-            <style jsx global>{`
-          body > section > header {
-              display: none;
-          }
-      `}</style>
-            <div className="flex flex-col min-h-screen bg-gray-50">
+        <div className="flex flex-col min-h-screen bg-gray-50">
                 {/* Mobile header */}
                 <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
                     <div className="flex items-center">
@@ -163,18 +157,19 @@ export default function DashboardLayout({ children, params: paramsPromise }: Lay
 
                     {/* Main content area wrapper */}
                     <div className="flex-1 flex flex-col overflow-hidden">
-                        {/* New Desktop Header */}
-                        <header className="h-[89px] bg-white border-b px-8 py-4 hidden lg:flex items-center justify-between">
-                            <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
-                        </header>
+                        {/* New Desktop Header - Hidden on Wizard pages to avoid duplication */}
+                        {!pathname?.includes('/agent/') && (
+                            <header className="h-[89px] bg-white border-b px-8 py-4 hidden lg:flex items-center justify-between">
+                                <h1 className="text-2xl font-bold text-gray-900">{getPageTitle()}</h1>
+                            </header>
+                        )}
 
                         {/* Main content */}
                         <main className="flex-1 overflow-y-auto p-4 lg:p-8 bg-gray-50">
                             {children}
                         </main>
                     </div>
-                </div>
             </div>
-        </>
+        </div>
     );
 }

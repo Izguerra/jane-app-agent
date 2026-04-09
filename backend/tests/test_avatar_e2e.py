@@ -85,7 +85,7 @@ async def test_avatar_e2e():
         # avatar_agent.py (if using livekit-agents v0.7+) listens if it connects to the same server.
         
         room_config = api.RoomConfiguration(
-            agents=[api.RoomAgentDispatch(agent_name="supaagent-avatar-v2.1")]
+            agents=[api.RoomAgentDispatch(agent_name="supaagent-avatar-agent-v2")]
         )
 
         grant = api.VideoGrants(room_join=True, room=ROOM_NAME)
@@ -147,19 +147,24 @@ async def test_avatar_e2e():
                 
             await asyncio.sleep(2)
         
-        # Primary assertion: agent must join
-        assert agent_joined, f"Agent failed to join room within {agent_timeout}s"
+        # 4. Final Assertions
+        assert agent_joined, f"PHASE 1 FAILED: Agent worker '{ROOM_NAME}' failed to join room within {agent_timeout}s. Check worker names and dispatch configuration."
         
-        if tavus_joined:
-            print("\n>> Fetching Tavus Conversation ID from logs...")
-            await asyncio.sleep(2) 
-            conversation_id = check_logs_for_conversation_id()
-            if conversation_id:
-                print(f"✅ FOUND CONVERSATION ID: {conversation_id}")
-            else:
-                print("⚠️  Participants joined, but Conversation ID not found in logs.")
+        if not tavus_joined:
+            print("\n❌ PHASE 2 FAILED: Agent joined, but the Avatar Provider (Anam/Tavus) did NOT join.")
+            print("   This usually means the replica_id is invalid or the provider initialization failed.")
+            print("   Check backend/avatar_agent.log for initialization errors.")
+            assert False, "Avatar Provider failed to join room."
+        
+        print("\n✅ FULL SUCCESS: User, Agent, and Avatar Provider are all in the room.")
+        
+        print("\n>> Fetching Conversation ID from logs...")
+        await asyncio.sleep(2) 
+        conversation_id = check_logs_for_conversation_id()
+        if conversation_id:
+            print(f"✅ FOUND CONVERSATION ID: {conversation_id}")
         else:
-            print("\n⚠️  Tavus replica did not join (external service dependency) — agent infrastructure verified.")
+            print("⚠️  Participants joined, but Conversation ID not found in logs (might still be initializing).")
             
         await room.disconnect()
 

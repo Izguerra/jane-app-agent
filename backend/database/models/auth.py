@@ -15,6 +15,12 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
+    @property
+    def full_name(self) -> str:
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        return self.name or self.first_name or self.email or "Unknown User"
+
 class Team(Base):
     __tablename__ = "teams"
     id = Column(String(50), primary_key=True, index=True)

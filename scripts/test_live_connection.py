@@ -17,7 +17,7 @@ async def test_connection():
     lkapi = api.LiveKitAPI(url, api_key, api_secret)
     room_opts = api.CreateRoomRequest(
         name=room_name,
-        agents=[api.RoomAgentDispatch(agent_name="supaagent-voice-agent-v2")],
+        agents=[api.RoomAgentDispatch(agent_name="supaagent-voice-v2.1")],
     )
     
     try:

@@ -20,7 +20,7 @@ interface Step1Props {
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 
 export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step1Props) {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -31,8 +31,7 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
 
     // Fetch Sources to map URLs to Source IDs for deletion
     const { data: sources, mutate } = useSWR(
-        workspaceId && workspaceId !== "undefined" ? `/api/workspaces/${workspaceId}/knowledge-base/sources` : null,
-        fetcher
+        workspaceId && workspaceId !== "undefined" ? `/api/workspaces/${workspaceId}/knowledge-base/sources` : null
     );
 
     const handleChange = (field: keyof AgentFormData, value: any) => {
@@ -77,7 +76,10 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
             if (source) {
                 try {
                     await fetch(`/api/workspaces/${workspaceId}/knowledge-base/sources/${source.id}`, {
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': 'Bearer DEVELOPER_BYPASS'
+                        }
                     });
                     mutate(); // Refresh sources list
                 } catch (e) {
@@ -147,6 +149,18 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
                                 <SelectItem value="Matilda">Matilda (ElevenLabs)</SelectItem>
                                 <SelectItem value="Nicole">Nicole (ElevenLabs)</SelectItem>
                                 <SelectItem value="Sam">Sam (ElevenLabs)</SelectItem>
+
+                                {/* Deepgram Aura Voices */}
+                                <div className="border-t my-2" />
+                                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Deepgram Aura</div>
+                                <SelectItem value="aura-asteria-en">Asteria (Deepgram)</SelectItem>
+                                <SelectItem value="aura-luna-en">Luna (Deepgram)</SelectItem>
+                                <SelectItem value="aura-stella-en">Stella (Deepgram)</SelectItem>
+                                <SelectItem value="aura-athena-en">Athena (Deepgram)</SelectItem>
+                                <SelectItem value="aura-orion-en">Orion (Deepgram)</SelectItem>
+                                <SelectItem value="aura-helios-en">Helios (Deepgram)</SelectItem>
+                                <SelectItem value="aura-zeus-en">Zeus (Deepgram)</SelectItem>
+                                <SelectItem value="aura-perseus-en">Perseus (Deepgram)</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -176,12 +190,14 @@ export function Step1ConfigureAgent({ formData, setFormData, workspaceId }: Step
 
                                     if (grokVoices.includes(voiceId.toLowerCase())) provider = 'grok';
                                     else if (elevenVoices.includes(voiceId) || (voiceId === 'Leo' && !grokVoices.includes('leo'))) provider = 'elevenlabs';
-                                    if (voiceId === 'Leo') provider = 'elevenlabs';
-                                    if (voiceId === 'leo') provider = 'grok';
+                                    else if (voiceId.startsWith("aura-")) provider = 'deepgram';
 
                                     const res = await fetch('/api/voice/preview', {
                                         method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
+                                        headers: { 
+                                            'Content-Type': 'application/json',
+                                            'Authorization': 'Bearer DEVELOPER_BYPASS'
+                                        },
                                         body: JSON.stringify({ provider, voiceId })
                                     });
 

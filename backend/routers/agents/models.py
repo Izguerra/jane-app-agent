@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, AliasChoices
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -16,7 +16,7 @@ class AgentCreate(BaseModel):
     language: Optional[str] = "en"
     prompt_template: Optional[str] = "You are a helpful assistant."
     welcome_message: Optional[str] = None
-    is_orchestrator: bool = False
+    is_orchestrator: Optional[bool] = False
     description: Optional[str] = None
     phone_number_id: Optional[str] = None
     allowed_worker_types: Optional[List[str]] = None
@@ -58,22 +58,14 @@ class AgentCreate(BaseModel):
     whitelisted_domains: Optional[str] = None
     is_active: Optional[bool] = True
     
-    # Humanoid / Video Persona Settings
-    anam_persona_id: Optional[str] = None
-    anamPersonaId: Optional[str] = None
-    tavus_replica_id: Optional[str] = None
-    tavusReplicaId: Optional[str] = None
-    tavus_persona_id: Optional[str] = None
-    tavusPersonaId: Optional[str] = None
-    avatar_provider: Optional[str] = None
-    avatarProvider: Optional[str] = None
-    avatar_voice_id: Optional[str] = None
-    avatarVoiceId: Optional[str] = None
-    use_tavus_avatar: bool = False
-    useTavusAvatar: bool = False
+    # Humanoid / Video Persona Settings (Consolidated with Aliases)
+    anam_persona_id: Optional[str] = Field(None, validation_alias=AliasChoices("anam_persona_id", "anamPersonaId"))
+    tavus_replica_id: Optional[str] = Field(None, validation_alias=AliasChoices("tavus_replica_id", "tavusReplicaId"))
+    avatar_provider: Optional[str] = Field(None, validation_alias=AliasChoices("avatar_provider", "avatarProvider"))
+    avatar_voice_id: Optional[str] = Field(None, validation_alias=AliasChoices("avatar_voice_id", "avatarVoiceId"))
+    use_tavus_avatar: Optional[bool] = Field(False, validation_alias=AliasChoices("use_tavus_avatar", "useTavusAvatar"))
+    open_claw_instance_id: Optional[str] = Field(None, validation_alias=AliasChoices("open_claw_instance_id", "openClawInstanceId"))
 
-    openClawInstanceId: Optional[str] = None
-    open_claw_instance_id: Optional[str] = None
     agent_type: Optional[str] = None
     personal_preferences: Optional[str] = None
     user_email: Optional[str] = None
@@ -81,16 +73,16 @@ class AgentCreate(BaseModel):
     max_depth: Optional[int] = None
 
     # Personal Agent Profile Fields
-    owner_name: Optional[str] = None
-    personal_location: Optional[str] = None
-    personal_timezone: Optional[str] = None
-    favorite_foods: Optional[str] = None
-    favorite_restaurants: Optional[str] = None
-    favorite_music: Optional[str] = None
-    favorite_activities: Optional[str] = None
-    other_interests: Optional[str] = None
-    personal_likes: Optional[str] = None
-    personal_dislikes: Optional[str] = None
+    owner_name: Optional[str] = Field(None, validation_alias=AliasChoices("owner_name", "ownerName"))
+    personal_location: Optional[str] = Field(None, validation_alias=AliasChoices("personal_location", "personalLocation"))
+    personal_timezone: Optional[str] = Field(None, validation_alias=AliasChoices("personal_timezone", "personalTimezone"))
+    favorite_foods: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_foods", "favoriteFoods"))
+    favorite_restaurants: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_restaurants", "favoriteRestaurants"))
+    favorite_music: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_music", "favoriteMusic"))
+    favorite_activities: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_activities", "favoriteActivities"))
+    other_interests: Optional[str] = Field(None, validation_alias=AliasChoices("other_interests", "otherInterests"))
+    personal_likes: Optional[str] = Field(None, validation_alias=AliasChoices("personal_likes", "personalLikes"))
+    personal_dislikes: Optional[str] = Field(None, validation_alias=AliasChoices("personal_dislikes", "personalDislikes"))
     soul: Optional[str] = None
 
 class AgentUpdate(BaseModel):
@@ -134,33 +126,30 @@ class AgentUpdate(BaseModel):
     widget_position: Optional[str] = None
     remove_branding: Optional[bool] = None
     whitelisted_domains: Optional[str] = None
-    tavus_replica_id: Optional[str] = None
-    tavusReplicaId: Optional[str] = None
-    anam_persona_id: Optional[str] = None
-    anamPersonaId: Optional[str] = None
-    avatar_provider: Optional[str] = None
-    avatarProvider: Optional[str] = None
-    avatar_voice_id: Optional[str] = None
-    avatarVoiceId: Optional[str] = None
-    use_tavus_avatar: Optional[bool] = None
-    useTavusAvatar: Optional[bool] = None
-    openClawInstanceId: Optional[str] = None
-    open_claw_instance_id: Optional[str] = None
+    
+    # Consolidated Avatar Fields with Aliases
+    tavus_replica_id: Optional[str] = Field(None, validation_alias=AliasChoices("tavus_replica_id", "tavusReplicaId"))
+    anam_persona_id: Optional[str] = Field(None, validation_alias=AliasChoices("anam_persona_id", "anamPersonaId"))
+    avatar_provider: Optional[str] = Field(None, validation_alias=AliasChoices("avatar_provider", "avatarProvider"))
+    avatar_voice_id: Optional[str] = Field(None, validation_alias=AliasChoices("avatar_voice_id", "avatarVoiceId"))
+    use_tavus_avatar: Optional[bool] = Field(None, validation_alias=AliasChoices("use_tavus_avatar", "useTavusAvatar"))
+    open_claw_instance_id: Optional[str] = Field(None, validation_alias=AliasChoices("open_claw_instance_id", "openClawInstanceId"))
+    
     agent_type: Optional[str] = None
     personal_preferences: Optional[str] = None
     user_email: Optional[str] = None
     user_phone: Optional[str] = None
 
-    owner_name: Optional[str] = None
-    personal_location: Optional[str] = None
-    personal_timezone: Optional[str] = None
-    favorite_foods: Optional[str] = None
-    favorite_restaurants: Optional[str] = None
-    favorite_music: Optional[str] = None
-    favorite_activities: Optional[str] = None
-    other_interests: Optional[str] = None
-    personal_likes: Optional[str] = None
-    personal_dislikes: Optional[str] = None
+    owner_name: Optional[str] = Field(None, validation_alias=AliasChoices("owner_name", "ownerName"))
+    personal_location: Optional[str] = Field(None, validation_alias=AliasChoices("personal_location", "personalLocation"))
+    personal_timezone: Optional[str] = Field(None, validation_alias=AliasChoices("personal_timezone", "personalTimezone"))
+    favorite_foods: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_foods", "favoriteFoods"))
+    favorite_restaurants: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_restaurants", "favoriteRestaurants"))
+    favorite_music: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_music", "favoriteMusic"))
+    favorite_activities: Optional[str] = Field(None, validation_alias=AliasChoices("favorite_activities", "favoriteActivities"))
+    other_interests: Optional[str] = Field(None, validation_alias=AliasChoices("other_interests", "otherInterests"))
+    personal_likes: Optional[str] = Field(None, validation_alias=AliasChoices("personal_likes", "personalLikes"))
+    personal_dislikes: Optional[str] = Field(None, validation_alias=AliasChoices("personal_dislikes", "personalDislikes"))
     soul: Optional[str] = None
 
 class AgentResponse(AgentCreate):
