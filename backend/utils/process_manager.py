@@ -25,6 +25,11 @@ class ProcessManager:
                 
                 # Check if process actually exists
                 os.kill(pid, 0)
+                
+                # If the PID in the file matches our PID, it's not a collision
+                if pid == os.getpid():
+                    return
+
                 logger.error(f"Process '{self.name}' is already running (PID {pid})")
                 sys.exit(1)
             except (OSError, ValueError):

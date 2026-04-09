@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from backend.prompts.general import GATEKEEPER_INSTRUCTION
+from backend.prompts.general import BUSINESS_GATEKEEPER_INSTRUCTION, PERSONAL_GATEKEEPER_INSTRUCTION
 
 logger = logging.getLogger("voice-prompt-builder")
 
@@ -27,13 +27,25 @@ class VoicePromptBuilder:
         "faq-resolution": "Answer Customer FAQs",
         "content-writer": "Generate Content (Optional: topic, content_type)",
         "job-search": "Find Jobs (REQUIRES: 'job_title', 'level', 'job_type', 'location_type')",
-        "email-worker": "Manage Email (Send REQUIRES: 'recipient', 'subject', 'body'. Optional: 'cc', 'bcc', 'schedule_time')",
-        "flight-tracker": "Check Flight Status/Schedule (REQUIRES: 'flight_number' OR 'origin'+'destination'. Optional: 'date', 'airline', 'approx_time')",
-        "map-worker": "Navigation (REQUIRES: 'origin', 'destination', 'mode')",
-        "weather-worker": "Check Weather (REQUIRES: 'location'. Optional: 'date', 'units' [C/F], 'details' [sunrise, humidity, etc.])",
+        "email-worker": "Manage Email (Send REQUIRES: 'recipient', 'subject', 'body')",
+        "flight-tracker": "Check Flight Status/Schedule (REQUIRES: 'flight_number' OR 'origin'+'destination')",
+        "map-worker": "Navigation & Directions (REQUIRES: 'origin', 'destination', 'mode')",
+        "weather-worker": "Check Weather (REQUIRES: 'location')",
         "hr-onboarding": "HR Onboarding (REQUIRES: 'candidate_name')",
-        "payment-billing": "Check Payments (REQUIRES: 'action', 'transaction_id' OR 'email')",
+        "payment-billing": "Check Payments (REQUIRES: 'action', 'transaction_id')",
         "web-research": "Search the web for real-time information",
+        "lead-research": "Research potential leads and companies",
+        "lead-research-legacy": "Legacy lead research worker",
+        "compliance-risk": "Analyze text for compliance and risk factors",
+        "content-moderation": "Moderate content for safety and guidelines",
+        "order-status": "Check status of an order",
+        "sentiment-escalation": "Analyze sentiment and handle escalations",
+        "meeting-coordination": "Coordinate and schedule meetings",
+        "data-entry": "Automate data entry tasks",
+        "document-processing": "Extract information from documents",
+        "intelligent-routing": "Route inquiries to the correct department",
+        "it-support": "Provide basic IT support and troubleshooting",
+        "translation-localization": "Translate and localize content",
     }
 
     ACKNOWLEDGEMENT_RULES = """CRITICAL CONVERSATIONAL RULES (STRICTLY ENFORCE):
@@ -41,87 +53,99 @@ class VoicePromptBuilder:
 1. **IMMEDIATE DYNAMIC ACKNOWLEDGMENT (MANDATORY):**
    - The INSTANT the user finishes speaking, you MUST respond with a brief, DYNAMIC acknowledgment.
    - Your acknowledgment must be CONTEXTUAL to what they asked — NOT a generic canned phrase.
-   - VARY your acknowledgments every single time. NEVER repeat the same phrase twice in a row.
-   - Examples of GOOD dynamic acknowledgments:
-     * For weather: "Great question about the weather — let me check that..."
-     * For flights: "Sure, let me look up that flight for you..."
-     * For distance: "Good one! Let me calculate that distance..."
-     * For general: "Absolutely, working on that now..."
-   - BAD (too generic/repetitive): "Let me check that..." every time.
-   - This acknowledgment must be SEPARATE from the tool call result.
+   - VARY your acknowledgments every single time. 
+   - Examples: "Checking that now...", "Great question, let me look up...", "Absolutely, researching that..."
    - NEVER call a tool silently without acknowledging first.
 
-2. **PROGRESS UPDATES (FOR LONG OPERATIONS):**
-   - If you expect a tool to take >3 seconds, immediately say: "This might take a moment..."
-   - After 5 seconds of processing, say: "Still working on that..."
-   - After 10+ seconds, say: "Almost there, this is taking a bit longer than expected..."
-   - For background tasks (dispatch_worker_task), say: "I've started that task in the background. I'll let you know when it's done."
+2. **PROGRESS UPDATES:**
+   - If a tool takes time, say: "This might take a moment...", "Still working on that...", "Almost there..."
 
 3. **NEVER REMAIN SILENT:**
-   - You must ALWAYS respond verbally within 1 second of the user speaking.
-   - If you're thinking or processing, say so immediately.
-   - Silence is UNACCEPTABLE in voice conversations.
-   - Even if you're unsure, acknowledge the user immediately.
+   - Silence is UNACCEPTABLE. If processing, speak immediately to acknowledge.
 
-4. **KEEP ACKNOWLEDGMENTS BRIEF BUT NATURAL:**
-   - One short sentence maximum (5-10 words)
-   - Sound human and conversational, not robotic
-   - Get to the actual answer quickly after acknowledging
+4. **KEEP IT NATURAL:**
+   - Sound human and conversational, not robotic.
 
 """
 
     @staticmethod
-    def build_prompt(settings, personality_prompt, enabled_skills, workspace_info, current_datetime_str, client_location):
-        # 1. Base instructions and rules
-        tool_usage = (
-            "\n\nTOOL USAGE & PERMISSIONS:\n"
-            "1. You have access to specialized tools (Skills & Workers). However, some may be disabled based on business settings.\n"
-            "2. If a tool returns 'Error: Tool not enabled', explain politely to the user that this feature is currently disabled for your agent.\n"
-            "3. For almost ALL requests (searching, email, CRM, weather), use `run_task_now` for immediate results.\n"
-            "4. ONLY use `dispatch_worker_task` for long-running background jobs.\n"
-            "5. ALWAYS check for required parameters (location, email, dates) before calling a tool. If missing, ASK the user."
-        )
-
-        location_context = f"CURRENT ENVIRONMENT CONTEXT:\\n- User's Timezone: {settings.get('client_timezone', 'America/Toronto')}\\n- User's Estimated Location: {client_location}\\n" if client_location else ""
-
-        prompt = f"{VoicePromptBuilder.ACKNOWLEDGEMENT_RULES}{GATEKEEPER_INSTRUCTION}\n\n"
-        prompt += f"CURRENT DATE AND TIME: {current_datetime_str}. Use this to interpret relative dates.\n\n"
-        prompt += f"{location_context}Running Mode: VOICE CONVERSATION.{tool_usage}\n\n"
-        prompt += f"CUSTOMER INSTRUCTIONS:\n{settings.get('prompt_template', 'You are a helpful assistant.')}"
-
-        if personality_prompt:
-            prompt = f"{personality_prompt}\n\n{prompt}"
-
-        # 2. Add Skills
-        if enabled_skills:
-            skill_info = "\n\nENRICHED SKILLS & CAPABILITIES:\nYou have been equipped with the following specialized skills:\n\n"
-            for skill in enabled_skills:
-                skill_info += f"### {skill.name} ({skill.slug})\n{skill.instructions}\n\n"
-            prompt += skill_info
-
-        # 3. Language settings
-        lang = settings.get("language", "en")
-        lang_name = VoicePromptBuilder.LANGUAGE_NAMES.get(lang, lang)
-        if lang != "en":
-            prompt += f"\n\nCRITICAL LANGUAGE REQUIREMENT:\n- You MUST speak ONLY in {lang_name}.\n- ALL responses must be in {lang_name}.\n- Do NOT respond in English."
-
-        # 4. Business & Worker context
+    def build_prompt(settings, personality_prompt, enabled_skills, workspace_info, current_datetime_str, client_location, agent_type="business", call_context=None):
+        # 1. Choose Gatekeeper Template
+        is_personal = agent_type == "personal" or settings.get("agent_type") == "personal"
+        base_template = PERSONAL_GATEKEEPER_INSTRUCTION if is_personal else BUSINESS_GATEKEEPER_INSTRUCTION
+        
+        # 2. Build Tool List
         allowed_workers = settings.get("allowed_worker_types", [])
         if enabled_skills:
             allowed_workers = list(set(allowed_workers + [s.slug for s in enabled_skills]))
         
-        allowed_list_str = "\n".join([f"- {w}: {VoicePromptBuilder.WORKER_DESCRIPTIONS.get(w, w)}" for w in allowed_workers]) or "- None"
+        # Ensure standard communication workers are listed
+        for core_worker in ["sms-messaging", "email-worker"]:
+            if core_worker not in allowed_workers:
+                allowed_workers.append(core_worker)
         
+        allowed_list_str = "\n".join([f"- {w}: {VoicePromptBuilder.WORKER_DESCRIPTIONS.get(w, w)}" for w in allowed_workers]) or "- None"
+
+        # 3. Format Template Safely (In Isolation)
         try:
-            prompt = prompt.format(
-                business_name=workspace_info.get("name", "The Business"),
-                services=workspace_info.get("services", "Appointments, General Inquiries"),
-                role=workspace_info.get("role", "AI Assistant"),
+            gatekeeper = base_template.format(
+                business_name=workspace_info.get("name", "The User" if is_personal else "The Business"),
+                services=workspace_info.get("services", "General Assistance" if is_personal else "Appointments, General Inquiries"),
+                role=workspace_info.get("role", "Personal Assistant" if is_personal else "AI Assistant"),
                 allowed_worker_list=allowed_list_str
             )
         except Exception as e:
             logger.warning(f"Template formatting failed: {e}")
+            gatekeeper = base_template # Fallback to raw if formatting blows up
 
-        prompt += f"\n\nBUSINESS INFO:\nName: {workspace_info.get('name')}\nPhone: {workspace_info.get('phone')}\nIDENTITY: You represent {workspace_info.get('name')}."
+        # 4. Assemble Final Prompt
+        tool_usage = (
+            "\n\nTOOL USAGE & PERMISSIONS:\n"
+            "1. You have access to specialized tools. Use `get_weather`, `web_search`, `get_directions`, and `get_flight_status` directly when applicable.\n"
+            "2. Use `run_task_now` for all other specialized skills.\n"
+            "3. ALWAYS acknowledge the user BEFORE calling a tool."
+        )
+
+        location_context = f"CURRENT ENVIRONMENT CONTEXT:\\n- User's Timezone: {settings.get('client_timezone', 'America/Toronto')}\\n- User's Estimated Location: {client_location}\\n" if client_location else ""
         
-        return prompt
+        call_context_str = ""
+        if call_context:
+            call_context_str = "\n\n### MISSION-CRITICAL CALL CONTEXT ###\n"
+            call_context_str += f"REASON FOR CALL: {call_context.get('intent', 'General')}\n"
+            if call_context.get('customer'):
+                cust = call_context.get('customer')
+                call_context_str += f"CUSTOMER: {cust.get('full_name')} ({cust.get('email')}, {cust.get('phone')})\n"
+            if call_context.get('appointment'):
+                appt = call_context.get('appointment')
+                call_context_str += f"APPOINTMENT: {appt.get('title')} on {appt.get('appointment_date')}\n"
+            if call_context.get('deal'):
+                deal = call_context.get('deal')
+                call_context_str += f"DEAL: {deal.get('title')} (Stage: {deal.get('stage')}, Value: {deal.get('value')})\n"
+
+        full_prompt = f"{VoicePromptBuilder.ACKNOWLEDGEMENT_RULES}\n{gatekeeper}\n\n"
+        full_prompt += f"CURRENT DATE AND TIME: {current_datetime_str}.\n\n"
+        full_prompt += f"{location_context}{call_context_str}\nRunning Mode: VOICE CONVERSATION.{tool_usage}\n\n"
+        
+        # Add User Instructions (Personality & Template) - Concatenate rather than format!
+        full_prompt += "USER-SPECIFIED INSTRUCTIONS & PERSONA:\n"
+        if personality_prompt:
+            full_prompt += f"{personality_prompt}\n\n"
+        
+        full_prompt += f"{settings.get('prompt_template', 'Follow the guidelines above.')}\n\n"
+
+        # 5. Add Enriched Skill Data
+        if enabled_skills:
+            skill_info = "\n\nENRICHED SKILLS:\n"
+            for skill in enabled_skills:
+                skill_info += f"### {skill.name} ({skill.slug})\n{skill.instructions}\n\n"
+            full_prompt += skill_info
+
+        # 6. Language requirements
+        lang = settings.get("language", "en")
+        lang_name = VoicePromptBuilder.LANGUAGE_NAMES.get(lang, lang)
+        if lang != "en":
+            full_prompt += f"\n\nCRITICAL LANGUAGE REQUIREMENT: Speak ONLY in {lang_name}."
+
+        full_prompt += f"\n\nIDENTITY INFO:\nRepresenting: {workspace_info.get('name')}\nPhone: {workspace_info.get('phone')}\n"
+        
+        return full_prompt

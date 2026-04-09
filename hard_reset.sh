@@ -12,10 +12,17 @@ for port in 8000 8081 8082; do
     fi
 done
 
-# 2. Kill any generic uvicorn or python agent processes
-pkill -f "uvicorn backend.main:app" || true
-pkill -f "python backend/voice_agent.py" || true
-pkill -f "python backend/avatar_agent.py" || true
+# 2. Nuclear cleanup of all project-related Python processes
+echo "🧹 Killing all zombie and orphan processes..."
+pkill -9 -f "uvicorn.*backend.main" || true
+pkill -9 -f "python.*voice_agent" || true
+pkill -9 -f "python.*avatar_agent" || true
+pkill -9 -f "python.*livekit" || true
+pkill -9 -f "python.*multimodal" || true
+pkill -9 -f "multiprocessing.spawn" || true
+pkill -9 -f "multiprocessing.resource_tracker" || true
+# Catch any remaining .venv python processes just to be safe
+pkill -9 -f ".venv/bin/python" || true
 
 # 3. Remove PID files
 rm -f *.pid
@@ -25,20 +32,17 @@ echo "🚀 Restarting services..."
 
 # Start backend in background
 nohup .venv/bin/uvicorn backend.main:app --reload --port 8000 > backend.log 2>&1 &
-echo $! > backend.pid
-echo "✅ Backend started (PID $(cat backend.pid))"
+echo "✅ Backend started"
 
 # Wait for backend to be ready
 sleep 3
 
 # Start Voice Agent
 nohup .venv/bin/python backend/voice_agent.py dev > voice_agent.log 2>&1 &
-echo $! > voice_agent.pid
-echo "✅ Voice Agent started (PID $(cat voice_agent.pid))"
+echo "✅ Voice Agent starting..."
 
 # Start Avatar Agent
 nohup .venv/bin/python backend/avatar_agent.py dev > avatar_agent.log 2>&1 &
-echo $! > avatar_agent.pid
-echo "✅ Avatar Agent started (PID $(cat avatar_agent.pid))"
+echo "✅ Avatar Agent starting..."
 
 echo "✨ Hard reset finished. Monitor logs with: tail -f backend.log voice_agent.log"

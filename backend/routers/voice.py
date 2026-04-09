@@ -50,9 +50,8 @@ async def _generate_token(
 
     if not room_name:
         if agent_id:
-            # CRITICAL FIX: Include mode in room name to prevent stale metadata
-            # from a prior avatar session killing the voice agent (or vice versa)
-            room_name = f"agent-session-{agent_id[:8]}-{mode}"
+            # CRITICAL FIX: Use full agent_id to prevent collisions with same-prefix agents
+            room_name = f"agent-session-{agent_id}-{mode}"
         else:
             room_name = f"room-{str(uuid.uuid4())[:8]}-{mode}"
 
@@ -104,7 +103,7 @@ async def _generate_token(
     room_config = api.RoomConfiguration()
     # --- Resolve Settings ---
     # 1. Start with DB settings from the Workspace
-    settings = get_settings(workspace.id).copy()
+    settings = get_settings(workspace.id, agent_id=agent_id).copy()
     
     # 2. Add DB settings from the specific Agent
     if agent_id:
@@ -371,7 +370,7 @@ async def cleanup_room(
     try:
         lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
         for suffix in ["-voice", "-avatar"]:
-            room_name = f"agent-session-{agent_prefix}{suffix}"
+            room_name = f"agent-session-{request.agent_id}{suffix}"
             try:
                 await lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))
                 deleted_rooms.append(room_name)
@@ -405,8 +404,8 @@ async def room_status(
     if not api_key or not api_secret or not livekit_url:
         raise HTTPException(status_code=503, detail="LiveKit not configured")
 
-    agent_prefix = agent_id[:8] if agent_id else "unknown"
-    room_name = f"agent-session-{agent_prefix}-{mode}"
+    agent_id_str = agent_id if agent_id else "unknown"
+    room_name = f"agent-session-{agent_id_str}-{mode}"
 
     try:
         lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)

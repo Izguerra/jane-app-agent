@@ -55,7 +55,29 @@ async def entrypoint(ctx: JobContext):
 
         # 1. Resolve Context
         workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
-        settings = get_settings(workspace_id)
+
+        # PRIMARY FIX: Extract agent_id from deterministic room name BEFORE get_settings()
+        # Room name format: "agent-session-{agent_id}-{mode}" (set by voice.py _generate_token)
+        # This prevents get_settings() from loading the wrong agent (e.g., Jungle Tattoo instead of SupaAgent)
+        if not agent_id and ctx.room.name.startswith("agent-session-"):
+            parts = ctx.room.name.split("-")
+            # agent-session-agnt_000VCRiAVlsz2Q9PHK9bXvQ4DZ-voice → extract the agent ID
+            # The agent ID is between "agent-session-" and the last segment ("-voice" or "-avatar")
+            room_suffix = ctx.room.name[len("agent-session-"):]  # "agnt_000VCRi...-voice"
+            last_dash = room_suffix.rfind("-")
+            if last_dash > 0:
+                agent_id = room_suffix[:last_dash]
+                logger.info(f"Extracted agent_id from room name: {agent_id}")
+
+        # Also check room metadata for agent_id (dispatch metadata includes it)
+        if not agent_id and meta.get("agent_id"):
+            agent_id = meta.get("agent_id")
+            logger.info(f"Extracted agent_id from room metadata: {agent_id}")
+
+        logger.info(f"Resolved context: workspace_id={workspace_id}, agent_id={agent_id}")
+
+        # Load workspace-level defaults (passing the correctly resolved agent_id)
+        settings = get_settings(workspace_id, agent_id=agent_id)
         settings.update(meta)
 
         # 2. Database & Logging
@@ -65,20 +87,31 @@ async def entrypoint(ctx: JobContext):
         workspace_info = {"name": "The Business", "phone": "N/A", "services": "General", "role": "Assistant"}
 
         try:
-            # Correct logic: Use agent_id if provided by resolver, otherwise fallback to first in workspace
+            # Use the correctly resolved agent_id, not the one from get_settings()
             if agent_id:
                 agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
+                if agent_rec:
+                    logger.info(f"Loaded CORRECT agent record: {agent_rec.name} ({agent_rec.id})")
+                else:
+                    logger.warning(f"Agent {agent_id} not found in workspace {workspace_id}, falling back")
+                    agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
             else:
                 agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+                if agent_rec:
+                    logger.warning(f"No agent_id resolved, falling back to: {agent_rec.name} ({agent_rec.id})")
             
             if agent_rec:
                 agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)
                 # Inject top-level columns directly into settings for the pipeline
+                settings["name"] = agent_rec.name
+                settings["prompt_template"] = agent_rec.prompt_template
+                settings["welcome_message"] = agent_rec.welcome_message
                 settings["voice_id"] = agent_rec.voice_id
                 settings["language"] = agent_rec.language
                 settings["soul"] = agent_rec.soul
                 settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+                logger.info(f"Agent '{agent_rec.name}' has {len(agent_rec.allowed_worker_types or [])} worker types")
                 # Query Workspace directly — Agent model has no 'workspace' relationship
                 ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
                 if ws:
@@ -97,13 +130,21 @@ async def entrypoint(ctx: JobContext):
         # 3. Build Prompt
         db = SessionLocal()
         skills = SkillService().get_skills_for_agent(db, agent_id)
+        logger.info(f"Fetched {len(skills)} skills for agent {agent_id}: {[s.slug for s in skills]}")
         personality = PersonalityService().get_personality(db, agent_id)
         personality_prompt = PersonalityService().generate_personality_prompt(personality)
         db.close()
 
+        # Extract agent type and telephony context for persona switching
+        agent_type = settings.get("agent_type", "business")
+        call_context = meta.get("call_context")
+        logger.info(f"Building prompt for Agent Type: {agent_type}, Call Context: {'Yes' if call_context else 'No'}")
+
         prompt = VoicePromptBuilder.build_prompt(
             settings, personality_prompt, skills, workspace_info, 
-            start_time.strftime("%A, %B %d, %Y at %I:%M %p"), settings.get("client_location")
+            start_time.strftime("%A, %B %d, %Y at %I:%M %p"), settings.get("client_location"),
+            agent_type=agent_type,
+            call_context=call_context
         )
 
         # Inject cross-channel context memory (Layer 2)

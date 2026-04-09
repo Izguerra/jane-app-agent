@@ -21,7 +21,6 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from backend.avatar.config import resolve_settings, get_llm, get_tts
-from backend.avatar.prompts import get_avatar_prompt
 from backend.avatar.providers import initialize_avatar
 from backend.avatar.tracking import start_communication_log, finalize_communication_log
 from backend.services.voice_handlers import VoiceHandlers
@@ -56,13 +55,35 @@ async def entrypoint(ctx: JobContext):
         workspace_id = settings.get("workspace_id")
         agent_id = settings.get("agent_id")
 
+        # PRIMARY FIX: Extract agent_id from deterministic room name (same fix as voice_agent.py)
+        # Room name format: "agent-session-{agent_id}-{mode}" (set by voice.py _generate_token)
+        if not agent_id and ctx.room.name.startswith("agent-session-"):
+            room_suffix = ctx.room.name[len("agent-session-"):]
+            last_dash = room_suffix.rfind("-")
+            if last_dash > 0:
+                agent_id = room_suffix[:last_dash]
+                logger.info(f"Extracted agent_id from room name: {agent_id}")
+
+        if not agent_id and room_meta.get("agent_id"):
+            agent_id = room_meta.get("agent_id")
+            logger.info(f"Extracted agent_id from room metadata: {agent_id}")
+
+        logger.info(f"Avatar resolved context: workspace_id={workspace_id}, agent_id={agent_id}")
+
         db = SessionLocal()
         try:
-            # Robust agent resolution: respect passed agent_id, or fallback to first in workspace
+            # Use the correctly resolved agent_id
             if agent_id:
                 agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
+                if agent_rec:
+                    logger.info(f"Loaded CORRECT agent record: {agent_rec.name} ({agent_rec.id})")
+                else:
+                    logger.warning(f"Agent {agent_id} not found in workspace {workspace_id}, falling back")
+                    agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
             else:
                 agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
+                if agent_rec:
+                    logger.warning(f"No agent_id resolved, falling back to: {agent_rec.name} ({agent_rec.id})")
             
             if agent_rec:
                 agent_id = agent_rec.id
@@ -70,10 +91,14 @@ async def entrypoint(ctx: JobContext):
                     # Merge agent settings into current settings
                     settings.update(agent_rec.settings)
                 # Inject top-level columns directly into settings
+                settings["name"] = agent_rec.name
+                settings["prompt_template"] = agent_rec.prompt_template
+                settings["welcome_message"] = agent_rec.welcome_message
                 settings["voice_id"] = agent_rec.voice_id
                 settings["language"] = agent_rec.language
                 settings["soul"] = agent_rec.soul
                 settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+                logger.info(f"Avatar agent '{agent_rec.name}' has {len(agent_rec.allowed_worker_types or [])} worker types")
         finally:
             db.close()
         
@@ -114,17 +139,31 @@ async def entrypoint(ctx: JobContext):
         logger.info(f"Loaded {len(all_tools)} tools for avatar agent (Filtered by skills)")
         
         # Prompt — include skills and personality (matching voice agent behavior)
-        personality_prompt = None
-        try:
-            from backend.services.personality_service import PersonalityService
-            db = SessionLocal()
-            personality = PersonalityService().get_personality(db, agent_id)
-            personality_prompt = PersonalityService().generate_personality_prompt(personality)
-            db.close()
-        except Exception as e:
-            logger.warning(f"Personality load failed (non-fatal): {e}")
+        db = SessionLocal()
+        from backend.services.personality_service import PersonalityService
+        from backend.services.voice_prompt_builder import VoicePromptBuilder
         
-        full_prompt = get_avatar_prompt(settings, enabled_skills=skills, personality_prompt=personality_prompt)
+        skills = SkillService().get_skills_for_agent(db, agent_id)
+        personality = PersonalityService().get_personality(db, agent_id)
+        personality_prompt = PersonalityService().generate_personality_prompt(personality)
+        db.close()
+        
+        # Extract agent type and telephony context for persona switching (matches voice_agent.py)
+        agent_type = settings.get("agent_type", "business")
+        import json
+        meta = json.loads(ctx.room.metadata) if ctx.room.metadata else {}
+        call_context = meta.get("call_context")
+        
+        logger.info(f"Building avatar prompt for Agent Type: {agent_type}, Call Context: {'Yes' if call_context else 'No'}")
+
+        full_prompt = VoicePromptBuilder.build_prompt(
+            settings, personality_prompt, skills, 
+            {"name": settings.get("name"), "phone": settings.get("phone"), "services": settings.get("services"), "role": settings.get("role")}, 
+            datetime.now().strftime("%A, %B %d, %Y at %I:%M %p"), 
+            settings.get("client_location"),
+            agent_type=agent_type,
+            call_context=call_context
+        )
         
         # Inject cross-channel context memory (Layer 2)
         try:

@@ -15,7 +15,7 @@ class ExternalTools:
         self.timeout = aiohttp.ClientTimeout(total=10) # 10s default timeout
 
     @llm.function_tool(description="Get current weather for a city or location.")
-    async def get_current_weather(self, location: str, date: str = None, units: str = "metric"):
+    async def get_weather(self, location: str, date: str = None, units: str = "metric"):
         """
         Get weather for a location. 
         Supports future dates (approximate).

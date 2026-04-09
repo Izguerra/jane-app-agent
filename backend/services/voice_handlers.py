@@ -39,7 +39,14 @@ class VoiceHandlers:
             if session and hasattr(session, 'history'):
                 for item in session.history.items:
                     role = getattr(item, 'role', 'unknown')
-                    content = item.text_content() if hasattr(item, 'text_content') else getattr(item, 'content', '')
+                    # Handle both method (older SDK) and property (newer SDK) for text_content
+                    text_content_attr = getattr(item, 'text_content', None)
+                    if callable(text_content_attr):
+                        content = text_content_attr()
+                    elif text_content_attr is not None:
+                        content = text_content_attr
+                    else:
+                        content = getattr(item, 'content', '')
                     if isinstance(content, list): content = ' '.join(str(c) for c in content)
                     
                     system_indicators = ["SYSTEM INSTRUCTIONS:", "IDENTITY VERIFICATION", "GATEKEEPER RULE"]

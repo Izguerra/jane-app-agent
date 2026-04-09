@@ -22,7 +22,7 @@ DEFAULT_SETTINGS = {
     "allowed_worker_types": ["weather-worker", "flight-tracker", "map-worker", "web-search", "advanced-browsing"]
 }
 
-def get_settings(workspace_id: int = None) -> Dict[str, Any]:
+def get_settings(workspace_id: str = None, agent_id: str = None) -> Dict[str, Any]:
     if workspace_id is None:
         # Fallback for development/demo if absolutely necessary
         workspace_id = "ws_default"
@@ -40,19 +40,31 @@ def get_settings(workspace_id: int = None) -> Dict[str, Any]:
              print(f"DEBUG: Could not resolve Team ID {workspace_id} to a workspace")
 
     try:
-        print(f"DEBUG: get_settings called for workspace_id={workspace_id}")
+        print(f"DEBUG: get_settings called for workspace_id={workspace_id}, agent_id={agent_id}")
         
-        # Try to find an orchestrator agent first, or just any agent
-        settings = db.query(Agent).filter(
-            Agent.workspace_id == workspace_id,
-            Agent.is_orchestrator == True
-        ).first()
+        settings = None
         
-        if settings:
-             print(f"DEBUG: Found orchestrator agent: {settings.id}")
+        # 1. If agent_id is provided, try to load it specifically
+        if agent_id:
+            settings = db.query(Agent).filter(
+                Agent.id == agent_id,
+                Agent.workspace_id == workspace_id
+            ).first()
+            if settings:
+                print(f"DEBUG: Loaded specific agent settings: {settings.id}")
+
+        # 2. If not found or not provided, try to find an orchestrator agent
+        if not settings:
+            settings = db.query(Agent).filter(
+                Agent.workspace_id == workspace_id,
+                Agent.is_orchestrator == True
+            ).first()
+            
+            if settings:
+                 print(f"DEBUG: Found orchestrator agent: {settings.id}")
         
         if not settings:
-            # Fallback to any agent
+            # 3. Fallback to any agent
             settings = db.query(Agent).filter(Agent.workspace_id == workspace_id).first()
             if settings:
                  print(f"DEBUG: Found fallback agent: {settings.id}")
