@@ -43,6 +43,9 @@ nanoid>=2.0.0
 asyncari>=0.1.0
 PyPDF2
 livekit-plugins-google
+google-cloud-speech>=2.26.0
+google-cloud-texttospeech>=2.15.0
+google-genai>=0.3.0
 livekit-plugins-xai
 resend>=0.1.0
 tavily-python>=0.5.0

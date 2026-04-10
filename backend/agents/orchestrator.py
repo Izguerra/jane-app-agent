@@ -32,13 +32,21 @@ class AgentOrchestrator:
                 agent_rec = ctx_db.query(AgentModel).filter(
                     AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id
                 ).first()
+                if agent_rec:
+                    logger.info(f"Chatbot initialized with TARGET agent: {agent_rec.name} ({agent_rec.id})")
+                else:
+                    logger.warning(f"Requested agent_id '{agent_id}' not found in workspace '{workspace_id}'")
+
             if not agent_rec:
+                # Fallback to the latest active agent in the workspace
                 agent_rec = ctx_db.query(AgentModel).filter(
                     AgentModel.workspace_id == workspace_id,
                     AgentModel.is_active == True
                 ).order_by(AgentModel.created_at.desc()).first()
                 if agent_rec:
-                    logger.info(f"Chatbot fallback resolved to agent: {agent_rec.name} ({agent_rec.id})")
+                    logger.info(f"Chatbot fallback resolved to ACTIVE agent: {agent_rec.name} ({agent_rec.id})")
+                else:
+                    logger.error(f"❌ No active agents found in workspace {workspace_id}")
             
             if agent_rec:
                 agent_id = agent_rec.id
@@ -135,25 +143,32 @@ class AgentOrchestrator:
             return wrapper
         
         tools = []
+        logger.info(f"Chatbot Tool Discovery: Discovering tools for {len(allowed_tool_names)} allowed skill methods...")
+        logger.info(f"Allowed Method Filter: {allowed_tool_names}")
+        
         for tool in all_lk_tools:
             # CORRECT DISCOVERY: LiveKit stores tool name in tool.info.name
             tool_name = getattr(tool.info, "name", None) if hasattr(tool, "info") else getattr(tool, "name", None)
             
-            # Use the robust wrapper for all tools to ensure consistent behavior
-            # and clean Pydantic signatures for Agno.
-            if tool_name and tool_name in allowed_tool_names:
+            if not tool_name:
+                continue
+
+            # Check if this tool is allowed by the agent's skills
+            if tool_name in allowed_tool_names:
                 wrapped_tool = create_agno_wrapper(tool_name, agent_tools, tool)
                 if wrapped_tool:
                     tools.append(wrapped_tool)
-                    logger.debug(f"Added wrapped tool to Chatbot: {tool_name}")
+                    logger.info(f"✅ EXPOSED tool to Chatbot: {tool_name}")
                 else:
                     # Fallback for MCP tools which might not have _func
                     actual_method = getattr(tool, "_func", None)
                     if actual_method:
                         tools.append(actual_method)
-                        logger.debug(f"Added standalone tool fallback to Chatbot: {tool_name}")
-            elif tool_name:
-                logger.debug(f"Blocked tool from Chatbot (Not in active skills): {tool_name}")
+                        logger.info(f"✅ EXPOSED tool (fallback) to Chatbot: {tool_name}")
+            else:
+                logger.debug(f"🚫 BLOCKED tool from Chatbot (Not in skills): {tool_name}")
+
+        logger.info(f"Chatbot Initialized with {len(tools)} total tools.")
         # ── 7. Create agent with full context (including Local Workspace Reference Time) ──
         ref_tz_name = settings.get("client_timezone", "America/Toronto")
         ref_tz = pytz.timezone(ref_tz_name)
@@ -196,6 +211,10 @@ class AgentOrchestrator:
 
         for msg in history:
             role = msg.role if hasattr(msg, "role") else msg.get("role", "user") if isinstance(msg, dict) else "user"
+            # Normalize role for Agno/OpenAI
+            if role == "ai":
+                role = "assistant"
+            
             content = msg.content if hasattr(msg, "content") else msg.get("content", "") if isinstance(msg, dict) else ""
             if content:
                 messages.append(Message(role=role, content=content))

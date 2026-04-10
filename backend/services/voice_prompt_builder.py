@@ -91,7 +91,9 @@ class VoicePromptBuilder:
     def get_allowed_tool_names(enabled_skills) -> list:
         """Returns a clean list of Python method names allowed by the given skills."""
         import re
-        allowed_methods = ["run_task_now"] # Base worker router is always allowed if workers are enabled
+        # Core system tools that are always allowed
+        allowed_methods = ["run_task_now", "get_current_time", "search_knowledge_base"]
+        
         if enabled_skills:
             for skill in enabled_skills:
                 raw_mapping = VoicePromptBuilder.SKILL_TO_DIRECT_TOOLS.get(skill.slug, "")

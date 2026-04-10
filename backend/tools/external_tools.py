@@ -243,8 +243,28 @@ class ExternalTools:
                     mode = "driving"
                     
                 import urllib.parse
-                safe_origin = urllib.parse.quote(origin)
-                safe_dest = urllib.parse.quote(destination)
+                
+                # Cleanup addresses (remove extra spaces and hyphens from postal codes)
+                def clean_address(addr: str) -> str:
+                    # 1. Handle Canadian Postal codes with spaces (L 9 T 0 E 2 -> L9T0E2)
+                    import re
+                    # Find patterns like "L 9 T 0 E 2" and collapse them
+                    # Look for 6 individual characters separated by optional spaces
+                    addr = re.sub(r'([A-Z])\s*(\d)\s*([A-Z])\s*(\d)\s*([A-Z])\s*(\d)', r'\1\2\3\4\5\6', addr, flags=re.IGNORECASE)
+                    
+                    # 2. Handle hyphens (L9T-0E2 -> L9T0E2)
+                    addr = addr.replace("-", "")
+                    
+                    # 3. Clean up extra internal spaces
+                    addr = " ".join(addr.split())
+                    return addr
+
+                clean_origin = clean_address(origin)
+                clean_dest = clean_address(destination)
+                
+                safe_origin = urllib.parse.quote(clean_origin)
+                safe_dest = urllib.parse.quote(clean_dest)
+                
                 url = f"https://maps.googleapis.com/maps/api/directions/json?origin={safe_origin}&destination={safe_dest}&key={self.google_maps_api_key}&departure_time=now&traffic_model=best_guess&mode={mode}"
                 async with session.get(url) as response:
                     print(f"DEBUG: Maps API Status: {response.status}")
