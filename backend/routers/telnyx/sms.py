@@ -12,8 +12,70 @@ from backend.services.campaign_service import CampaignService
 from backend.services import get_agent_manager
 from backend.services.sms_service import send_sms
 
+from typing import Set
+import time
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Telnyx SMS"])
+
+# Global deduplication cache (Message ID -> Timestamp)
+# prevents processing Telnyx retries during long AI generations
+PROCESSED_MESSAGES: Set[str] = set()
+
+async def process_agent_reply(
+    text: str, from_number: str, to_number: str, 
+    workspace_id: str, team_id: str, agent_id: str, customer_id: str, 
+    comm_id: str
+):
+    """Background task to generate AI response and send SMS"""
+    from backend.database import SessionLocal
+    db = SessionLocal()
+    try:
+        # 1. Fetch history
+        history = ConversationHistoryService.get_recent_history(
+            workspace_id=workspace_id, user_identifier=from_number, 
+            channel="sms", communication_id=comm_id
+        )
+        
+        # 2. Add User Message
+        ConversationHistoryService.add_message(
+            workspace_id=workspace_id, user_identifier=from_number, 
+            channel="sms", role="user", content=text, communication_id=comm_id
+        )
+        try: sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="user", content=text)
+        except: pass
+
+        # 3. Generate AI Response
+        logger.info(f"Generating AI reply for {from_number} (Comm: {comm_id})...")
+        ai_response = await get_agent_manager().chat(
+            text, team_id=team_id, workspace_id=workspace_id, 
+            history=history, agent_id=agent_id, communication_id=comm_id
+        )
+
+        # 4. Save and Send Assistant Message
+        ConversationHistoryService.add_message(
+            workspace_id=workspace_id, user_identifier=from_number, 
+            channel="sms", role="assistant", content=ai_response, communication_id=comm_id
+        )
+        try: sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="assistant", content=ai_response)
+        except: pass
+
+        # 5. Final Analysis
+        full_history = ConversationHistoryService.get_recent_history(
+            workspace_id=workspace_id, user_identifier=from_number, 
+            channel="sms", communication_id=comm_id
+        )
+        transcript_str = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in full_history])
+        AnalysisService.analyze_communication(comm_id, transcript_str)
+
+        # 6. Outbound Send
+        send_sms(to_number=from_number, message=ai_response, workspace_id=workspace_id, agent_id=agent_id)
+        logger.info(f"AI response sent to {from_number}")
+
+    except Exception as e:
+        logger.error(f"Error in background SMS processing: {e}")
+    finally:
+        db.close()
 
 @router.post("/sms/webhook")
 async def telnyx_sms_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -23,11 +85,22 @@ async def telnyx_sms_webhook(request: Request, background_tasks: BackgroundTasks
         payload = data.get("data", {}).get("payload", {})
         if payload.get("direction") != "inbound": return {"status": "ignored"}
 
+        # --- Deduplication ---
+        message_id = data.get("data", {}).get("id")
+        if message_id in PROCESSED_MESSAGES:
+            logger.warning(f"Duplicate Telnyx SMS ignored: {message_id}")
+            return {"status": "ignored", "reason": "duplicate"}
+        
+        if message_id:
+            PROCESSED_MESSAGES.add(message_id)
+            # Periodic cleanup would be good in production
+            if len(PROCESSED_MESSAGES) > 1000: PROCESSED_MESSAGES.clear()
+
         from_number = payload.get("from", {}).get("phone_number")
         to_number = payload.get("to", [{}])[0].get("phone_number")
         text = payload.get("text")
         
-        logger.info(f"Incoming Telnyx SMS: {from_number} -> {to_number}")
+        logger.info(f"Incoming Telnyx SMS: {from_number} -> {to_number} (ID: {message_id})")
         
         workspace_id = None
         phone = db.query(PhoneNumber).filter(PhoneNumber.phone_number == to_number).first()
@@ -77,25 +150,15 @@ async def telnyx_sms_webhook(request: Request, background_tasks: BackgroundTasks
             chat_session.started_at = datetime.now(timezone.utc)
             db.commit()
 
-        comm_id = chat_session.id
-        history = ConversationHistoryService.get_recent_history(workspace_id=workspace_id, user_identifier=from_number, channel="sms", communication_id=comm_id)
-        ConversationHistoryService.add_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="user", content=text, communication_id=comm_id)
-        
-        try: sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="user", content=text)
-        except: pass
+        # OFFLOAD TO BACKGROUND
+        background_tasks.add_task(
+            process_agent_reply,
+            text=text, from_number=from_number, to_number=to_number,
+            workspace_id=workspace_id, team_id=team_id, agent_id=agent_id,
+            customer_id=customer.id if customer else None, comm_id=chat_session.id
+        )
 
-        ai_response = await get_agent_manager().chat(text, team_id=team_id, workspace_id=workspace_id, history=history, agent_id=agent_id, communication_id=comm_id)
-        ConversationHistoryService.add_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="assistant", content=ai_response, communication_id=comm_id)
-        
-        try: sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="assistant", content=ai_response)
-        except: pass
-
-        full_history = ConversationHistoryService.get_recent_history(workspace_id=workspace_id, user_identifier=from_number, channel="sms", communication_id=comm_id)
-        transcript_str = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in full_history])
-        background_tasks.add_task(AnalysisService.analyze_communication, comm_id, transcript_str)
-
-        send_sms(to_number=from_number, message=ai_response, workspace_id=workspace_id, agent_id=agent_id)
-        return {"status": "success"}
+        return {"status": "success", "message": "received"}
 
     except Exception as e:
         logger.error(f"Error in Telnyx SMS webhook: {e}")

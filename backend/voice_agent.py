@@ -1,51 +1,54 @@
-import logging
-import os
-import asyncio
-import sys
 import json
-import pytz
 from datetime import datetime, timezone
-from pathlib import Path
 from dotenv import load_dotenv
 from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
-# NOTE: livekit.plugins.silero is imported LAZILY inside get_vad_model() to prevent
-# macOS multiprocessing.spawn deadlocks (KqueueSelector + FFI race condition).
+from backend.utils.process_manager import ProcessManager
 
-# DNS bypass removed for stability - relying on system DNS.
-
-# Path Setup — explicit paths for LiveKit subprocess safety (multiprocessing.spawn)
+# ── Path & Env Setup ──
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _project_root)
 load_dotenv(dotenv_path=os.path.join(_project_root, ".env"))
 
-from backend.database import SessionLocal, generate_comm_id
-from backend.models_db import Communication, Agent as AgentModel, Customer, Workspace
-from backend.settings_store import get_settings
-from backend.services.voice_context_resolver import VoiceContextResolver
-from backend.services.voice_prompt_builder import VoicePromptBuilder
-from backend.services.voice_pipeline_service import VoicePipelineService
-from backend.services.voice_handlers import VoiceHandlers
-from backend.agent_tools import AgentTools
-from backend.services.skill_service import SkillService
-from backend.services.personality_service import PersonalityService
-from backend.services.mcp_loader_service import MCPLoaderService
+# ── Import Optimization ──
+# Service-specific heavy imports are moved into local scopes to speed up WorkerProcess spawning.
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("voice-agent")
 
+# ── VAD Setup ──
 _vad_model = None
 def get_vad_model():
     global _vad_model
     if _vad_model is None:
         from livekit.plugins import silero  # Lazy import — safe for macOS spawn
-        _vad_model = silero.VAD.load()
+        # TUNE FOR SNAPPINESS
+        _vad_model = silero.VAD.load(
+            min_speech_duration=0.15,
+            min_silence_duration=0.6,
+            prefix_padding_ms=200,
+            max_buffered_speech_pd=30
+        )
     return _vad_model
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = get_vad_model()
 
 async def entrypoint(ctx: JobContext):
+    # Local imports for performance optimization
+    import pytz
+    from backend.database import SessionLocal, generate_comm_id
+    from backend.models_db import Communication, Agent as AgentModel, Workspace
+    from backend.settings_store import get_settings
+    from backend.services.voice_context_resolver import VoiceContextResolver
+    from backend.services.voice_prompt_builder import VoicePromptBuilder
+    from backend.services.voice_pipeline_service import VoicePipelineService
+    from backend.services.voice_handlers import VoiceHandlers
+    from backend.agent_tools import AgentTools
+    from backend.services.skill_service import SkillService
+    from backend.services.personality_service import PersonalityService
+    from backend.services.mcp_loader_service import MCPLoaderService
+
     try:
         logger.info(f"Entrypoint started for room {ctx.room.name}")
         start_time = datetime.now(timezone.utc)

@@ -111,15 +111,33 @@ class AgentOrchestrator:
         
         def create_agno_wrapper(func_name, agent_tools_instance, tool_obj):
             """
-            Creates a clean Python function with 'self' stripped for Agno/Pydantic.
-            Bypasses LiveKit's @validate_call decorators to prevent missing 'self' errors.
+            Creates a clean Python function for Agno/Pydantic.
+            Handles both standard AgentTools (requiring 'self' binding) and
+            external tools (like MCP) which are self-contained.
             """
+            # Extract the underlying execution function
+            # Standard tools have '_func', MCP tools might be callable or have another execution path
             actual_func = getattr(tool_obj, "_func", None)
+            
             if not actual_func:
+                # If no _func, this is likely an MCP tool or a custom wrapper.
+                # We return the tool's own function info if it exists
+                if hasattr(tool_obj, "info") and hasattr(tool_obj, "execute"):
+                    async def mcp_wrapper(*args, **kwargs):
+                        try:
+                            # MCP tools don't need 'self' from AgentTools
+                            return await tool_obj.execute(*args, **kwargs)
+                        except Exception as e:
+                            logger.error(f"MCP Tool '{func_name}' failed: {e}")
+                            raise
+                    
+                    mcp_wrapper.__name__ = func_name
+                    mcp_wrapper.__doc__ = tool_obj.info.description
+                    return mcp_wrapper
                 return None
                 
-            # LiveKit wraps tools with Pydantic's @validate_call, which breaks 'self' binding.
-            # We drill down to the raw original function avoiding Pydantic entirely.
+            # ── Standard Tool Logic (with 'self' binding) ──
+            # Drill down to the raw original function avoiding Pydantic decorators
             raw_func = getattr(actual_func, "__wrapped__", actual_func)
             
             sig = inspect.signature(raw_func)
@@ -127,11 +145,11 @@ class AgentOrchestrator:
             new_sig = sig.replace(parameters=new_params)
             
             async def wrapper(*args, **kwargs):
-                # Pass the agent_tools instance directly as 'self'
                 try:
+                    # Pass the agent_tools instance directly as 'self'
                     return await raw_func(agent_tools_instance, *args, **kwargs)
                 except Exception as e:
-                    logger.error(f"Tool '{func_name}' failed: {e}")
+                    logger.error(f"System Tool '{func_name}' failed: {e}")
                     raise
                 
             wrapper.__name__ = func_name
@@ -143,24 +161,30 @@ class AgentOrchestrator:
             return wrapper
         
         tools = []
-        logger.info(f"Chatbot Tool Discovery: Discovering tools for {len(allowed_tool_names)} allowed skill methods...")
-        logger.info(f"Allowed Method Filter: {allowed_tool_names}")
+        logger.info(f"Chatbot Tool Discovery: Initializing capabilities for agent '{agent_id}'...")
         
+        # ── 6. Tool Filtering & Wrapping (Agno Compatibility) ──
         for tool in all_lk_tools:
-            # CORRECT DISCOVERY: LiveKit stores tool name in tool.info.name
             tool_name = getattr(tool.info, "name", None) if hasattr(tool, "info") else getattr(tool, "name", None)
-            
             if not tool_name:
                 continue
 
-            # Check if this tool is allowed by the agent's skills
-            if tool_name in allowed_tool_names:
+            # Identify source: Tools from AgentTools have _func, MCP tools are wrapped differently
+            is_mcp = tool in mcp_tools
+            
+            # ACCESS CONTROL: 
+            # - MCP tools are already filtered by server-level skill slugs in MCPLoaderService
+            # - Standard tools are filtered by explicit method whitelist
+            is_allowed = is_mcp or (tool_name in allowed_tool_names)
+            
+            if is_allowed:
                 wrapped_tool = create_agno_wrapper(tool_name, agent_tools, tool)
                 if wrapped_tool:
                     tools.append(wrapped_tool)
-                    logger.info(f"✅ EXPOSED tool to Chatbot: {tool_name}")
+                    source_label = "MCP" if is_mcp else "SYSTEM"
+                    logger.info(f"✅ EXPOSED [{source_label}] tool to Chatbot: {tool_name}")
                 else:
-                    # Fallback for MCP tools which might not have _func
+                    # Final fallback: expose the raw function if everything else fails
                     actual_method = getattr(tool, "_func", None)
                     if actual_method:
                         tools.append(actual_method)
@@ -168,7 +192,8 @@ class AgentOrchestrator:
             else:
                 logger.debug(f"🚫 BLOCKED tool from Chatbot (Not in skills): {tool_name}")
 
-        logger.info(f"Chatbot Initialized with {len(tools)} total tools.")
+        logger.info(f"Chatbot Ref Time ({ref_tz_name}): {ref_time_str}")
+        logger.info(f"Chatbot Initialized with {len(tools)} active tools.")
         # ── 7. Create agent with full context (including Local Workspace Reference Time) ──
         ref_tz_name = settings.get("client_timezone", "America/Toronto")
         ref_tz = pytz.timezone(ref_tz_name)
