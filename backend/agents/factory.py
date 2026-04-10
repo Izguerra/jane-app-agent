@@ -11,9 +11,10 @@ from backend.database import SessionLocal
 
 class AgentFactory:
     @staticmethod
-    def create_agent(settings: dict, workspace_id: str, team_id: str, tools: list = [], current_customer=None, 
+    def create_agent(settings: dict, workspace_id: str, team_id: str, tools: list = [], 
+                     current_customer=None, 
                      customer_history_context: str = None, enabled_skills: list = [], personality_prompt: str = None, 
-                     db: Optional[Session] = None, current_datetime: str = None) -> Agent:
+                     db: Optional[Session] = None, current_datetime: str = None, **kwargs) -> Agent:
         
         from backend.services.voice_prompt_builder import VoicePromptBuilder
         
@@ -47,13 +48,15 @@ class AgentFactory:
         
         # Model Selection
         openai_api_key = os.getenv("OPENAI_API_KEY")
-        model = LLMModel(id="gpt-4o-mini", api_key=openai_api_key, 
+        model_id = settings.get("model_id", "gpt-4o-mini") # Allow override
+        model = LLMModel(id=model_id, api_key=openai_api_key, 
                          temperature=float(settings.get("creativity_level", 50)) / 100.0)
 
         return Agent(
             model=model,
-            description="You are SupaAgent, an AI assistant.",
+            description=f"You are {p_role}, an AI assistant.",
             instructions=instructions,
             tools=tools,
-            markdown=True
+            markdown=True,
+            **kwargs
         )

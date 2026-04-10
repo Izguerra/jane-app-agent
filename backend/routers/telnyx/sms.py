@@ -37,13 +37,29 @@ async def process_agent_reply(
             channel="sms", communication_id=comm_id
         )
         
-        # 2. Add User Message
+        # 2. Add User Message (Fast DB update)
         ConversationHistoryService.add_message(
             workspace_id=workspace_id, user_identifier=from_number, 
             channel="sms", role="user", content=text, communication_id=comm_id
         )
-        try: sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="user", content=text)
-        except: pass
+
+        # 2.1 Immediate Acknowledgment (Randomized)
+        # Keeps user engaged while the Team Orchestrator/Expert thinks
+        import random
+        ACKNOWLEDGMENTS = [
+            "Let me get this for you...",
+            "Great question, I'll work on it.",
+            "Searching the vault for you now...",
+            "Give me a quick second to look that up.",
+            "I'm on it!",
+            "One moment, grabbing those details..."
+        ]
+        
+        # Don't acknowledge tiny messages like 'Hi', 'Ok', 'Thanks'
+        if len(text.split()) > 2 or any(keyword in text.lower() for keyword in ["weather", "search", "find", "who", "what", "where", "how"]):
+            ack_msg = random.choice(ACKNOWLEDGMENTS)
+            send_sms(to_number=from_number, message=ack_msg, workspace_id=workspace_id, agent_id=agent_id)
+            logger.info(f"Sent interim ACK to {from_number}: {ack_msg}")
 
         # 3. Generate AI Response
         logger.info(f"Generating AI reply for {from_number} (Comm: {comm_id})...")
@@ -52,30 +68,76 @@ async def process_agent_reply(
             history=history, agent_id=agent_id, communication_id=comm_id
         )
 
-        # 4. Save and Send Assistant Message
+        # 4. Outbound Send (IMMEDIATE + CHUNKED)
+        chunks = split_into_sentence_chunks(ai_response, limit=1500)
+        for chunk in chunks:
+            send_sms(to_number=from_number, message=chunk, workspace_id=workspace_id, agent_id=agent_id)
+            if len(chunks) > 1:
+                time.sleep(0.5) # Brief pause between chunks for sequential delivery
+        
+        logger.info(f"AI response sent to {from_number} ({len(chunks)} chunks)")
+
+        # 5. POST-SEND BACKGROUND TASKS (Do not delay the user)
+        # 5.1 Save AI Message to History
         ConversationHistoryService.add_message(
             workspace_id=workspace_id, user_identifier=from_number, 
             channel="sms", role="assistant", content=ai_response, communication_id=comm_id
         )
-        try: sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="assistant", content=ai_response)
-        except: pass
 
-        # 5. Final Analysis
-        full_history = ConversationHistoryService.get_recent_history(
-            workspace_id=workspace_id, user_identifier=from_number, 
-            channel="sms", communication_id=comm_id
-        )
-        transcript_str = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in full_history])
-        AnalysisService.analyze_communication(comm_id, transcript_str)
+        # 5.2 Sync to Vector DB
+        try: 
+            sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="user", content=text)
+            sync_chat_message(workspace_id=workspace_id, user_identifier=from_number, channel="sms", role="assistant", content=ai_response)
+        except Exception as ve:
+            logger.warning(f"Vector sync deferred error: {ve}")
 
-        # 6. Outbound Send
-        send_sms(to_number=from_number, message=ai_response, workspace_id=workspace_id, agent_id=agent_id)
-        logger.info(f"AI response sent to {from_number}")
+        # 5.3 Final Analysis
+        try:
+            full_history = ConversationHistoryService.get_recent_history(
+                workspace_id=workspace_id, user_identifier=from_number, 
+                channel="sms", communication_id=comm_id
+            )
+            transcript_str = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in full_history])
+            await AnalysisService.analyze_communication(comm_id, transcript_str)
+        except Exception as ae:
+            logger.warning(f"Post-reply analysis deferred error: {ae}")
 
     except Exception as e:
         logger.error(f"Error in background SMS processing: {e}")
     finally:
         db.close()
+
+def split_into_sentence_chunks(text: str, limit: int = 1500) -> list[str]:
+    """Splits a long message into sentence-aware chunks under the character limit."""
+    import re
+    # Split by common sentence endings (keep the ending characters)
+    # Using a slightly more robust regex for sentence splitting
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    
+    chunks = []
+    current_chunk = ""
+    
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) + 1 <= limit:
+            current_chunk = (current_chunk + " " + sentence).strip()
+        else:
+            if current_chunk:
+                chunks.append(current_chunk)
+            
+            # If a single sentence is still larger than the limit, hard-split it
+            if len(sentence) > limit:
+                temp_sentence = sentence
+                while len(temp_sentence) > limit:
+                    chunks.append(temp_sentence[:limit])
+                    temp_sentence = temp_sentence[limit:]
+                current_chunk = temp_sentence
+            else:
+                current_chunk = sentence
+                
+    if current_chunk:
+        chunks.append(current_chunk)
+        
+    return chunks
 
 @router.post("/sms/webhook")
 async def telnyx_sms_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

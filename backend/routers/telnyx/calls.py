@@ -14,7 +14,7 @@ from .utils import log_debug
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Telnyx Calls"])
 
-@router.post("/webhook")
+@router.post("/calls/webhook")
 async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
     """Standard Telnyx Call Control Webhook."""
     try:
@@ -91,6 +91,12 @@ async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
                 
                 transfer_uri = f"sip:{room_name}@{os.getenv('ASTERISK_HOST', '147.182.149.234')}"
                 requests.post(f"https://api.telnyx.com/v2/calls/{call_id}/actions/transfer", json={"to": transfer_uri, "from": from_number if comm.direction == "outbound" else to_number, "connection_id": payload.get("connection_id"), "custom_headers": [{"name": "X-LiveKit-Room", "value": room_name}]}, headers={"Authorization": f"Bearer {telnyx_key}", "Content-Type": "application/json"})
+        elif event_type == "call.hangup":
+            comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first()
+            if comm:
+                comm.status, comm.ended_at = "completed", datetime.utcnow()
+                db.commit()
+                logger.info(f"Call {call_id} marked as completed via hangup.")
         
         return {"status": "ok"}
     except Exception as e:

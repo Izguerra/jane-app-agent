@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any, Union
 import logging
 from datetime import datetime
 import json
 import pytz
+import inspect
 from sqlalchemy.orm import Session
 from backend.agents.factory import AgentFactory
 
@@ -89,11 +90,12 @@ class AgentOrchestrator:
             worker_tools=worker_tools
         )
         
-        # ── 5. Load MCP Tools (with proper lifecycle tracking) ──
+        # ── 5. Load MCP Tools (LAZY LOADING for Chat Mode) ──
         mcp_tools = []
-        mcp_instances = []
         try:
-            mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_skill_slugs)
+            # We use cached definitions to avoid SSE handshake latency (9s -> <1s)
+            mcp_tools = MCPLoaderService.get_cached_mcp_tools(workspace_id, enabled_skill_slugs)
+            logger.info(f"Chatbot Tool Discovery: Found {len(mcp_tools)} cached MCP tools.")
         except Exception as e:
             logger.warning(f"MCP loading failed (non-fatal, continuing without MCP tools): {e}")
         
@@ -105,7 +107,7 @@ class AgentOrchestrator:
         # Get all standard tools via LiveKit's discovery
         lk_tools = llm.find_function_tools(agent_tools)
         
-        # Start with MCP tools (which are already lk.FunctionTool wrappers)
+        # Start with MCP tools
         all_lk_tools = lk_tools + mcp_tools
         allowed_tool_names = VoicePromptBuilder.get_allowed_tool_names(skills)
         
@@ -146,7 +148,13 @@ class AgentOrchestrator:
             
             async def wrapper(*args, **kwargs):
                 try:
-                    # Pass the agent_tools instance directly as 'self'
+                    # IMPROVED BINDING LOGIC:
+                    # If actual_func is already bound to an instance (e.g., from llm.find_function_tools(agent_tools)),
+                    # we do NOT pass the instance again as it's already contextualized.
+                    if inspect.ismethod(actual_func):
+                        return await actual_func(*args, **kwargs)
+                    
+                    # Otherwise, safely pass the agent_tools instance as the first 'self' argument
                     return await raw_func(agent_tools_instance, *args, **kwargs)
                 except Exception as e:
                     logger.error(f"System Tool '{func_name}' failed: {e}")
@@ -156,8 +164,13 @@ class AgentOrchestrator:
             wrapper.__qualname__ = func_name
             wrapper.__doc__ = raw_func.__doc__ or getattr(tool_obj, "description", "")
             wrapper.__signature__ = new_sig
+            
+            # Ensure type hints from the original function are preserved
             if hasattr(raw_func, "__annotations__"):
                 wrapper.__annotations__ = {k: v for k, v in raw_func.__annotations__.items() if k != "self"}
+            
+            # CRITICAL: Agno uses get_type_hints which looks at __globals__
+            # We ensure the wrapper shares globals with this module which now has Any/List/etc.
             return wrapper
         
         tools = []
@@ -192,21 +205,64 @@ class AgentOrchestrator:
             else:
                 logger.debug(f"🚫 BLOCKED tool from Chatbot (Not in skills): {tool_name}")
 
-        logger.info(f"Chatbot Ref Time ({ref_tz_name}): {ref_time_str}")
-        logger.info(f"Chatbot Initialized with {len(tools)} active tools.")
-        # ── 7. Create agent with full context (including Local Workspace Reference Time) ──
+        # ── 7. Create 2-Tier Agent Team (Leader/Member Architecture) ──
+        from agno.team import Team
+        
         ref_tz_name = settings.get("client_timezone", "America/Toronto")
         ref_tz = pytz.timezone(ref_tz_name)
         ref_time_str = datetime.now(ref_tz).strftime("%A, %B %d, %Y at %I:%M %p")
         logger.info(f"Chatbot Ref Time ({ref_tz_name}): {ref_time_str}")
-
-        agent = AgentFactory.create_agent(
-            settings, workspace_id, team_id, tools=tools, db=db,
-            enabled_skills=skills, personality_prompt=personality_prompt,
-            current_datetime=ref_time_str
+        
+        # Expert Agent (Member): High performance, handles all specialized tools
+        expert_settings = dict(settings)
+        expert_settings["model_id"] = "gpt-4o"
+        expert_agent = AgentFactory.create_agent(
+            expert_settings, workspace_id, team_id, tools=tools, db=db,
+            enabled_skills=skills, personality_prompt=None, # Pure tool executor
+            current_datetime=ref_time_str,
+            enable_agentic_state=True
         )
-        # Enable observability for tool calls in chat mode
-        agent.show_tool_calls = True
+        expert_agent.name = "Expert"
+        expert_agent.description = "You are a technical specialist responsible for executing tools and providing raw data to the primary assistant."
+        
+        # Jane (Leader): Fast conversational agent. Delegator.
+        frontline_settings = dict(settings)
+        frontline_settings["model_id"] = "gpt-4o-mini"
+        
+        # Inject delegation instructions into the personality/base prompt
+        # Explicitly mention SMS/Email/Notifications skills to ensure she delegates them
+        delegation_instr = (
+            "\n\n### 🚨 CRITICAL DELEGATION RULES ###\n"
+            "If the user asks for ANY of the following, you MUST DELEGATE to your 'Expert' team member:\n"
+            "- SENDING SMS or EMAIL notifications\n"
+            "- Running background tasks or workers\n"
+            "- Weather, Knowledge Base Search, or Flight Status\n"
+            "- Technical lookups or CRM updates\n"
+            "Do NOT try to simulate these technical responses. Hand them off to the Expert immediately."
+        )
+        if personality_prompt:
+            personality_prompt += delegation_instr
+        else:
+            personality_prompt = delegation_instr
+
+        jane_agent = AgentFactory.create_agent(
+            frontline_settings, workspace_id, team_id, tools=[], # Jane has NO tools herself
+            db=db,
+            enabled_skills=skills, personality_prompt=personality_prompt,
+            current_datetime=ref_time_str,
+            enable_agentic_state=True
+        )
+        jane_agent.name = settings.get("name", "Jane")
+
+        # Wrap in a Team for proper delegation
+        agent = Team(
+            members=[jane_agent, expert_agent],
+            show_members_responses=True,
+            add_member_tools_to_context=True,
+            add_team_history_to_members=True
+        )
+        
+        logger.info(f"Chatbot 2-Tier Team Initialized. Members: {[jane_agent.name, expert_agent.name]} (Lead: {jane_agent.name}).")
         
         # ── 8. Build conversation context with cross-channel memory ──
         from agno.models.message import Message
@@ -246,18 +302,10 @@ class AgentOrchestrator:
         
         messages.append(Message(role="user", content=message))
         
-        # ── 9. Run agent and ensure MCP cleanup ──
-        try:
-            if stream:
-                return agent.arun(messages, stream=True)
-            else:
-                res = await agent.arun(messages)
-                return res.content
-        finally:
-            # Cleanup MCP connections to prevent async lifecycle errors
-            if mcp_instances:
-                try:
-                    await MCPLoaderService.cleanup_mcp_servers(mcp_instances)
-                except Exception as e:
-                    logger.warning(f"MCP cleanup failed (non-fatal): {e}")
+        # ── 9. Run agent ──
+        if stream:
+            return agent.arun(messages, stream=True)
+        else:
+            res = await agent.arun(messages)
+            return res.content
 

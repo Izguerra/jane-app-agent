@@ -18,8 +18,8 @@ if [ ! -z "$PIDS_AGENT" ]; then
 fi
 
 # Check for virtual environment
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
+if [ -d "venv" ]; then
+    source venv/bin/activate
 else
     echo "Virtual environment not found!"
     exit 1
