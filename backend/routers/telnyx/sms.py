@@ -44,7 +44,8 @@ async def telnyx_sms_webhook(request: Request, background_tasks: BackgroundTasks
             CampaignService(db).handle_inbound_message(workspace_id=workspace_id, customer_id=customer.id)
 
         # Agent Resolution
-        agent = db.query(Agent).filter(Agent.workspace_id == workspace_id).first()
+        from .utils import resolve_agent_from_phone_number
+        agent = resolve_agent_from_phone_number(db, to_number, workspace_id)
         agent_id = agent.id if agent else None
 
         # Session Management
@@ -93,7 +94,7 @@ async def telnyx_sms_webhook(request: Request, background_tasks: BackgroundTasks
         transcript_str = "\n".join([f"{msg['role'].upper()}: {msg['content']}" for msg in full_history])
         background_tasks.add_task(AnalysisService.analyze_communication, comm_id, transcript_str)
 
-        send_sms(to_number=from_number, message=ai_response, workspace_id=workspace_id)
+        send_sms(to_number=from_number, message=ai_response, workspace_id=workspace_id, agent_id=agent_id)
         return {"status": "success"}
 
     except Exception as e:

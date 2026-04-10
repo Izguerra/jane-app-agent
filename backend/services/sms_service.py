@@ -35,7 +35,7 @@ def format_phone_number(phone: str) -> str:
     # Otherwise, return as-is with + (might fail, but let Twilio handle it)
     return f"+{digits}"
 
-def send_sms(to_number: str, message: str, workspace_id: int = None, force_whatsapp: bool = False) -> (bool, str):
+def send_sms(to_number: str, message: str, workspace_id: int = None, agent_id: str = None, force_whatsapp: bool = False) -> (bool, str):
     """
     Send an SMS message using Twilio or Telnyx.
     
@@ -43,6 +43,7 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
         to_number: The recipient's phone number (any format — will be auto-formatted to E.164)
         message: The message body
         workspace_id: Workspace ID for credentials
+        agent_id: Optional Agent ID to use a specifically assigned number
         force_whatsapp: If True, treats this as a WhatsApp message regardless of other settings
         
     Returns:
@@ -111,7 +112,7 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
         except Exception as e:
             logger.error(f"Error checking database for WhatsApp credentials: {e}")
         # Continue to fallback
-    
+
     # 2. Check Database for Assigned Number / Provider (New)
     try:
         from backend.database import SessionLocal
@@ -119,11 +120,23 @@ def send_sms(to_number: str, message: str, workspace_id: int = None, force_whats
         
         db = SessionLocal()
         try:
-            # Find the most recently active number for this workspace
-            phone_record = db.query(PhoneNumber).filter(
-                PhoneNumber.workspace_id == workspace_id,
-                PhoneNumber.is_active == True
-            ).order_by(PhoneNumber.created_at.desc()).first()
+            phone_record = None
+            
+            # 2a. Priority lookup by agent_id
+            if agent_id:
+                phone_record = db.query(PhoneNumber).filter(
+                    PhoneNumber.agent_id == agent_id,
+                    PhoneNumber.is_active == True
+                ).first()
+                if phone_record:
+                    logger.info(f"Resolved outbound number {phone_record.phone_number} for agent {agent_id}")
+
+            # 2b. Fallback to workspace pool
+            if not phone_record:
+                phone_record = db.query(PhoneNumber).filter(
+                    PhoneNumber.workspace_id == workspace_id,
+                    PhoneNumber.is_active == True
+                ).order_by(PhoneNumber.created_at.desc()).first()
             
             if phone_record:
                 from_number = phone_record.phone_number

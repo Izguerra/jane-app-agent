@@ -35,17 +35,35 @@ async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
         elif event_type == "call.answered":
             if str(payload.get("to", "")).startswith("sip:"): return {"status": "ok"}
             comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first()
+            
+            # Resolve agent for this call
+            from .utils import resolve_agent_from_phone_number
+            agent = resolve_agent_from_phone_number(db, to_number, workspace_id)
+            agent_id = agent.id if agent else None
+
             if not comm:
                 p_rec = db.query(PhoneNumber).filter(PhoneNumber.phone_number == payload.get("to")).first()
                 call_direction = "inbound" if p_rec else "outbound"
                 workspace_id = p_rec.workspace_id if p_rec else None
                 if call_direction == "inbound":
-                    comm = Communication(id=generate_comm_id(), workspace_id=workspace_id, type="call", direction="inbound", status="answered", telnyx_call_id=call_id, user_identifier=payload.get("from"), started_at=datetime.utcnow())
+                    comm = Communication(
+                        id=generate_comm_id(), 
+                        workspace_id=workspace_id, 
+                        type="call", 
+                        direction="inbound", 
+                        status="answered", 
+                        telnyx_call_id=call_id, 
+                        user_identifier=payload.get("from"), 
+                        started_at=datetime.utcnow(),
+                        agent_id=agent_id
+                    )
                     db.add(comm)
                 else: pass # Outbound usually pre-created
 
             if comm:
                 comm.status, comm.telnyx_call_id = "answered", call_id
+                if not comm.agent_id and agent_id:
+                    comm.agent_id = agent_id
                 db.commit()
                 room_name = f"{comm.direction}-{str(comm.id).replace('_', '-')}"
                 
@@ -54,7 +72,20 @@ async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
                     try:
                         from livekit import api
                         lkapi = api.LiveKitAPI(os.getenv("LIVEKIT_URL"), os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET"))
-                        await lkapi.room.create_room(api.CreateRoomRequest(name=room_name, empty_timeout=60, max_participants=2, agents=[api.RoomAgentDispatch()], metadata=json.dumps({"communication_id": comm.id, "workspace_id": workspace_id, "call_intent": "inbound_call"})))
+                        await lkapi.room.create_room(
+                            api.CreateRoomRequest(
+                                name=room_name, 
+                                empty_timeout=60, 
+                                max_participants=2, 
+                                agents=[api.RoomAgentDispatch()], 
+                                metadata=json.dumps({
+                                    "communication_id": comm.id, 
+                                    "workspace_id": workspace_id, 
+                                    "call_intent": "inbound_call",
+                                    "agent_id": agent_id
+                                })
+                            )
+                        )
                         await lkapi.aclose()
                     except: pass
                 
