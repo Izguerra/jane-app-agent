@@ -7,6 +7,7 @@ from backend.models_db import PhoneNumber, Workspace
 from backend.auth import get_current_user, AuthUser
 from backend.services.twilio_service import TwilioService
 from backend.services.telnyx_service import TelnyxService
+from backend.services.telephony_provisioning_service import TelephonyProvisioningService
 import logging
 import os
 
@@ -22,9 +23,12 @@ class PhoneNumberSearch(BaseModel):
     provider: str = "twilio"
 
 class PhoneNumberPurchase(BaseModel):
-    phone_number: str
+    phone_number: Optional[str] = None
+    country_code: str = "US"
+    area_code: Optional[str] = None
     friendly_name: Optional[str] = None
     workspace_id: str
+    agent_id: Optional[str] = None
     provider: str = "twilio"
 
 class PhoneNumberConfig(BaseModel):
@@ -114,30 +118,25 @@ async def purchase_number(
                 country_code="US"
             )
         elif purchase.provider == "telnyx":
-            telnyx = TelnyxService()
-            result = telnyx.purchase_phone_number(
-                phone_number=purchase.phone_number,
-                workspace_id=purchase.workspace_id
-            )
-            
-            db_number = PhoneNumber(
-                id=generate_phone_id(),
-                workspace_id=purchase.workspace_id,
-                phone_number=result["phone_number"],
-                friendly_name=result.get("friendly_name", purchase.phone_number),
-                telnyx_id=result["id"],
-                provider="telnyx",
-                voice_enabled=True, # Assuming true for standard purchase
-                sms_enabled=True,
-                monthly_cost=200, # Telnyx is usually cheaper
-                country_code="US"
-            )
+            try:
+                provisioning_service = TelephonyProvisioningService(db)
+                db_number = await provisioning_service.provision_phone_number(
+                    workspace_id=purchase.workspace_id,
+                    phone_number=purchase.phone_number,
+                    country_code=purchase.country_code,
+                    area_code=purchase.area_code,
+                    agent_id=purchase.agent_id
+                )
+                result = {"phone_number": db_number.phone_number} # needed for inbound_agent_phone below
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=str(e))
         else:
             raise ValueError(f"Unsupported provider: {purchase.provider}")
         
-        db.add(db_number)
-        
-        # Link to workspace for Voice Agent lookup
+        # Link to workspace for Voice Agent lookup ONLY IF twilio or fallback behavior
+        if purchase.provider == "twilio":
+            db.add(db_number)
+            
         workspace.inbound_agent_phone = result["phone_number"]
         db.add(workspace)
         db.commit()
@@ -225,13 +224,9 @@ async def release_number(
                 
         elif number.provider == "telnyx" and number.telnyx_id:
             try:
-                import telnyx
-                telnyx_api_key = os.getenv("TELNYX_API_KEY")
-                if telnyx_api_key:
-                    telnyx.api_key = telnyx_api_key
-                    # Telnyx SDK uses PhoneNumber to delete
-                    num = telnyx.PhoneNumber.retrieve(number.telnyx_id)
-                    num.delete()
+                provisioning_service = TelephonyProvisioningService(db)
+                await provisioning_service.deprovision_phone_number(number.id)
+                return {"status": "success"} # provisioning_service handles the db delete
             except Exception as e:
                 logger.error(f"Failed to release number from Telnyx: {e}")
 
@@ -244,3 +239,46 @@ async def release_number(
         logger.error(f"Error releasing number: {e}")
         # If Twilio fails, we might still want to delete from DB if it's gone
         raise HTTPException(status_code=400, detail=str(e))
+
+class PhoneNumberAssign(BaseModel):
+    agent_id: Optional[str] = None
+
+@router.patch("/{number_id}/assign")
+async def assign_agent_to_number(
+    number_id: str,
+    assignment: PhoneNumberAssign,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(get_current_user)
+):
+    """Reassign or unassign an agent from a phone number"""
+    number = db.query(PhoneNumber).filter(PhoneNumber.id == number_id).first()
+    if not number:
+        raise HTTPException(status_code=404, detail="Phone number not found")
+        
+    # Verify owner
+    workspace = db.query(Workspace).filter(
+        Workspace.id == number.workspace_id,
+        Workspace.team_id == current_user.team_id
+    ).first()
+    
+    if not workspace:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        provisioning_service = TelephonyProvisioningService(db)
+        updated_number = provisioning_service.reassign_phone_number(number_id, assignment.agent_id)
+        
+        # Refresh to get eager loaded relationships
+        db.refresh(updated_number)
+        
+        n_dict = {c.name: getattr(updated_number, c.name) for c in updated_number.__table__.columns}
+        if updated_number.agent:
+            n_dict['agent_name'] = updated_number.agent.name
+        else:
+            n_dict['agent_name'] = None
+            
+        return n_dict
+    except Exception as e:
+        logger.error(f"Error reassigning number: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
