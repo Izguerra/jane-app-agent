@@ -23,6 +23,8 @@ def flatten_agent(agent: Agent) -> Dict[str, Any]:
         "is_orchestrator": agent.is_orchestrator,
         "is_active": agent.is_active,
         "description": agent.description,
+        "soul": agent.soul,
+        "allowed_worker_types": agent.allowed_worker_types,
         "created_at": agent.created_at,
         "updated_at": agent.updated_at,
         "phone_numbers": [
@@ -39,6 +41,11 @@ def flatten_agent(agent: Agent) -> Dict[str, Any]:
     if agent.settings:
         settings_data = agent.settings if isinstance(agent.settings, dict) else json.loads(agent.settings)
         data.update(settings_data)
+        
+    # Ensure core fields in the response match the columns (if there was shadowing in JSON)
+    for field in ["soul", "allowed_worker_types", "voice_id", "language", "name", "description"]:
+        if hasattr(agent, field):
+            data[field] = getattr(agent, field)
         
     return data
 
@@ -78,7 +85,7 @@ async def create_agent(
     wid = get_workspace_context(db, user, workspace_id=workspace_id, request=request)
     
     # Separate base fields from settings fields
-    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description"}
+    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description", "soul", "allowed_worker_types"}
     data_dict = agent_data.model_dump()
     
     base_values = {k: v for k, v in data_dict.items() if k in base_fields}
@@ -119,14 +126,18 @@ async def update_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description"}
+    base_fields = {"name", "voice_id", "language", "prompt_template", "welcome_message", "is_orchestrator", "is_active", "description", "soul", "allowed_worker_types"}
     update_dict = agent_data.model_dump(exclude_unset=True)
     
-    current_settings = agent.settings if isinstance(agent.settings, dict) else (json.loads(agent.settings) if agent.settings else {})
+    # Force a copy to ensure SQLAlchemy detects changes in the JSON column
+    current_settings = dict(agent.settings) if isinstance(agent.settings, dict) else (json.loads(agent.settings) if agent.settings else {})
     
     for key, value in update_dict.items():
         if key in base_fields:
             setattr(agent, key, value)
+            # Ensure it's not also in settings to prevent shadowing
+            if key in current_settings:
+                current_settings.pop(key, None)
         elif key == "phone_number_id":
             # Update phone number assignment
             # First, clear existing phone numbers for this agent if we want a 1:1, or just assign new one
@@ -135,32 +146,9 @@ async def update_agent(
             if phone:
                 phone.agent_id = agent.id
         else:
-            # Standardization: Normalize camelCase to snake_case for known keys
+            # Standardization: Key is now always snake_case thanks to AgentUpdate Aliases
             snake_key = key
-            if key == "openClawInstanceId": snake_key = "open_claw_instance_id"
-            if key == "tavusReplicaId": snake_key = "tavus_replica_id"
-            if key == "anamPersonaId": snake_key = "anam_persona_id"
-            if key == "avatarProvider": snake_key = "avatar_provider"
-            if key == "avatarVoiceId": snake_key = "avatar_voice_id"
-            if key == "useTavusAvatar": snake_key = "use_tavus_avatar"
-            
-            # Personal Profile Field Mapping
-            if key == "ownerName": snake_key = "owner_name"
-            if key == "personalLocation": snake_key = "personal_location"
-            if key == "personalTimezone": snake_key = "personal_timezone"
-            if key == "favoriteFoods": snake_key = "favorite_foods"
-            if key == "favoriteRestaurants": snake_key = "favorite_restaurants"
-            if key == "favoriteMusic": snake_key = "favorite_music"
-            if key == "favoriteActivities": snake_key = "favorite_activities"
-            if key == "otherInterests": snake_key = "other_interests"
-            if key == "personalLikes": snake_key = "personal_likes"
-            if key == "personalDislikes": snake_key = "personal_dislikes"
-            
             current_settings[snake_key] = value
-            
-            # Clean up old casing if it exists in the dict
-            if snake_key != key:
-                current_settings.pop(key, None)
             
     agent.settings = current_settings
     
@@ -191,11 +179,19 @@ async def delete_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    # Cleanup phone number assignments
-    db.query(PhoneNumber).filter(PhoneNumber.agent_id == agent.id).update({"agent_id": None})
-    
-    db.delete(agent)
-    db.commit()
-    
-    await broadcast_settings_change(wid)
-    return {"status": "success"}
+    try:
+        # Cleanup phone number assignments explicitly (Double safety)
+        db.query(PhoneNumber).filter(PhoneNumber.agent_id == agent.id).update({"agent_id": None})
+        
+        # Note: Communication and WorkerTask foreign keys now use ondelete="SET NULL"
+        # in the DB schema, so no manual cleanup is strictly required for those.
+        
+        db.delete(agent)
+        db.commit()
+        
+        await broadcast_settings_change(wid)
+        return {"status": "success", "message": f"Agent {agent_id} deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting agent {agent_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete agent: {str(e)}")

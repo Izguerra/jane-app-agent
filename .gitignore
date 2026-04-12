@@ -25,6 +25,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.log
+logs/
+*.json
+!package.json
+!tsconfig.json
+!next.config.json
+!deno.json
+!deno.jsonc
+!import_map.json
 
 # local env files
 .env
@@ -97,3 +105,18 @@ grok-playground-ref/
 JaneAppAgent_Fix_2/
 JaneApp_CRM_Mockups/
 stitch_platform_ai_integrations_stats/
+# SQLite database files - NEVER use SQLite, PostgreSQL only
+*.db
+
+# JaneApp Agent Scratch Scripts & Diagnostics
+diag_tools.py
+mcp_check.py
+trigger_500.py
+inspect_schema_py.py
+add_column_supabase.py
+backend/scripts/test_voice_avatar_stability.py
+test_voice_e2e.py
+test_avatar_e2e.py
+*.OGA
+*.wav
+*.mp3

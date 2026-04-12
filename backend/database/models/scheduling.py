@@ -47,7 +47,7 @@ class PhoneNumber(Base):
     twilio_sid = Column(String(255), unique=True, index=True)
     telnyx_id = Column(String(255), unique=True, index=True)
     provider = Column(String(50), default="twilio", nullable=False)
-    agent_id = Column(String(50), ForeignKey("agents.id"))
+    agent_id = Column(String(50), ForeignKey("agents.id", ondelete="SET NULL"))
     stripe_subscription_item_id = Column(String(255))
     monthly_cost = Column(Integer)
     purchase_date = Column(DateTime(timezone=True), server_default=func.now())

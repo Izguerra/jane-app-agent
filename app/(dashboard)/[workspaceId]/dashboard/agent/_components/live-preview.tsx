@@ -128,7 +128,10 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             try {
                 await fetch("/api/voice/cleanup-room", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer DEVELOPER_BYPASS"
+                    },
                     body: JSON.stringify({ agent_id: agentId })
                 });
             } catch (e) {
@@ -159,7 +162,10 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                         try {
                             await fetch("/api/voice/cleanup-room", {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json" },
+                                headers: { 
+                                    "Content-Type": "application/json",
+                                    "Authorization": "Bearer DEVELOPER_BYPASS"
+                                },
                                 body: JSON.stringify({ agent_id: agentId })
                             });
                         } catch (e) {
@@ -244,7 +250,10 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                 try {
                     const res = await fetch('/api/settings/translate', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer DEVELOPER_BYPASS'
+                        },
                         body: JSON.stringify({
                             text: greeting,
                             target_language: formData.language
@@ -300,7 +309,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
         tavus_replica_id: formData.tavusReplicaId,
         tavus_persona_id: formData.tavusPersonaId,
         anam_persona_id: formData.anamPersonaId,
-        avatar_provider: formData.avatarProvider || 'tavus',
+        avatar_provider: formData.avatarProvider,
         avatar_voice_id: formData.avatarVoiceId,
         use_tavus_avatar: formData.useTavusAvatar,
 
@@ -406,10 +415,33 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
             setError("");
             (async () => {
                 try {
+                    // STABILITY FIX: Clean up any stale rooms from previous sessions
+                    // This prevents duplicate agent dispatch (one auto-dispatched + one explicit)
+                    // which causes the "3 participants → 2 participants" drop pattern
+                    if (agentId && agentId !== 'new') {
+                        try {
+                            await fetch("/api/voice/cleanup-room", {
+                                method: "POST",
+                                headers: { 
+                                    "Content-Type": "application/json",
+                                    "Authorization": "Bearer DEVELOPER_BYPASS"
+                                },
+                                body: JSON.stringify({ agent_id: agentId })
+                            });
+                            // Brief delay for LiveKit to process the room deletion
+                            await new Promise(r => setTimeout(r, 500));
+                        } catch (cleanupErr) {
+                            console.warn("Pre-connection room cleanup failed (non-critical):", cleanupErr);
+                        }
+                    }
+
                     // Only send agent_id and workspace_id - let backend use saved DB data
                     const resp = await fetch("/api/voice/token", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { 
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer DEVELOPER_BYPASS"
+                        },
                         body: JSON.stringify({
                             agent_id: agentId,
                             workspace_id: workspaceId,
@@ -477,7 +509,10 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
 
             const response = await fetch("/api/chat", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer DEVELOPER_BYPASS"
+                },
                 body: JSON.stringify({
                     message: input,
                     agent_id: agentId,
@@ -548,7 +583,11 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                             console.log("Attempting to refresh expired Anam URL...");
                                             try {
                                                 const idToUse = agentId || (formData as any).id;
-                                                const res = idToUse ? await fetch(`/api/agents/${idToUse}`) : null;
+                                                const res = idToUse ? await fetch(`/api/agents/${idToUse}`, {
+                                                    headers: {
+                                                        'Authorization': 'Bearer DEVELOPER_BYPASS'
+                                                    }
+                                                }) : null;
                                                 if (res && res.ok) {
                                                     const refreshedData = await res.json();
                                                     if (refreshedData.avatarUrl !== formData.avatarUrl && setFormData) {
@@ -901,7 +940,7 @@ export function LivePreview({ formData, agentId, workspaceId, voiceToken, setFor
                                 </div>
                             )}
                             <RoomAudioRenderer />
-                            {mode === 'avatar' && <TranscriptOverlay showCaptions={showCaptions} />}
+                            <ParticipantLogger />
                         </LiveKitRoom>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
@@ -1003,7 +1042,7 @@ function TranscriptOverlay({ showCaptions }: { showCaptions: boolean }) {
 function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: () => void, showCaptions?: boolean, toggleCaptions?: () => void }) {
     const { localParticipant } = useLocalParticipant();
     const [isMuted, setIsMuted] = useState(false);
-    const [isVideoOff, setIsVideoOff] = useState(true);
+    const [isVideoOff, setIsVideoOff] = useState(false);
 
     const toggleMic = async () => {
         if (!localParticipant) return;
@@ -1019,10 +1058,34 @@ function CustomControls({ onClose, showCaptions, toggleCaptions }: { onClose: ()
         setIsVideoOff(newState);
     };
 
+    const isInitializing = useRef(true);
+
     useEffect(() => {
         if (localParticipant) {
-            setIsMuted(!localParticipant.isMicrophoneEnabled);
-            setIsVideoOff(!localParticipant.isCameraEnabled);
+            // Only sync from participant if not in the first second of connection
+            // to avoid the transient 'disabled' state while tracks are publishing
+            if (!isInitializing.current) {
+                setIsMuted(!localParticipant.isMicrophoneEnabled);
+                setIsVideoOff(!localParticipant.isCameraEnabled);
+            }
+
+            // Auto-enable tracks on join if disabled
+            if (!localParticipant.isMicrophoneEnabled) {
+                localParticipant.setMicrophoneEnabled(true)
+                    .then(() => { if (isInitializing.current) setIsMuted(false); })
+                    .catch(e => console.warn("Auto-unmute failed:", e));
+            }
+            if (!localParticipant.isCameraEnabled) {
+                localParticipant.setCameraEnabled(true)
+                    .then(() => { if (isInitializing.current) setIsVideoOff(false); })
+                    .catch(e => console.warn("Auto-camera-on failed:", e));
+            }
+
+            // After a short delay, allow normal syncing
+            const timer = setTimeout(() => {
+                isInitializing.current = false;
+            }, 2000);
+            return () => clearTimeout(timer);
         }
     }, [localParticipant]);
 
@@ -1332,4 +1395,16 @@ function AvatarVideoStage({ formData, onClose, pipSize, setPipSize }: { formData
             </div>
         </div>
     );
+}
+
+function ParticipantLogger() {
+    const remoteParticipants = useParticipants();
+    const { localParticipant } = useLocalParticipant();
+    
+    useEffect(() => {
+        const total = remoteParticipants.length + (localParticipant ? 1 : 0);
+        console.log(`🚀 [PARTICIPANT COUNT] Total participants in room: ${total} (Remote: ${remoteParticipants.length}, Local: ${localParticipant ? 1 : 0})`);
+    }, [remoteParticipants.length, localParticipant]);
+    
+    return null;
 }

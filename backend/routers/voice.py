@@ -50,9 +50,8 @@ async def _generate_token(
 
     if not room_name:
         if agent_id:
-            # CRITICAL FIX: Include mode in room name to prevent stale metadata
-            # from a prior avatar session killing the voice agent (or vice versa)
-            room_name = f"agent-session-{agent_id[:8]}-{mode}"
+            # CRITICAL FIX: Use full agent_id to prevent collisions with same-prefix agents
+            room_name = f"agent-session-{agent_id}-{mode}"
         else:
             room_name = f"room-{str(uuid.uuid4())[:8]}-{mode}"
 
@@ -103,9 +102,10 @@ async def _generate_token(
     # Doing both causes duplicate agents (echo/two agents speaking)
     room_config = api.RoomConfiguration()
     # --- Resolve Settings ---
-    settings = {}
+    # 1. Start with DB settings from the Workspace
+    settings = get_settings(workspace.id, agent_id=agent_id).copy()
     
-    # 1. Start with DB settings (if agent_id exists)
+    # 2. Add DB settings from the specific Agent
     if agent_id:
         from backend.models_db import Agent
         agent = db.query(Agent).filter(Agent.id == agent_id, Agent.workspace_id == workspace.id).first()
@@ -115,16 +115,25 @@ async def _generate_token(
                 val = getattr(agent, field)
                 if val is not None: settings[field] = val
             if agent.settings: settings.update(agent.settings)
-        else:
-             settings = get_settings(workspace.id).copy()
-    else:
-        settings = get_settings(workspace.id).copy()
         
     # 2. Override with agent_config from request (Unsaved Wizard Data)
     if agent_config:
         # Merge shallowly
         settings.update(agent_config)
         print(f"DEBUG: Overriding token settings with provided agent_config (keys: {list(agent_config.keys())})")
+
+    # 2.5 Normalize camelCase keys from frontend to snake_case
+    _camel_to_snake = {
+        "avatarVoiceId": "avatar_voice_id",
+        "avatarProvider": "avatar_provider",
+        "anamPersonaId": "anam_persona_id",
+        "tavusReplicaId": "tavus_replica_id",
+        "tavusPersonaId": "tavus_persona_id",
+        "useTavusAvatar": "use_tavus_avatar",
+    }
+    for camel, snake in _camel_to_snake.items():
+        if camel in settings and snake not in settings:
+            settings[snake] = settings[camel]
 
     # 3. Handle explicit Tavus ID overrides (top-level)
     if tavus_replica_id:
@@ -133,9 +142,10 @@ async def _generate_token(
         settings["tavus_persona_id"] = tavus_persona_id
 
     # 4. Handle separate voice for AI Avatar mode
-    if mode == "avatar" and settings.get("avatar_voice_id"):
-        print(f"DEBUG: Overriding voice_id with avatar_voice_id: {settings['avatar_voice_id']}")
-        settings["voice_id"] = settings["avatar_voice_id"]
+    if mode == "avatar" and (settings.get("avatar_voice_id") or settings.get("avatarVoiceId")):
+        avatar_voice = settings.get("avatar_voice_id") or settings.get("avatarVoiceId")
+        print(f"DEBUG: Overriding voice_id with avatar_voice_id: {avatar_voice}")
+        settings["voice_id"] = avatar_voice
 
     # Auto-translate welcome message
     if settings.get("welcome_message") and settings.get("language"):
@@ -214,7 +224,7 @@ async def _generate_token(
         room = await lkapi.room.create_room(api.CreateRoomRequest(
             name=room_name,
             empty_timeout=60,
-            max_participants=4,
+            max_participants=5 if mode == "avatar" else 3,
             metadata=json.dumps(settings)
         ))
         print(f"DEBUG: [VOICE_TOKEN] Room creation response: {room.name if room else 'None'}")
@@ -360,7 +370,7 @@ async def cleanup_room(
     try:
         lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
         for suffix in ["-voice", "-avatar"]:
-            room_name = f"agent-session-{agent_prefix}{suffix}"
+            room_name = f"agent-session-{request.agent_id}{suffix}"
             try:
                 await lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))
                 deleted_rooms.append(room_name)
@@ -394,8 +404,8 @@ async def room_status(
     if not api_key or not api_secret or not livekit_url:
         raise HTTPException(status_code=503, detail="LiveKit not configured")
 
-    agent_prefix = agent_id[:8] if agent_id else "unknown"
-    room_name = f"agent-session-{agent_prefix}-{mode}"
+    agent_id_str = agent_id if agent_id else "unknown"
+    room_name = f"agent-session-{agent_id_str}-{mode}"
 
     try:
         lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)

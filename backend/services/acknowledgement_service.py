@@ -126,9 +126,24 @@ async def stream_with_followup(
         """Read chunks from the generator and push to queue."""
         try:
             async for chunk in response_generator:
+                is_tool_call = False
+                # Detect tool calls in Agno RunResponse (chunk)
+                if hasattr(chunk, 'tools') and chunk.tools:
+                    is_tool_call = True
+                if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                    is_tool_call = True
+
                 if chunk and hasattr(chunk, 'content') and chunk.content:
                     await chunk_queue.put(chunk.content)
+                elif is_tool_call:
+                    # Signal that a tool is active to postpone follow-ups
+                    logger.debug(f"Detected Tool Call chunk from Agno. Postponing fillers.")
+                    await chunk_queue.put("TOOL_RUNNING_SENTINEL")
+                else:
+                    # Maybe it's a metadata chunk (usage, etc) — ignore unless it's the end
+                    pass
         except Exception as e:
+            logger.error(f"Error in chatbot stream consumption: {e}")
             await chunk_queue.put(f"Error: {e}")
         finally:
             stream_done.set()
@@ -156,6 +171,12 @@ async def stream_with_followup(
                 if content is None:
                     # Stream finished
                     break
+                
+                if content == "TOOL_RUNNING_SENTINEL":
+                    # Extend the wait time and don't yield anything
+                    start_time = time.monotonic() # Reset timer because agent is active
+                    followup_delay += 2.0 # Give it more breathing room for tools
+                    continue
                 
                 first_real_chunk_received = True
                 full_content += content

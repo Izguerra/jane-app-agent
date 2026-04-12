@@ -54,7 +54,7 @@ class WorkerTask(Base):
     outcome_fee_cents = Column(Integer, default=0)
     total_fee_cents = Column(Integer, default=0)
     fee_billed = Column(Boolean, default=False)
-    dispatched_by_agent_id = Column(String(50), ForeignKey("agents.id"))
+    dispatched_by_agent_id = Column(String(50), ForeignKey("agents.id", ondelete="SET NULL"))
 
 class WorkerSchedule(Base):
     __tablename__ = "worker_schedules"

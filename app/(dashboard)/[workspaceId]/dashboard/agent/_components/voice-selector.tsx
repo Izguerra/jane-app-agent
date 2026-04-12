@@ -39,10 +39,7 @@ export function VoiceSelector({ voiceId, onVoiceChange, disabled }: VoiceSelecto
 
             if (grokVoices.includes(currentVoiceId.toLowerCase())) provider = 'grok';
             else if (elevenVoices.includes(currentVoiceId) || (currentVoiceId === 'Leo' && !grokVoices.includes('leo'))) provider = 'elevenlabs';
-
-            // Handle specific case for 'Leo' (ElevenLabs) vs 'leo' (Grok)
-            if (currentVoiceId === 'Leo') provider = 'elevenlabs';
-            if (currentVoiceId === 'leo') provider = 'grok';
+            else if (currentVoiceId.startsWith("aura-")) provider = 'deepgram';
 
             const res = await fetch('/api/voice/preview', {
                 method: 'POST',
@@ -123,6 +120,18 @@ export function VoiceSelector({ voiceId, onVoiceChange, disabled }: VoiceSelecto
                     <SelectItem value="Matilda">Matilda (ElevenLabs)</SelectItem>
                     <SelectItem value="Nicole">Nicole (ElevenLabs)</SelectItem>
                     <SelectItem value="Sam">Sam (ElevenLabs)</SelectItem>
+
+                    {/* Deepgram Aura Voices */}
+                    <div className="border-t my-2" />
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Deepgram Aura</div>
+                    <SelectItem value="aura-asteria-en">Asteria (Deepgram)</SelectItem>
+                    <SelectItem value="aura-luna-en">Luna (Deepgram)</SelectItem>
+                    <SelectItem value="aura-stella-en">Stella (Deepgram)</SelectItem>
+                    <SelectItem value="aura-athena-en">Athena (Deepgram)</SelectItem>
+                    <SelectItem value="aura-orion-en">Orion (Deepgram)</SelectItem>
+                    <SelectItem value="aura-helios-en">Helios (Deepgram)</SelectItem>
+                    <SelectItem value="aura-zeus-en">Zeus (Deepgram)</SelectItem>
+                    <SelectItem value="aura-perseus-en">Perseus (Deepgram)</SelectItem>
                 </SelectContent>
             </Select>
 

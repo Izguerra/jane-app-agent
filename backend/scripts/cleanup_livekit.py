@@ -4,58 +4,41 @@ import json
 from livekit import api
 from dotenv import load_dotenv
 
-load_dotenv()
-
-async def cleanup():
+async def cleanup_rooms():
+    load_dotenv()
+    
+    livekit_url = os.getenv("LIVEKIT_URL")
     api_key = os.getenv("LIVEKIT_API_KEY")
     api_secret = os.getenv("LIVEKIT_API_SECRET")
-    livekit_url = os.getenv("LIVEKIT_URL")
-
-    if not api_key or not api_secret or not livekit_url:
-        print("Missing LiveKit credentials in .env")
+    
+    if not all([livekit_url, api_key, api_secret]):
+        print("ERROR: Missing LiveKit credentials in .env")
         return
 
     print(f"Connecting to LiveKit: {livekit_url}")
     lkapi = api.LiveKitAPI(livekit_url, api_key, api_secret)
-
+    
     try:
         # List all rooms
         rooms_res = await lkapi.room.list_rooms(api.ListRoomsRequest())
         rooms = rooms_res.rooms
-
-        if not rooms:
-            print("No active rooms found.")
-            return
-
-        print(f"Found {len(rooms)} rooms. Checking for zombies...")
-
+        
+        print(f"Found {len(rooms)} total rooms.")
+        
+        deleted_count = 0
         for room in rooms:
-            print(f"Room: {room.name} | Participants: {room.num_participants} | Created: {room.creation_time}")
-            
-            # Decision logic: 
-            # 1. Rooms older than 1 hour are definitely zombies for a preview/test environment
-            # 2. Rooms with 'toggle-test' or 'room-' prefix are targets
-            
-            should_delete = False
-            if room.num_participants == 0:
-                should_delete = True
-                print(f"  -> Target for deletion: 0 participants")
-            elif "toggle-test" in room.name or room.name.startswith("room-"):
-                # If it's a test room and has been active a while, or we just want a clean slate
-                should_delete = True
-                print(f"  -> Target for deletion: Test/Preview room")
-            
-            if should_delete:
+            if room.name.startswith("agent-session-"):
+                print(f"Deleting zombie room: {room.name} (Participants: {room.num_participants}, Duration: {room.creation_time})")
                 try:
                     await lkapi.room.delete_room(api.DeleteRoomRequest(room=room.name))
-                    print(f"  [SUCCESS] Deleted room: {room.name}")
-                except Exception as de:
-                    print(f"  [ERROR] Failed to delete room {room.name}: {de}")
-
-    except Exception as e:
-        print(f"Cleanup failed: {e}")
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"  Failed to delete {room.name}: {e}")
+        
+        print(f"Successfully deleted {deleted_count} zombie rooms.")
+        
     finally:
         await lkapi.aclose()
 
 if __name__ == "__main__":
-    asyncio.run(cleanup())
+    asyncio.run(cleanup_rooms())

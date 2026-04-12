@@ -119,10 +119,6 @@ export async function POST(req: NextRequest) {
 
         } else if (provider === "grok") {
             // Grok (xAI) Fallback Preview
-            // xAI currently does not have a public REST TTS endpoint for 'preview' in the same way.
-            // To satisfy user request for previews, we will map Grok voices to their closest OpenAI equivalents.
-            // This is an APPROXIMATION.
-
             const GROK_MAPPING: Record<string, string> = {
                 "ara": "shimmer", // Female
                 "eve": "nova",    // Female
@@ -143,6 +139,30 @@ export async function POST(req: NextRequest) {
             const arrayBuffer = await response.arrayBuffer();
             audioBuffer = Buffer.from(arrayBuffer);
 
+        } else if (provider === "deepgram") {
+            const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+            if (!deepgramApiKey) {
+                return NextResponse.json({ error: "Deepgram API Key missing in server" }, { status: 500 });
+            }
+
+            // voiceId should be something like aura-asteria-en
+            const response = await fetch(`https://api.deepgram.com/v1/speak?model=${voiceId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Token ${deepgramApiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: previewText })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`Deepgram Speak Error: ${response.status}`, errorText);
+                throw new Error(`Deepgram API Error: ${response.status}`);
+            }
+
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = Buffer.from(arrayBuffer);
         }
 
 

@@ -8,6 +8,7 @@ from backend.prompts import GATEKEEPER_INSTRUCTION
 from backend.prompts.personal_assistant import PERSONAL_ASSISTANT_INSTRUCTION
 from backend.models_db import Workspace
 from backend.database import SessionLocal
+from backend.services.brain_service import BrainService
 
 class AgentFactory:
     @staticmethod
@@ -15,8 +16,6 @@ class AgentFactory:
                      current_customer=None, 
                      customer_history_context: str = None, enabled_skills: list = [], personality_prompt: str = None, 
                      db: Optional[Session] = None, current_datetime: str = None, **kwargs) -> Agent:
-        
-        from backend.services.brain_service import BrainService
         
         if not current_datetime:
             import pytz

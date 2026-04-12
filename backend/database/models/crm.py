@@ -76,7 +76,7 @@ class Communication(Base):
     integration_id = Column(String(50), ForeignKey("integrations.id"))
     recording_url = Column(Text)
     user_identifier = Column(String(255))
-    agent_id = Column(String(50), ForeignKey("agents.id"))
+    agent_id = Column(String(50), ForeignKey("agents.id", ondelete="SET NULL"))
     call_intent = Column(Text)
     call_outcome = Column(Text)
     call_context = Column(JSON)

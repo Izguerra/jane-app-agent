@@ -31,8 +31,8 @@ class CRMInteractionService:
         
         try:
             from backend.lib.ai_client import get_ai_client
-            client, model = get_ai_client(workspace_id=customer.workspace_id, async_mode=False)
-            response = client.chat.completions.create(
+            client, model = get_ai_client(workspace_id=customer.workspace_id, async_mode=True)
+            response = await client.chat.completions.create(
                 model=model, messages=[{"role": "user", "content": prompt}], 
                 response_format={"type": "json_object"}, temperature=0.1
             )

@@ -246,6 +246,7 @@ async def _discover_mcp_tools(client: httpx.AsyncClient, url: str, headers: dict
                     {
                         "name": tool.name,
                         "description": tool.description or "",
+                        "inputSchema": tool.inputSchema if hasattr(tool, "inputSchema") else getattr(tool, "parameters", {})
                     }
                     for tool in tools_result.tools
                 ]

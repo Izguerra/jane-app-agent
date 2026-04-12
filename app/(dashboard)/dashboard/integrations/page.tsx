@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { Loader2 } from 'lucide-react';
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
 
 export default function IntegrationsRedirectPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { data: user, error } = useSWR('/api/user', fetcher);
+    const { data: user, error } = useSWR('/api/user');
 
     useEffect(() => {
         if (user && user.workspaceId) {

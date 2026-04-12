@@ -57,7 +57,7 @@ export function BillingHistory() {
                                         {new Date(invoice.date * 1000).toLocaleDateString()}
                                     </td>
                                     <td className="px-4 py-3 font-medium">
-                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: invoice.currency }).format(invoice.amount)}
+                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: invoice.currency || 'USD' }).format(invoice.amount)}
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant={invoice.status === 'paid' ? 'outline' : 'secondary'} className={invoice.status === 'paid' ? 'text-green-600 border-green-200 bg-green-50' : ''}>

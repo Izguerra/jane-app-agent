@@ -20,13 +20,14 @@ class CRMMixin:
             return "\n".join([f"- {c.first_name} {c.last_name} ({c.email})" for c in customers]) or "No customers found."
         finally: db.close()
 
-    @llm.function_tool(description="Update an existing customer record.")
-    async def update_customer_record(self, customer_id: str, **kwargs):
+    @llm.function_tool(description="Update an existing customer record with new information.")
+    async def update_customer_record(self, customer_id: str, first_name: str = None, last_name: str = None, email: str = None, phone: str = None, notes: str = None):
         db = SessionLocal()
         try:
             customer = db.query(Customer).filter(Customer.id == customer_id, Customer.workspace_id == self.workspace_id).first()
             if not customer: return "Customer not found."
-            for k, v in kwargs.items():
+            updates = {"first_name": first_name, "last_name": last_name, "email": email, "phone": phone, "notes": notes}
+            for k, v in updates.items():
                 if v is not None and hasattr(customer, k): setattr(customer, k, v)
             db.commit()
             return f"Updated customer {customer_id}."

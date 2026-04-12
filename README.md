@@ -13,10 +13,11 @@ SupaAgent is a high-performance, real-time AI customer support platform that ena
 - **Voice & Video Avatar:** High-fidelity spoken interaction powered by LiveKit and Tavus replicas.
 
 ## 🆕 Recent Updates
+- **Agent Reliability & Wizard Stability:** Comprehensive fix for Agent Wizard configuration persistence. Resolved issues where avatar settings (persona, voice, provider) failed to sync between the UI and Backend.
+- **Improved Deletion Logic:** Resolved "Failed to delete" errors by implementing `ON DELETE SET NULL` database constraints across `Communications` and `WorkerTasks`, ensuring history is preserved while allowing agent removal.
+- **UI Synchronization:** Implemented real-time synchronization between the Avatar Selector and the Live Preview widget, ensuring visual consistency during the configuration flow.
 - **Agent Stability:** Resolved 1-participant and 3rd-participant bugs by isolating connection scopes.
 - **Tool Context:** Complete refactor of backend tool mixins (Web Search, CRM, Calendar, Mailbox, and Workers) to ensure native `workspace_id` propagation for secure, multi-tenant API key resolution.
-- **LLM Configuration:** Ensured compatibility and stability with Google's latest `gemini-3-flash-preview` model via the LiveKit Google plugin.
-- **Worker Timeouts:** Added global 10-second `aiohttp` timeouts for resilient third-party API executions (e.g., Weather queries).
 
 ## 🛠 Tech Stack
 
@@ -25,8 +26,18 @@ SupaAgent is a high-performance, real-time AI customer support platform that ena
 - **Telephony:** Telnyx (PSTN), Asterisk (SIP Proxy/Bridge).
 - **AI/LLM:** Google Gemini 3.0 Flash.
 - **Real-time:** LiveKit (Voice/Video), Twilio (WhatsApp/SIP).
-- **Database:** Postgres (Drizzle on Frontend / SQLAlchemy on Backend).
+- **Database:** **PostgreSQL ONLY** (Drizzle on Frontend / SQLAlchemy on Backend) — see critical note below.
 - **Payments:** Stripe integration.
+
+> ⚠️ **CRITICAL: PostgreSQL is the ONLY supported database**
+>
+> This application **requires PostgreSQL**. SQLite is NOT supported and MUST NOT be used — not even as a fallback, not for development, not for testing agent connections.
+>
+> **If PostgreSQL is down or failing, fix PostgreSQL first.** Do not attempt to switch to SQLite or any other database.
+>
+> The backend's `database/__init__.py` will **raise a hard error** if a SQLite URL is detected or if no PostgreSQL URL is configured. The `.env` file must contain `DATABASE_URL` or `POSTGRES_URL` pointing to a valid PostgreSQL instance.
+>
+> LiveKit agents run in spawned subprocesses (`multiprocessing.spawn` on macOS). All `.env` loading uses absolute paths derived from `__file__` to ensure the database URL is always resolved correctly in these subprocesses.
 
 ## 🚀 Getting Started
 

@@ -227,6 +227,43 @@ def seed_skills():
                 "icon": "Activity",
                 "instructions": "Set up or execute automation chains triggered by specific conversational events or status changes.",
                 "allowed_tools": ["dispatch_worker"]
+            },
+            # 🛠️ Utility & Assistance (4)
+            {
+                "name": "Weather Worker",
+                "slug": "weather-worker",
+                "category": "Utility",
+                "description": "Check real-time weather and forecasts",
+                "icon": "CloudSun",
+                "instructions": "Check current weather or forecasts for specific locations using the get_weather tool.",
+                "allowed_tools": ["get_weather"]
+            },
+            {
+                "name": "Map Worker",
+                "slug": "map-worker",
+                "category": "Utility",
+                "description": "Get directions, distance, and travel times",
+                "icon": "Map",
+                "instructions": "Provide directions, distance, and travel time estimates using the get_directions tool.",
+                "allowed_tools": ["get_directions"]
+            },
+            {
+                "name": "Flight Tracker",
+                "slug": "flight-tracker",
+                "category": "Utility",
+                "description": "Track live flight status and schedules",
+                "icon": "Plane",
+                "instructions": "Track flight status or look up schedules using the get_flight_status tool. Always help with specific airline and airport codes.",
+                "allowed_tools": ["get_flight_status"]
+            },
+            {
+                "name": "General Utility",
+                "slug": "general-utility",
+                "category": "Utility",
+                "description": "General assistant tasks like checking time",
+                "icon": "Tool",
+                "instructions": "Handle general utility tasks like checking current local time using the get_current_time tool.",
+                "allowed_tools": ["get_current_time"]
             }
         ]
         

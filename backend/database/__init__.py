@@ -1,12 +1,33 @@
+"""
+╔══════════════════════════════════════════════════════════════════════╗
+║  CRITICAL: PostgreSQL is the ONLY supported database.              ║
+║                                                                    ║
+║  DO NOT add SQLite fallback logic. DO NOT use sqlite:// URLs.      ║
+║  If PostgreSQL is down, FIX PostgreSQL — do not switch databases.  ║
+║                                                                    ║
+║  The .env file MUST contain DATABASE_URL or POSTGRES_URL pointing  ║
+║  to a valid PostgreSQL instance. This module will raise a hard     ║
+║  error if no PostgreSQL URL is configured.                         ║
+║                                                                    ║
+║  This module is imported by LiveKit-spawned subprocesses           ║
+║  (multiprocessing.spawn on macOS). The .env path MUST be absolute  ║
+║  and derived from __file__, NOT from os.getcwd().                  ║
+╚══════════════════════════════════════════════════════════════════════╝
+"""
+
 import os
 import random
 import string
+import logging
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 
 from backend.lib.id_service import IdService
+
+_db_logger = logging.getLogger("backend.database")
 
 def generate_workspace_id(length=None):
     """Generate a workspace ID (K-Sortable)."""
@@ -77,16 +98,36 @@ def generate_confirmation_code(length=6):
     chars = string.ascii_uppercase + string.digits
     return ''.join(random.choices(chars, k=length))
 
-# Load environment variables from project root
-load_dotenv()
+# ── Load .env using ABSOLUTE path (critical for LiveKit subprocess safety) ──
+# LiveKit agents run in spawned subprocesses (multiprocessing.spawn on macOS).
+# Using load_dotenv() without an explicit path relies on os.getcwd() which may
+# differ in the child process, causing DATABASE_URL to be None and silently
+# creating a SQLite engine. This explicit path ensures .env is ALWAYS found.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_ENV_PATH = _PROJECT_ROOT / ".env"
+load_dotenv(dotenv_path=_ENV_PATH)
 
-# ALWAYS use PostgreSQL - no SQLite fallback
+_db_logger.info(f"Loaded .env from: {_ENV_PATH} (exists={_ENV_PATH.exists()})")
+
+# ── POSTGRESQL ONLY — NO SQLITE FALLBACK ──
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     DATABASE_URL = os.getenv("POSTGRES_URL")
 
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL or POSTGRES_URL must be set in .env file. PostgreSQL is required.")
+    raise ValueError(
+        "FATAL: DATABASE_URL or POSTGRES_URL must be set in .env file.\n"
+        f"Searched .env at: {_ENV_PATH}\n"
+        "PostgreSQL is REQUIRED. Do NOT use SQLite. If PostgreSQL is down, fix PostgreSQL."
+    )
+
+# Hard-block any SQLite URL that somehow got configured
+if "sqlite" in DATABASE_URL.lower():
+    raise ValueError(
+        f"FATAL: SQLite database URL detected: {DATABASE_URL}\n"
+        "This application REQUIRES PostgreSQL. SQLite is NOT supported.\n"
+        "Fix your DATABASE_URL in .env to point to a PostgreSQL instance."
+    )
 
 if "sslmode=require" not in DATABASE_URL:
     if "?" in DATABASE_URL:
@@ -98,18 +139,16 @@ if "sslmode=require" not in DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-print(f"Using PostgreSQL database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'}")
+_db_host = DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'configured'
+print(f"[database] PostgreSQL connected: {_db_host}")
+_db_logger.info(f"PostgreSQL engine configured: {_db_host}")
 
-# Create engine
+# Create engine — always PostgreSQL with connection pooling
 engine_kwargs = {
-    "pool_pre_ping": True
+    "pool_pre_ping": True,
+    "pool_size": 5,
+    "max_overflow": 10
 }
-
-if not DATABASE_URL.startswith("sqlite"):
-    engine_kwargs.update({
-        "pool_size": 5,
-        "max_overflow": 10
-    })
 
 engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

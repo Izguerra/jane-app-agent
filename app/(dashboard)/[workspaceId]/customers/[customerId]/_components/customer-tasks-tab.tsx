@@ -66,7 +66,7 @@ export function CustomerTasksTab({ customerId }: CustomerTasksTabProps) {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-blue-600">
-                            {tasks?.filter((t: any) => ["running", "pending"].includes(t.status)).length || 0}
+                            {(Array.isArray(tasks) ? tasks : []).filter((t: any) => ["running", "pending"].includes(t.status)).length || 0}
                         </div>
                     </CardContent>
                 </Card>
@@ -80,7 +80,7 @@ export function CustomerTasksTab({ customerId }: CustomerTasksTabProps) {
                 <CardContent>
                     <ScrollArea className="h-[500px] pr-4">
                         <div className="space-y-8 pl-2">
-                            {tasks?.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                            {(Array.isArray(tasks) ? tasks : []).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                                 .map((task: any) => (
                                     <div key={task.id} className="relative flex gap-4 pb-4 border-l pl-6 last:border-0 border-muted">
                                         {/* Status Icon Marker */}
@@ -145,7 +145,7 @@ export function CustomerTasksTab({ customerId }: CustomerTasksTabProps) {
                                     </div>
                                 ))}
 
-                            {!tasks?.length && (
+                            {(!Array.isArray(tasks) || tasks.length === 0) && (
                                 <div className="text-center py-10 text-muted-foreground">
                                     No worker tasks found for this customer.
                                 </div>

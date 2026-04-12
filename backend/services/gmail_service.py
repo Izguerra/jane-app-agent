@@ -155,13 +155,15 @@ class GmailService:
             if bcc:
                 message['Bcc'] = ", ".join(bcc)
 
+            logger.info(f"Sending Gmail to {to_email} with subject '{subject}'")
             raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
             body_payload = {'raw': raw}
             
-            service.users().messages().send(userId='me', body=body_payload).execute()
+            sent_msg = service.users().messages().send(userId='me', body=body_payload).execute()
+            logger.info(f"Gmail API Response: ID={sent_msg.get('id')}, ThreadID={sent_msg.get('threadId')}, Labels={sent_msg.get('labelIds')}")
             return True
         except Exception as e:
-            logger.error(f"Error sending Gmail email: {e}")
+            logger.error(f"Error sending Gmail email: {e}", exc_info=True)
             raise e
 
     def search_emails(self, workspace_id: int, query: str, limit: int = 10) -> List[Dict[str, Any]]:

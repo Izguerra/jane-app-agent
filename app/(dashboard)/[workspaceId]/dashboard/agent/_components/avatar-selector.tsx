@@ -42,6 +42,14 @@ const VOICE_GENDERS: Record<string, 'male' | 'female' | 'neutral'> = {
     Matilda: 'female',
     Nicole: 'female',
     Sam: 'male',
+    'aura-asteria-en': 'female',
+    'aura-luna-en': 'female',
+    'aura-stella-en': 'female',
+    'aura-athena-en': 'female',
+    'aura-orion-en': 'male',
+    'aura-helios-en': 'male',
+    'aura-zeus-en': 'male',
+    'aura-perseus-en': 'male',
 };
 
 const DEPRECATED_AVATARS = ['Destiny', 'Steph - Selfie', 'Deprecated', '(Deprecated)'];
@@ -137,6 +145,23 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
     });
 
     const selectedAvatarId = activeProvider === 'anam' ? formData.anamPersonaId : formData.tavusReplicaId;
+
+    // SYNC EFFECT: Ensure formData.avatarUrl matches the selected persona's thumbnail on load
+    useEffect(() => {
+        if (!isLoading && avatars.length > 0 && selectedAvatarId) {
+            const currentAvatar = avatars.find((a: any) => a.id === selectedAvatarId);
+            if (currentAvatar) {
+                const targetUrl = currentAvatar.thumbnail_video_url || currentAvatar.thumbnail_image_url;
+                if (targetUrl && formData.avatarUrl !== targetUrl) {
+                    console.log(`[AvatarSelector] Syncing avatarUrl to ${targetUrl} for ${selectedAvatarId}`);
+                    setFormData((prev: AgentFormData) => ({
+                        ...prev,
+                        avatarUrl: targetUrl
+                    }));
+                }
+            }
+        }
+    }, [isLoading, avatars, selectedAvatarId, formData.avatarUrl, setFormData]);
 
     const handleToggle = (checked: boolean) => {
         setFormData((prev: AgentFormData) => ({
@@ -250,6 +275,17 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                     <SelectItem value="Matilda">Matilda (Female)</SelectItem>
                                     <SelectItem value="Nicole">Nicole (Female)</SelectItem>
                                     <SelectItem value="Sam">Sam (Male)</SelectItem>
+
+                                    <div className="border-t my-2" />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Deepgram Aura</div>
+                                    <SelectItem value="aura-asteria-en">Asteria (Female)</SelectItem>
+                                    <SelectItem value="aura-luna-en">Luna (Female)</SelectItem>
+                                    <SelectItem value="aura-stella-en">Stella (Female)</SelectItem>
+                                    <SelectItem value="aura-athena-en">Athena (Female)</SelectItem>
+                                    <SelectItem value="aura-orion-en">Orion (Male)</SelectItem>
+                                    <SelectItem value="aura-helios-en">Helios (Male)</SelectItem>
+                                    <SelectItem value="aura-zeus-en">Zeus (Male)</SelectItem>
+                                    <SelectItem value="aura-perseus-en">Perseus (Male)</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -269,7 +305,11 @@ export function AvatarSelector({ formData, setFormData, showTitle = true }: Avat
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
-                                                provider: (['Rachel', 'Adam', 'Bella', 'Chris', 'Emily', 'Josh', 'Leo', 'Matilda', 'Nicole', 'Sam'].includes(formData.avatarVoiceId || '')) ? 'elevenlabs' : 'openai',
+                                                provider: (['Rachel', 'Adam', 'Bella', 'Chris', 'Emily', 'Josh', 'Leo', 'Matilda', 'Nicole', 'Sam'].includes(formData.avatarVoiceId || '')) 
+                                                    ? 'elevenlabs' 
+                                                    : (formData.avatarVoiceId || '').startsWith('aura-')
+                                                        ? 'deepgram'
+                                                        : 'openai',
                                                 voiceId: formData.avatarVoiceId || 'alloy'
                                             })
                                         });

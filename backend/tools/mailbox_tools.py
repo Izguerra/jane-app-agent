@@ -211,17 +211,14 @@ class MailboxTools:
                     except: pass
 
             if not active_service:
+                logger.warning(f"No active mailbox integration found for workspace {self.workspace_id}")
                 return "No active mailbox integration found to send email."
 
             # --- GUARD RAIL 2: Integration Permissions Check ---
-            # Check if this specific integration allows sending
-            # Find the integration record used by active_service
-            # (Simplification: re-query the integration to inspect settings)
             try:
                 from backend.models_db import Integration
                 import json
                 
-                # Identify provider string
                 prov_str = ""
                 if service_name == "Gmail": prov_str = "gmail_mailbox"
                 elif service_name == "Outlook": prov_str = "outlook_mailbox"
@@ -236,14 +233,16 @@ class MailboxTools:
                     
                     if integ_record and integ_record.settings:
                         start_settings = json.loads(integ_record.settings) if isinstance(integ_record.settings, str) else integ_record.settings
-                        # Check "send_emails" key (matching frontend UI)
-                        # Default to True if key missing to avoid breaking existing users? 
-                        # User screenshot implies explicit toggles. Let's strictly check if present.
-                        if "send_emails" in start_settings and not start_settings["send_emails"]:
+                        # Use consistent 'can_send_emails' key
+                        permission_granted = start_settings.get("can_send_emails", True)
+                        if not permission_granted:
+                            logger.error(f"Permission denied for {service_name} (can_send_emails=False)")
                             return f"PERMISSION DENIED: The '{service_name}' integration has 'Send emails' disabled in settings."
             except Exception as perm_e:
-                print(f"Permission check warning: {perm_e}")
+                logger.warning(f"Permission check error: {perm_e}")
             # --- END GUARD RAIL ---
+
+            logger.info(f"Dispatching email to {to_email} via {service_name}")
 
             if service_name == "Gmail":
                 success = active_service.send_email(self.workspace_id, to_email, subject, body, cc=cc, bcc=bcc, is_html=is_html)
