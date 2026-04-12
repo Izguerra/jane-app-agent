@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
-# ── Path & Env Setup ──
+# Path Setup
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
@@ -17,32 +17,21 @@ from livekit.rtc import ConnectionState
 from livekit.agents import AutoSubscribe, JobContext, JobProcess, cli, WorkerOptions, llm
 from backend.utils.process_manager import ProcessManager
 
-# ── Import Optimization ──
-# Service-specific heavy imports are moved into local scopes to speed up WorkerProcess spawning.
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("voice-agent")
 
-# ── VAD Setup ──
 _vad_model = None
 def get_vad_model():
     global _vad_model
     if _vad_model is None:
-        from livekit.plugins import silero  # Lazy import — safe for macOS spawn
-        # TUNE FOR SNAPPINESS
-        _vad_model = silero.VAD.load(
-            min_speech_duration=0.15,
-            min_silence_duration=0.6,
-            prefix_padding_ms=200,
-            max_buffered_speech_pd=30
-        )
+        from livekit.plugins import silero
+        _vad_model = silero.VAD.load(min_speech_duration=0.15, min_silence_duration=0.6 )
     return _vad_model
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = get_vad_model()
 
 async def entrypoint(ctx: JobContext):
-    # Local imports for performance optimization
     import pytz
     from backend.database import SessionLocal, generate_comm_id
     from backend.models_db import Communication, Agent as AgentModel, Workspace
@@ -65,56 +54,41 @@ async def entrypoint(ctx: JobContext):
 
         await ctx.room.local_participant.set_attributes({"lk.agent.state": "initializing"})
         participant = await ctx.wait_for_participant()
-        logger.info(f"Connecting to human participant: {participant.identity}")
-
+        
         # 1. Resolve Context
         workspace_id, agent_id, call_context, meta = await VoiceContextResolver.resolve_context(ctx, participant)
 
-        # PRIMARY FIX: Extract agent_id from deterministic room name BEFORE get_settings()
-        if not agent_id and ctx.room.name.startswith("agent-session-"):
-            parts = ctx.room.name.split("-")
-            room_suffix = ctx.room.name[len("agent-session-"):]
-            last_dash = room_suffix.rfind("-")
-            if last_dash > 0:
-                agent_id = room_suffix[:last_dash]
-                logger.info(f"Extracted agent_id from room name: {agent_id}")
+        # Safety Check: Use participant identity if agent_id still missing (some SIP trunks)
+        if not agent_id and participant.identity.startswith("agnt_"):
+            agent_id = participant.identity
+            logger.info(f"Resolved agent_id={agent_id} from participant identity")
 
-        if not agent_id and meta.get("agent_id"):
-            agent_id = meta.get("agent_id")
-            logger.info(f"Extracted agent_id from room metadata: {agent_id}")
+        logger.info(f"Resolved context: Workspace={workspace_id}, Agent={agent_id}")
 
-        logger.info(f"Resolved context: workspace_id={workspace_id}, agent_id={agent_id}")
-
-        # Load workspace-level defaults
         settings = get_settings(workspace_id, agent_id=agent_id)
         settings.update(meta)
 
-        # 2. Database & Logging
         db = SessionLocal()
         log_id = settings.get("log_id")
-        workspace_info = {"name": "The Business", "phone": "N/A", "services": "General", "role": "Assistant"}
+        workspace_info = {"name": "Assistant", "phone": "N/A", "services": "General", "role": "AI Assistant"}
 
         try:
+            agent_rec = None
             if agent_id:
                 agent_rec = db.query(AgentModel).filter(AgentModel.id == agent_id, AgentModel.workspace_id == workspace_id).first()
-            else:
-                agent_rec = db.query(AgentModel).filter(AgentModel.workspace_id == workspace_id).first()
             
+            # NO GREEDY FALLBACK. If no agent_id, we remain in a 'generic assistant' state.
             if agent_rec:
-                agent_id = agent_rec.id
                 if agent_rec.settings: settings.update(agent_rec.settings)
-                settings["name"] = agent_rec.name
-                settings["prompt_template"] = agent_rec.prompt_template
-                settings["welcome_message"] = agent_rec.welcome_message
-                settings["voice_id"] = agent_rec.voice_id
-                settings["language"] = agent_rec.language
-                settings["soul"] = agent_rec.soul
-                settings["allowed_worker_types"] = agent_rec.allowed_worker_types
+                for col in ["name", "prompt_template", "welcome_message", "voice_id", "language", "soul", "allowed_worker_types"]:
+                    settings[col] = getattr(agent_rec, col, settings.get(col))
                 
                 ws = db.query(Workspace).filter(Workspace.id == workspace_id).first()
                 if ws:
                     workspace_info = {"name": ws.name, "phone": ws.phone, "services": settings.get("services"), "role": settings.get("role")}
-                
+            else:
+                logger.warning(f"No specific agent record found for ID '{agent_id}'. Using generic persona.")
+
             if not log_id:
                 log_entry = Communication(
                     id=generate_comm_id(), type="call", direction="outbound" if call_context else "inbound",
@@ -125,30 +99,22 @@ async def entrypoint(ctx: JobContext):
                 log_id = log_entry.id
         finally: db.close()
 
-        # 3. Build Prompt
-        ref_tz_name = settings.get("client_timezone", "America/Toronto")
-        ref_tz = pytz.timezone(ref_tz_name)
+        ref_tz = pytz.timezone(settings.get("client_timezone", "America/Toronto"))
         ref_time_str = datetime.now(ref_tz).strftime("%A, %B %d, %Y at %I:%M %p")
         
         db = SessionLocal()
-        skills = SkillService().get_skills_for_agent(db, agent_id)
-        personality = PersonalityService().get_personality(db, agent_id)
-        personality_prompt = PersonalityService().generate_personality_prompt(personality)
+        skills = SkillService().get_skills_for_agent(db, agent_id) if agent_id else []
+        personality = PersonalityService().get_personality(db, agent_id) if agent_id else None
+        personality_prompt = PersonalityService().generate_personality_prompt(personality) if personality else ""
         db.close()
-
-        agent_type = settings.get("agent_type", "business")
-        call_context = meta.get("call_context")
 
         prompt = BrainService.build_prompt(
             settings, personality_prompt, skills, workspace_info, 
             ref_time_str, settings.get("client_location"),
-            agent_type=agent_type,
-            call_context=call_context
+            agent_type=settings.get("agent_type", "business"),
+            call_context=meta.get("call_context")
         )
 
-        # 4. Filtered Tools & Pipeline Setup
-        voice_id = settings.get("voice_id", "alloy")
-        
         from backend.tools.worker_tools import WorkerTools
         worker_tools = WorkerTools(workspace_id=workspace_id, allowed_worker_types=settings.get("allowed_worker_types", []))
         agent_tools = AgentTools(workspace_id=workspace_id, communication_id=log_id, agent_id=agent_id, worker_tools=worker_tools)
@@ -156,35 +122,26 @@ async def entrypoint(ctx: JobContext):
 
         enabled_slugs = [s.slug for s in skills]
         mcp_tools, mcp_instances = await MCPLoaderService.load_mcp_servers(workspace_id, enabled_slugs)
-        if mcp_tools:
-            raw_tools.extend(mcp_tools)
+        if mcp_tools: raw_tools.extend(mcp_tools)
             
         allowed_tool_names = BrainService.get_allowed_tool_names(skills)
-        
-        all_tools = []
-        for tool in raw_tools:
-            tool_name = getattr(tool.info, "name", None) if hasattr(tool, "info") else getattr(tool, "name", None)
-            if tool_name and tool_name in allowed_tool_names:
-                all_tools.append(tool)
-            elif tool_name is None:
-                all_tools.append(tool)
+        all_tools = [t for t in raw_tools if (getattr(t.info if hasattr(t, "info") else t, "name", None) in allowed_tool_names) or not getattr(t.info if hasattr(t, "info") else t, "name", None)]
         
         from livekit.agents.voice import AgentSession, Agent as VoiceAgent
         session = AgentSession(
             vad=get_vad_model(),
             stt=VoicePipelineService.get_stt(workspace_id),
             llm=VoicePipelineService.get_llm(workspace_id, settings),
-            tts=VoicePipelineService.get_tts(workspace_id, voice_id, settings),
+            tts=VoicePipelineService.get_tts(workspace_id, settings.get("voice_id", "alloy"), settings),
             tools=all_tools
         )
         agent_tools.session = session
-        
         VoiceHandlers.register_session_events(session, ctx)
+        
         await session.start(VoiceAgent(instructions=prompt), room=ctx.room)
         await asyncio.sleep(0.5)
         session.say(settings.get("welcome_message", "Hello! How can I help you?"))
 
-        # 5. Wait & Cleanup
         shutdown_event = asyncio.Event()
         ctx.room.on("disconnected", lambda _: shutdown_event.set())
         await shutdown_event.wait()
@@ -200,7 +157,6 @@ if __name__ == "__main__":
     pm = ProcessManager(name="voice-agent", pid_file=os.path.join(_project_root, "voice_agent.pid"))
     pm.check_lock()
     pm.write_lock()
-    
     try:
         agent_name = os.getenv("LIVEKIT_AGENT_NAME", os.getenv("AGENT_NAME", "supaagent-voice-agent-v2"))
         cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm, agent_name=agent_name))

@@ -1,8 +1,8 @@
 import logging
 import json
 import asyncio
-import requests
 import os
+import telnyx
 from fastapi import APIRouter, Request, Response, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -18,21 +18,34 @@ async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
     """Standard Telnyx Call Control Webhook."""
     try:
         data = await request.json()
-        logger.info(f"TELNYX WEBHOOK RECEIVED: {json.dumps(data)}")
+        logger.info(f"TELNYX WEBHOOK: {json.dumps(data)}")
         payload = data.get("data", {}).get("payload", {})
         event_type = data.get("data", {}).get("event_type")
         call_id = payload.get("call_control_id")
         
-        to_number, from_number = payload.get("to"), payload.get("from")
-        phone = db.query(PhoneNumber).filter((PhoneNumber.phone_number == to_number) | (PhoneNumber.phone_number == from_number)).first()
+        to_number = payload.get("to")
+        phone = db.query(PhoneNumber).filter(PhoneNumber.phone_number == to_number).first()
         workspace_id = phone.workspace_id if phone else None
+        
+        # Robust Key Resolution
         telnyx_key = IntegrationService.get_provider_key(workspace_id=workspace_id, provider="telnyx", env_fallback="TELNYX_API_KEY")
+        if not telnyx_key:
+            logger.error(f"Critical: No Telnyx API Key found for workspace {workspace_id}")
+            return {"status": "error", "message": "Missing API Key"}
+
+        telnyx.api_key = telnyx_key
         
         if event_type == "call.initiated" and payload.get("direction") in ["inbound", "incoming"]:
-            requests.post(f"https://api.telnyx.com/v2/calls/{call_id}/actions/answer", headers={"Authorization": f"Bearer {telnyx_key}", "Content-Type": "application/json"}, json={})
+            # Use SDK for atomic Answer command
+            try:
+                call = telnyx.Call.retrieve(call_id)
+                call.answer()
+                logger.info(f"Answer command sent for call {call_id}")
+            except Exception as e:
+                logger.error(f"Failed to answer call {call_id}: {e}")
         
         elif event_type == "call.answered":
-            if str(payload.get("to", "")).startswith("sip:"): return {"status": "ok"}
+            if str(to_number).startswith("sip:"): return {"status": "ok"}
             
             from .utils import resolve_agent_from_phone_number
             agent = resolve_agent_from_phone_number(db, to_number, workspace_id)
@@ -40,25 +53,18 @@ async def telnyx_webhook(request: Request, db: Session = Depends(get_db)):
 
             comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first()
             if not comm:
-                p_rec = db.query(PhoneNumber).filter(PhoneNumber.phone_number == payload.get("to")).first()
-                call_direction = "inbound" if p_rec else "outbound"
-                workspace_id = p_rec.workspace_id if p_rec else workspace_id
-                if call_direction == "inbound":
-                    comm = Communication(
-                        id=generate_comm_id(), workspace_id=workspace_id, type="call", direction="inbound", 
-                        status="answered", telnyx_call_id=call_id, user_identifier=payload.get("from"), 
-                        started_at=datetime.utcnow(), agent_id=agent_id
-                    )
-                    db.add(comm)
+                comm = Communication(
+                    id=generate_comm_id(), workspace_id=workspace_id, type="call", direction="inbound", 
+                    status="answered", telnyx_call_id=call_id, user_identifier=payload.get("from"), 
+                    started_at=datetime.utcnow(), agent_id=agent_id
+                )
+                db.add(comm)
 
             if comm:
                 comm.status = "answered"
-                if not comm.agent_id and agent_id: comm.agent_id = agent_id
+                if agent_id: comm.agent_id = agent_id
                 db.commit()
-                logger.info(f"Call {call_id} answered. CommID={comm.id}, Agent={agent_id}")
-            
-            # NOTE: SIP routing is handled by LiveKit's native SIP trunk.
-            # Old Asterisk SIP transfer removed for consistency and room stability.
+                logger.info(f"Call {call_id} handled. Agent={agent_id}")
             
         elif event_type == "call.hangup":
             comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first()
@@ -85,7 +91,8 @@ async def texml_outbound(request: Request, db: Session = Depends(get_db)):
     try:
         form = await request.form()
         call_id, to_number = form.get("CallSid"), form.get("To")
-        comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first() or db.query(Communication).filter(Communication.user_identifier == to_number, Communication.direction == "outbound", Communication.status == "ongoing").order_by(Communication.started_at.desc()).first()
+        comm = db.query(Communication).filter(Communication.telnyx_call_id == call_id).first() or \
+               db.query(Communication).filter(Communication.user_identifier == to_number, Communication.direction == "outbound", Communication.status == "ongoing").order_by(Communication.started_at.desc()).first()
         if not comm: return Response(content='<Response><Say>No session.</Say></Response>', media_type="application/xml")
         from backend.routers.voice import outbound_twiml
         import urllib.parse
