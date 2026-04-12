@@ -17,8 +17,8 @@ def test_provisioning_flow():
     # From previous logs: workspace_id='WS_001', agent_id='supaagent-voice-agent-v2' (or similar ID)
     # Let's find the SupaAgent agent ID
     
-    workspace_id = "WS_001" 
-    agent_id = "supaagent-voice-agent-v2" # This name is often used as the ID/name mapping
+    workspace_id = "wrk_000V7dMzXJLzP5mYgdf7FzjA3J" 
+    agent_id = "agnt_000VCRiAVlsz2Q9PHK9bXvQ4DZ" # This name is often used as the ID/name mapping
     
     payload = {
         "workspace_id": workspace_id,
